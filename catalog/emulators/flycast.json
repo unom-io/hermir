@@ -41,5 +41,17 @@
       "{file}"
     ]
   },
+  "firmware": {
+    "dir": "data",
+    "platforms": {
+      "dc": {
+        "any_of": [
+          "dc_boot.bin",
+          "dc_flash.bin"
+        ],
+        "note": "optional; Flycast also runs without"
+      }
+    }
+  },
   "notes": "Where a Windows install keeps emu.cfg (beside the exe or under %APPDATA%) is verified when the adapter lands."
 }

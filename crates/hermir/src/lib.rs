@@ -281,6 +281,17 @@ impl EmulatorHandle<'_> {
         )
     }
 
+    /// Where this copy reads firmware, when the catalog knows.
+    pub fn firmware_dir(&self, install: &Install) -> Option<PathBuf> {
+        let fw = self.entry.firmware.as_ref()?;
+        let root = install.config_root.as_ref()?;
+        Some(if fw.dir == "." {
+            root.clone()
+        } else {
+            root.join(&fw.dir)
+        })
+    }
+
     /// The best copy on this machine: managed, else the first detected.
     pub fn best(&self) -> Result<Option<Install>> {
         Ok(self

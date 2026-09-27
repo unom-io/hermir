@@ -181,6 +181,13 @@ fn install_archive(
         None => {}
     }
     store.place(&entry.id, &fresh)?;
+    // The firmware folder exists from the start, so a consumer can be granted it before the
+    // emulator ever ran. After placing: the store moves files, not empty folders.
+    let app = store.app_dir(&entry.id);
+    if let (Some(fw), Some(root)) = (&entry.firmware, portable_root(entry, &app)) {
+        let p = root.join(&fw.dir);
+        std::fs::create_dir_all(&p).map_err(|e| Error::io("create", &p, e))?;
+    }
     progress.on(Event::Placed);
     Ok(Installed {
         emulator: entry.id.clone(),
@@ -212,6 +219,18 @@ pub fn remove(
 /// `true` when the channel points somewhere else than what is installed.
 pub fn update_available(row: &Installed, resolved: &Resolved) -> bool {
     row.channel != "flatpak" && row.release.as_deref() != Some(resolved.release.as_str())
+}
+
+/// `roots.portable` with `<app>` resolved to the extracted tree, when the entry has one.
+fn portable_root(entry: &Entry, app: &Path) -> Option<std::path::PathBuf> {
+    let template = entry.roots.portable.as_deref()?;
+    let rest = template.strip_prefix("<app>")?;
+    let rest = rest.trim_start_matches(['/', '\\']);
+    Some(if rest.is_empty() {
+        app.to_path_buf()
+    } else {
+        app.join(rest)
+    })
 }
 
 fn safe(s: &str) -> String {
@@ -302,6 +321,10 @@ mod tests {
         let app = store.app_dir("duckstation");
         assert!(app.join("duckstation-qt-x64-ReleaseLTCG.exe").is_file());
         assert!(app.join("portable.txt").is_file(), "portable marker");
+        assert!(
+            app.join("bios").is_dir(),
+            "firmware folder from the catalog"
+        );
         assert_eq!(
             row.exe,
             Exe::Path(app.join("duckstation-qt-x64-ReleaseLTCG.exe"))

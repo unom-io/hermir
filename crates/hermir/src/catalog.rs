@@ -192,6 +192,16 @@ impl Catalog {
                     format!("{p} emulators carry no install channel"),
                 ));
             }
+            if let Some(fw) = &e.firmware {
+                for p in fw.platforms.keys() {
+                    if !e.platforms.contains(p) {
+                        return Err(bad(
+                            &e.id,
+                            format!("firmware for {p}, a platform it does not play"),
+                        ));
+                    }
+                }
+            }
             if e.no_install.is_some() && has_channel {
                 return Err(bad(
                     &e.id,

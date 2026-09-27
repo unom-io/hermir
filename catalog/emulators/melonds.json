@@ -46,5 +46,18 @@
       "{file}"
     ]
   },
+  "firmware": {
+    "dir": ".",
+    "platforms": {
+      "nds": {
+        "any_of": [
+          "bios7.bin",
+          "bios9.bin",
+          "firmware.bin"
+        ],
+        "note": "optional; melonDS also runs without"
+      }
+    }
+  },
   "notes": "1.x writes melonDS.toml; earlier versions wrote melonDS.ini."
 }

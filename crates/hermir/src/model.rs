@@ -111,8 +111,33 @@ pub struct Entry {
     #[serde(default)]
     pub roots: Roots,
     pub launch: Launch,
+    /// Where the emulator reads firmware, and what each platform needs there. The folder is
+    /// created at install, so a consumer can be granted exactly that one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub firmware: Option<Firmware>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+/// Firmware the emulator reads from one folder under its config root.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Firmware {
+    /// Relative to the config root: `bios`, `system`, `data`, or `.` for the root itself.
+    pub dir: String,
+    /// Per platform id: what satisfies it.
+    #[serde(default)]
+    pub platforms: BTreeMap<String, FirmwareNeed>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FirmwareNeed {
+    /// File name patterns (`*.bin`, `scph*.bin`); one match is enough.
+    pub any_of: Vec<String>,
+    /// Where the files come from, in a phrase a UI can show.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 /// One way to obtain the emulator on one OS.

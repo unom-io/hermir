@@ -161,6 +161,51 @@
       },
       "type": "object"
     },
+    "Firmware": {
+      "additionalProperties": false,
+      "description": "Firmware the emulator reads from one folder under its config root.",
+      "properties": {
+        "dir": {
+          "description": "Relative to the config root: `bios`, `system`, `data`, or `.` for the root itself.",
+          "type": "string"
+        },
+        "platforms": {
+          "additionalProperties": {
+            "$ref": "#/$defs/FirmwareNeed"
+          },
+          "default": {},
+          "description": "Per platform id: what satisfies it.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "dir"
+      ],
+      "type": "object"
+    },
+    "FirmwareNeed": {
+      "additionalProperties": false,
+      "properties": {
+        "any_of": {
+          "description": "File name patterns (`*.bin`, `scph*.bin`); one match is enough.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "note": {
+          "description": "Where the files come from, in a phrase a UI can show.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "any_of"
+      ],
+      "type": "object"
+    },
     "Launch": {
       "additionalProperties": false,
       "description": "The argv template after the exe. `{file}` is the game, `{fullscreen:-f}` expands to `-f`\nwhen fullscreen is asked for. Rendered in P1; carried as data now.",
@@ -323,6 +368,17 @@
       "$ref": "#/$defs/PerOs2",
       "default": {},
       "description": "How to find a copy the user installed, per OS."
+    },
+    "firmware": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Firmware"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Where the emulator reads firmware, and what each platform needs there. The folder is\ncreated at install, so a consumer can be granted exactly that one."
     },
     "id": {
       "description": "Lowercase, `[a-z0-9-]`, equal to the file name.",

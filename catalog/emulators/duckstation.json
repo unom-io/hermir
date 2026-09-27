@@ -49,5 +49,17 @@
       "{file}"
     ]
   },
+  "firmware": {
+    "dir": "bios",
+    "platforms": {
+      "psx": {
+        "any_of": [
+          "scph*.bin",
+          "*.bin"
+        ],
+        "note": "a dumped PlayStation BIOS"
+      }
+    }
+  },
   "notes": "The licence forbids modification and redistribution: hermir installs the official build unchanged and writes none of its config."
 }

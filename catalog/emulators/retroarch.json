@@ -81,5 +81,64 @@
       "{file}"
     ]
   },
+  "firmware": {
+    "dir": "system",
+    "platforms": {
+      "psx": {
+        "any_of": [
+          "scph*.bin"
+        ],
+        "note": "a dumped PlayStation BIOS"
+      },
+      "saturn": {
+        "any_of": [
+          "sega_101.bin",
+          "mpr-17933.bin"
+        ]
+      },
+      "segacd": {
+        "any_of": [
+          "bios_CD_*.bin"
+        ]
+      },
+      "nds": {
+        "any_of": [
+          "bios7.bin",
+          "bios9.bin",
+          "firmware.bin"
+        ],
+        "note": "optional"
+      },
+      "gba": {
+        "any_of": [
+          "gba_bios.bin"
+        ],
+        "note": "optional"
+      },
+      "tg16": {
+        "any_of": [
+          "syscard3.pce"
+        ],
+        "note": "for CD games"
+      },
+      "3do": {
+        "any_of": [
+          "panafz10.bin"
+        ]
+      },
+      "lynx": {
+        "any_of": [
+          "lynxboot.img"
+        ]
+      },
+      "dc": {
+        "any_of": [
+          "dc/dc_boot.bin",
+          "dc/dc_flash.bin"
+        ],
+        "note": "optional"
+      }
+    }
+  },
   "notes": "Cores come from the buildbot through `hermir core install <core>`; the Windows 7z is portable as shipped."
 }

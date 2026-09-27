@@ -56,5 +56,16 @@
       "--",
       "{file}"
     ]
+  },
+  "firmware": {
+    "dir": "bios",
+    "platforms": {
+      "ps2": {
+        "any_of": [
+          "*.bin"
+        ],
+        "note": "a dumped PlayStation 2 BIOS"
+      }
+    }
   }
 }
