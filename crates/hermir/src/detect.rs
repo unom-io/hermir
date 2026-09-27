@@ -31,7 +31,9 @@ impl Env for RealEnv {
         self.os
     }
     fn home(&self) -> Option<PathBuf> {
-        dirs::home_dir()
+        std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(PathBuf::from)
     }
     fn var(&self, name: &str) -> Option<String> {
         std::env::var(name).ok()

@@ -47,9 +47,15 @@ impl Store {
 
     /// `~/.local/share/hermir`, `%LOCALAPPDATA%\hermir`, `~/Library/Application Support/hermir`.
     pub fn default_root() -> PathBuf {
-        dirs::data_local_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("hermir")
+        let var = |name: &str| std::env::var_os(name).map(PathBuf::from);
+        let base = if cfg!(windows) {
+            var("LOCALAPPDATA")
+        } else if cfg!(target_os = "macos") {
+            var("HOME").map(|h| h.join("Library/Application Support"))
+        } else {
+            var("XDG_DATA_HOME").or_else(|| var("HOME").map(|h| h.join(".local/share")))
+        };
+        base.unwrap_or_else(|| PathBuf::from(".")).join("hermir")
     }
 
     pub fn root(&self) -> &Path {
