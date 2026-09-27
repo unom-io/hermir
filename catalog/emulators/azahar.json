@@ -1,0 +1,56 @@
+{
+  "id": "azahar",
+  "name": "Azahar",
+  "platforms": [
+    "3ds"
+  ],
+  "license": "GPL-2.0-or-later",
+  "channels": {
+    "linux": {
+      "flatpak": "org.azahar_emu.Azahar"
+    },
+    "windows": {
+      "github": "azahar-emu/azahar",
+      "asset": {
+        "all": [
+          "windows-msvc",
+          ".zip"
+        ],
+        "none": [
+          "installer",
+          "libretro"
+        ]
+      },
+      "exe": "azahar.exe",
+      "portable": {
+        "dir": "user"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "azahar"
+      ],
+      "flatpak": "org.azahar_emu.Azahar"
+    },
+    "windows": {
+      "paths": [
+        "%LOCALAPPDATA%\\Azahar\\azahar.exe"
+      ],
+      "portable_marker": "user"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/org.azahar_emu.Azahar/config/azahar-emu",
+    "native": "~/.config/azahar-emu",
+    "portable": "<app>/user",
+    "windows": "%APPDATA%\\Azahar"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-f}",
+      "{file}"
+    ]
+  }
+}

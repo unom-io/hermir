@@ -1,0 +1,52 @@
+{
+  "id": "dosbox-staging",
+  "name": "DOSBox Staging",
+  "platforms": [
+    "dos"
+  ],
+  "license": "GPL-2.0-or-later",
+  "channels": {
+    "linux": {
+      "flatpak": "io.github.dosbox-staging"
+    },
+    "windows": {
+      "github": "dosbox-staging/dosbox-staging",
+      "asset": {
+        "all": [
+          "windows-x64",
+          ".zip"
+        ],
+        "none": [
+          "setup"
+        ]
+      },
+      "exe": "dosbox.exe"
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "dosbox-staging",
+        "dosbox"
+      ],
+      "flatpak": "io.github.dosbox-staging"
+    },
+    "windows": {
+      "paths": [
+        "%ProgramFiles%\\dosbox-staging\\dosbox.exe"
+      ]
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/io.github.dosbox-staging/config/dosbox",
+    "native": "~/.config/dosbox",
+    "portable": "<app>",
+    "windows": "%LOCALAPPDATA%\\DOSBox"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-fullscreen}",
+      "{file}"
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "id": "pcsx2",
+  "name": "PCSX2",
+  "platforms": [
+    "ps2"
+  ],
+  "license": "GPL-3.0-or-later",
+  "channels": {
+    "linux": {
+      "flatpak": "net.pcsx2.PCSX2"
+    },
+    "windows": {
+      "github": "PCSX2/pcsx2",
+      "asset": {
+        "all": [
+          "windows-x64-Qt",
+          ".7z"
+        ],
+        "none": [
+          "symbols"
+        ]
+      },
+      "exe": "pcsx2-qt.exe",
+      "portable": {
+        "file": "portable.ini"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "pcsx2-qt",
+        "pcsx2"
+      ],
+      "flatpak": "net.pcsx2.PCSX2"
+    },
+    "windows": {
+      "paths": [
+        "%ProgramFiles%\\PCSX2\\pcsx2-qt.exe",
+        "%ProgramFiles(x86)%\\PCSX2\\pcsx2-qt.exe"
+      ],
+      "portable_marker": "portable.ini"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/net.pcsx2.PCSX2/config/PCSX2",
+    "native": "~/.config/PCSX2",
+    "portable": "<app>",
+    "windows": "%USERPROFILE%\\Documents\\PCSX2"
+  },
+  "launch": {
+    "args": [
+      "-batch",
+      "-nogui",
+      "{fullscreen:-fullscreen}",
+      "--",
+      "{file}"
+    ]
+  }
+}

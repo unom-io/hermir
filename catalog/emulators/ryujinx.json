@@ -1,0 +1,39 @@
+{
+  "id": "ryujinx",
+  "name": "Ryujinx",
+  "platforms": [
+    "switch"
+  ],
+  "license": "MIT",
+  "no_install": "Switch emulators are never installed by hermir. A copy you installed is detected and configured like any other.",
+  "detect": {
+    "linux": {
+      "path": [
+        "Ryujinx",
+        "ryujinx"
+      ],
+      "flatpak": "org.ryujinx.Ryujinx"
+    },
+    "windows": {
+      "paths": [
+        "%APPDATA%\\Ryujinx\\Ryujinx.exe",
+        "%USERPROFILE%\\Ryujinx\\Ryujinx.exe",
+        "C:\\Ryujinx\\Ryujinx.exe"
+      ],
+      "portable_marker": "portable"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/org.ryujinx.Ryujinx/config/Ryujinx",
+    "native": "~/.config/Ryujinx",
+    "portable": "<app>/portable",
+    "windows": "%APPDATA%\\Ryujinx"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:--fullscreen}",
+      "{file}"
+    ]
+  },
+  "notes": "The Ryubing fork keeps the Ryujinx binary and folder names."
+}

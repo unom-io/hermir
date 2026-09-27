@@ -1,0 +1,54 @@
+{
+  "id": "ppsspp",
+  "name": "PPSSPP",
+  "platforms": [
+    "psp"
+  ],
+  "license": "GPL-2.0-or-later",
+  "channels": {
+    "linux": {
+      "flatpak": "org.ppsspp.PPSSPP"
+    },
+    "windows": {
+      "github": "hrydgard/ppsspp",
+      "asset": {
+        "all": [
+          "windows-x64",
+          ".zip"
+        ]
+      },
+      "exe": "PPSSPPWindows64.exe",
+      "portable": {
+        "dir": "memstick"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "ppsspp",
+        "PPSSPPSDL",
+        "PPSSPPQt"
+      ],
+      "flatpak": "org.ppsspp.PPSSPP"
+    },
+    "windows": {
+      "paths": [
+        "%ProgramFiles%\\PPSSPP\\PPSSPPWindows64.exe"
+      ],
+      "portable_marker": "memstick"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/org.ppsspp.PPSSPP/config/ppsspp",
+    "native": "~/.config/ppsspp",
+    "portable": "<app>/memstick",
+    "windows": "%USERPROFILE%\\Documents\\PPSSPP"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:--fullscreen}",
+      "{file}"
+    ]
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "id": "retroarch",
+  "name": "RetroArch",
+  "platforms": [
+    "nes",
+    "fds",
+    "snes",
+    "n64",
+    "gb",
+    "gbc",
+    "gba",
+    "nds",
+    "psx",
+    "psp",
+    "genesis",
+    "sms",
+    "gamegear",
+    "segacd",
+    "sega32x",
+    "saturn",
+    "dc",
+    "tg16",
+    "ngp",
+    "wonderswan",
+    "lynx",
+    "atari2600",
+    "atari7800",
+    "jaguar",
+    "3do",
+    "arcade",
+    "c64",
+    "amiga",
+    "msx",
+    "zxspectrum",
+    "dos",
+    "virtualboy",
+    "vectrex",
+    "colecovision",
+    "ngc",
+    "wii",
+    "scummvm"
+  ],
+  "license": "GPL-3.0-or-later",
+  "channels": {
+    "linux": {
+      "flatpak": "org.libretro.RetroArch"
+    },
+    "windows": {
+      "url": "https://buildbot.libretro.com/stable/1.22.2/windows/x86_64/RetroArch.7z",
+      "version": "1.22.2",
+      "exe": "retroarch.exe"
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "retroarch"
+      ],
+      "flatpak": "org.libretro.RetroArch"
+    },
+    "windows": {
+      "paths": [
+        "%APPDATA%\\RetroArch\\retroarch.exe",
+        "C:\\RetroArch-Win64\\retroarch.exe",
+        "C:\\RetroArch\\retroarch.exe"
+      ],
+      "portable_marker": "retroarch.cfg"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/org.libretro.RetroArch/config/retroarch",
+    "native": "~/.config/retroarch",
+    "portable": "<app>",
+    "windows": "%APPDATA%\\RetroArch"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-f}",
+      "-L",
+      "{core}",
+      "{file}"
+    ]
+  },
+  "notes": "Cores come from the buildbot through `hermir core install <core>`; the Windows 7z is portable as shipped."
+}

@@ -1,0 +1,45 @@
+{
+  "id": "flycast",
+  "name": "Flycast",
+  "platforms": [
+    "dc"
+  ],
+  "license": "GPL-2.0-or-later",
+  "channels": {
+    "linux": {
+      "flatpak": "org.flycast.Flycast"
+    },
+    "windows": {
+      "github": "flyinghead/flycast",
+      "asset": {
+        "all": [
+          "win64",
+          ".zip"
+        ]
+      },
+      "exe": "flycast.exe"
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "flycast"
+      ],
+      "flatpak": "org.flycast.Flycast"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/org.flycast.Flycast/config/flycast",
+    "native": "~/.config/flycast",
+    "portable": "<app>",
+    "windows": "%APPDATA%\\flycast"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-config}",
+      "{fullscreen:window:fullscreen=yes}",
+      "{file}"
+    ]
+  },
+  "notes": "Where a Windows install keeps emu.cfg (beside the exe or under %APPDATA%) is verified when the adapter lands."
+}

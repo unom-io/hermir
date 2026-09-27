@@ -1,0 +1,760 @@
+[
+  {
+    "id": "nes",
+    "name": "Nintendo Entertainment System",
+    "aliases": {
+      "romm": "nes",
+      "esde": "nes",
+      "libretro": "Nintendo - Nintendo Entertainment System"
+    },
+    "extensions": [
+      ".nes",
+      ".unf",
+      ".unif"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "fds",
+    "name": "Famicom Disk System",
+    "aliases": {
+      "romm": "fds",
+      "esde": "fds",
+      "libretro": "Nintendo - Family Computer Disk System"
+    },
+    "extensions": [
+      ".fds"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "snes",
+    "name": "Super Nintendo",
+    "aliases": {
+      "romm": "snes",
+      "esde": "snes",
+      "libretro": "Nintendo - Super Nintendo Entertainment System"
+    },
+    "extensions": [
+      ".sfc",
+      ".smc"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "n64",
+    "name": "Nintendo 64",
+    "aliases": {
+      "romm": "n64",
+      "esde": "n64",
+      "libretro": "Nintendo - Nintendo 64"
+    },
+    "extensions": [
+      ".z64",
+      ".n64",
+      ".v64"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "ngc",
+    "name": "GameCube",
+    "aliases": {
+      "romm": "ngc",
+      "esde": "gc",
+      "libretro": "Nintendo - GameCube"
+    },
+    "extensions": [
+      ".iso",
+      ".gcm",
+      ".gcz",
+      ".rvz",
+      ".ciso"
+    ],
+    "emulators": [
+      "dolphin",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "wii",
+    "name": "Wii",
+    "aliases": {
+      "romm": "wii",
+      "esde": "wii",
+      "libretro": "Nintendo - Wii"
+    },
+    "extensions": [
+      ".iso",
+      ".wbfs",
+      ".rvz",
+      ".wad"
+    ],
+    "emulators": [
+      "dolphin",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "wiiu",
+    "name": "Wii U",
+    "aliases": {
+      "romm": "wiiu",
+      "esde": "wiiu",
+      "libretro": "Nintendo - Wii U"
+    },
+    "extensions": [
+      ".wud",
+      ".wux",
+      ".rpx",
+      ".wua"
+    ],
+    "emulators": [
+      "cemu"
+    ]
+  },
+  {
+    "id": "switch",
+    "name": "Nintendo Switch",
+    "aliases": {
+      "romm": "switch",
+      "esde": "switch"
+    },
+    "extensions": [
+      ".nsp",
+      ".xci",
+      ".nca",
+      ".nro"
+    ],
+    "emulators": [
+      "ryujinx",
+      "eden"
+    ]
+  },
+  {
+    "id": "gb",
+    "name": "Game Boy",
+    "aliases": {
+      "romm": "gb",
+      "esde": "gb",
+      "libretro": "Nintendo - Game Boy"
+    },
+    "extensions": [
+      ".gb"
+    ],
+    "emulators": [
+      "mgba",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "gbc",
+    "name": "Game Boy Color",
+    "aliases": {
+      "romm": "gbc",
+      "esde": "gbc",
+      "libretro": "Nintendo - Game Boy Color"
+    },
+    "extensions": [
+      ".gbc"
+    ],
+    "emulators": [
+      "mgba",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "gba",
+    "name": "Game Boy Advance",
+    "aliases": {
+      "romm": "gba",
+      "esde": "gba",
+      "libretro": "Nintendo - Game Boy Advance"
+    },
+    "extensions": [
+      ".gba"
+    ],
+    "emulators": [
+      "mgba",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "nds",
+    "name": "Nintendo DS",
+    "aliases": {
+      "romm": "nds",
+      "esde": "nds",
+      "libretro": "Nintendo - Nintendo DS"
+    },
+    "extensions": [
+      ".nds"
+    ],
+    "emulators": [
+      "melonds",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "3ds",
+    "name": "Nintendo 3DS",
+    "aliases": {
+      "romm": "3ds",
+      "esde": "n3ds",
+      "libretro": "Nintendo - Nintendo 3DS"
+    },
+    "extensions": [
+      ".3ds",
+      ".cci",
+      ".cxi",
+      ".cia"
+    ],
+    "emulators": [
+      "azahar"
+    ]
+  },
+  {
+    "id": "virtualboy",
+    "name": "Virtual Boy",
+    "aliases": {
+      "romm": "virtualboy",
+      "esde": "virtualboy",
+      "libretro": "Nintendo - Virtual Boy"
+    },
+    "extensions": [
+      ".vb",
+      ".vboy"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "psx",
+    "name": "PlayStation",
+    "aliases": {
+      "romm": "psx",
+      "esde": "psx",
+      "libretro": "Sony - PlayStation"
+    },
+    "extensions": [
+      ".cue",
+      ".chd",
+      ".pbp",
+      ".m3u",
+      ".bin",
+      ".img"
+    ],
+    "emulators": [
+      "duckstation",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "ps2",
+    "name": "PlayStation 2",
+    "aliases": {
+      "romm": "ps2",
+      "esde": "ps2",
+      "libretro": "Sony - PlayStation 2"
+    },
+    "extensions": [
+      ".iso",
+      ".chd",
+      ".cso",
+      ".zso",
+      ".gz",
+      ".bin"
+    ],
+    "emulators": [
+      "pcsx2"
+    ]
+  },
+  {
+    "id": "ps3",
+    "name": "PlayStation 3",
+    "aliases": {
+      "romm": "ps3",
+      "esde": "ps3",
+      "libretro": "Sony - PlayStation 3"
+    },
+    "extensions": [
+      ".iso",
+      ".pkg",
+      ".bin"
+    ],
+    "emulators": [
+      "rpcs3"
+    ]
+  },
+  {
+    "id": "psp",
+    "name": "PlayStation Portable",
+    "aliases": {
+      "romm": "psp",
+      "esde": "psp",
+      "libretro": "Sony - PlayStation Portable"
+    },
+    "extensions": [
+      ".iso",
+      ".cso",
+      ".chd",
+      ".pbp"
+    ],
+    "emulators": [
+      "ppsspp",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "psvita",
+    "name": "PlayStation Vita",
+    "aliases": {
+      "romm": "psvita",
+      "esde": "psvita",
+      "libretro": "Sony - PlayStation Vita"
+    },
+    "extensions": [
+      ".vpk",
+      ".zip"
+    ],
+    "emulators": [
+      "vita3k"
+    ]
+  },
+  {
+    "id": "genesis",
+    "name": "Mega Drive / Genesis",
+    "aliases": {
+      "romm": "genesis",
+      "esde": "megadrive",
+      "libretro": "Sega - Mega Drive - Genesis"
+    },
+    "extensions": [
+      ".md",
+      ".gen",
+      ".bin",
+      ".smd"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "sms",
+    "name": "Master System",
+    "aliases": {
+      "romm": "sms",
+      "esde": "mastersystem",
+      "libretro": "Sega - Master System - Mark III"
+    },
+    "extensions": [
+      ".sms"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "gamegear",
+    "name": "Game Gear",
+    "aliases": {
+      "romm": "gamegear",
+      "esde": "gamegear",
+      "libretro": "Sega - Game Gear"
+    },
+    "extensions": [
+      ".gg"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "segacd",
+    "name": "Sega CD",
+    "aliases": {
+      "romm": "segacd",
+      "esde": "segacd",
+      "libretro": "Sega - Mega-CD - Sega CD"
+    },
+    "extensions": [
+      ".cue",
+      ".chd",
+      ".iso"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "sega32x",
+    "name": "Sega 32X",
+    "aliases": {
+      "romm": "sega32",
+      "esde": "sega32x",
+      "libretro": "Sega - 32X"
+    },
+    "extensions": [
+      ".32x"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "saturn",
+    "name": "Saturn",
+    "aliases": {
+      "romm": "saturn",
+      "esde": "saturn",
+      "libretro": "Sega - Saturn"
+    },
+    "extensions": [
+      ".cue",
+      ".chd",
+      ".iso"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "dc",
+    "name": "Dreamcast",
+    "aliases": {
+      "romm": "dc",
+      "esde": "dreamcast",
+      "libretro": "Sega - Dreamcast"
+    },
+    "extensions": [
+      ".gdi",
+      ".cdi",
+      ".chd",
+      ".cue"
+    ],
+    "emulators": [
+      "flycast",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "xbox",
+    "name": "Xbox",
+    "aliases": {
+      "romm": "xbox",
+      "esde": "xbox",
+      "libretro": "Microsoft - Xbox"
+    },
+    "extensions": [
+      ".iso",
+      ".xiso"
+    ],
+    "emulators": [
+      "xemu"
+    ]
+  },
+  {
+    "id": "xbox360",
+    "name": "Xbox 360",
+    "aliases": {
+      "romm": "xbox360",
+      "esde": "xbox360",
+      "libretro": "Microsoft - Xbox 360"
+    },
+    "extensions": [
+      ".iso",
+      ".xex",
+      ".zar"
+    ],
+    "emulators": [
+      "xenia-canary"
+    ]
+  },
+  {
+    "id": "tg16",
+    "name": "TurboGrafx-16 / PC Engine",
+    "aliases": {
+      "romm": "tg16",
+      "esde": "pcengine",
+      "libretro": "NEC - PC Engine - TurboGrafx 16"
+    },
+    "extensions": [
+      ".pce",
+      ".cue",
+      ".chd"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "ngp",
+    "name": "Neo Geo Pocket",
+    "aliases": {
+      "romm": "neo-geo-pocket",
+      "esde": "ngp",
+      "libretro": "SNK - Neo Geo Pocket"
+    },
+    "extensions": [
+      ".ngp",
+      ".ngc"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "wonderswan",
+    "name": "WonderSwan",
+    "aliases": {
+      "romm": "wonderswan",
+      "esde": "wonderswan",
+      "libretro": "Bandai - WonderSwan"
+    },
+    "extensions": [
+      ".ws",
+      ".wsc"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "lynx",
+    "name": "Atari Lynx",
+    "aliases": {
+      "romm": "lynx",
+      "esde": "atarilynx",
+      "libretro": "Atari - Lynx"
+    },
+    "extensions": [
+      ".lnx"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "atari2600",
+    "name": "Atari 2600",
+    "aliases": {
+      "romm": "atari2600",
+      "esde": "atari2600",
+      "libretro": "Atari - 2600"
+    },
+    "extensions": [
+      ".a26"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "atari7800",
+    "name": "Atari 7800",
+    "aliases": {
+      "romm": "atari7800",
+      "esde": "atari7800",
+      "libretro": "Atari - 7800"
+    },
+    "extensions": [
+      ".a78"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "jaguar",
+    "name": "Atari Jaguar",
+    "aliases": {
+      "romm": "jaguar",
+      "esde": "atarijaguar",
+      "libretro": "Atari - Jaguar"
+    },
+    "extensions": [
+      ".j64",
+      ".jag"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "3do",
+    "name": "3DO",
+    "aliases": {
+      "romm": "3do",
+      "esde": "3do",
+      "libretro": "The 3DO Company - 3DO"
+    },
+    "extensions": [
+      ".cue",
+      ".chd",
+      ".iso"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "arcade",
+    "name": "Arcade",
+    "aliases": {
+      "romm": "arcade",
+      "esde": "arcade",
+      "libretro": "FBNeo - Arcade Games"
+    },
+    "extensions": [
+      ".zip"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "c64",
+    "name": "Commodore 64",
+    "aliases": {
+      "romm": "c64",
+      "esde": "c64",
+      "libretro": "Commodore - 64"
+    },
+    "extensions": [
+      ".d64",
+      ".t64",
+      ".prg",
+      ".crt"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "amiga",
+    "name": "Amiga",
+    "aliases": {
+      "romm": "amiga",
+      "esde": "amiga",
+      "libretro": "Commodore - Amiga"
+    },
+    "extensions": [
+      ".adf",
+      ".hdf",
+      ".lha"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "msx",
+    "name": "MSX",
+    "aliases": {
+      "romm": "msx",
+      "esde": "msx",
+      "libretro": "Microsoft - MSX"
+    },
+    "extensions": [
+      ".rom",
+      ".dsk",
+      ".cas"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "zxspectrum",
+    "name": "ZX Spectrum",
+    "aliases": {
+      "romm": "zxs",
+      "esde": "zxspectrum",
+      "libretro": "Sinclair - ZX Spectrum"
+    },
+    "extensions": [
+      ".tzx",
+      ".tap",
+      ".z80",
+      ".sna"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "colecovision",
+    "name": "ColecoVision",
+    "aliases": {
+      "romm": "colecovision",
+      "esde": "colecovision",
+      "libretro": "Coleco - ColecoVision"
+    },
+    "extensions": [
+      ".col",
+      ".rom"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "vectrex",
+    "name": "Vectrex",
+    "aliases": {
+      "romm": "vectrex",
+      "esde": "vectrex",
+      "libretro": "GCE - Vectrex"
+    },
+    "extensions": [
+      ".vec",
+      ".bin"
+    ],
+    "emulators": [
+      "retroarch"
+    ]
+  },
+  {
+    "id": "dos",
+    "name": "DOS",
+    "aliases": {
+      "romm": "dos",
+      "esde": "dos",
+      "libretro": "DOS"
+    },
+    "extensions": [
+      ".exe",
+      ".com",
+      ".bat",
+      ".conf"
+    ],
+    "emulators": [
+      "dosbox-staging",
+      "retroarch"
+    ]
+  },
+  {
+    "id": "scummvm",
+    "name": "ScummVM",
+    "aliases": {
+      "esde": "scummvm",
+      "libretro": "ScummVM"
+    },
+    "extensions": [
+      ".scummvm"
+    ],
+    "emulators": [
+      "scummvm",
+      "retroarch"
+    ]
+  }
+]

@@ -1,0 +1,50 @@
+{
+  "id": "rpcs3",
+  "name": "RPCS3",
+  "platforms": [
+    "ps3"
+  ],
+  "license": "GPL-2.0-only",
+  "channels": {
+    "linux": {
+      "flatpak": "net.rpcs3.RPCS3"
+    },
+    "windows": {
+      "github": "RPCS3/rpcs3-binaries-win",
+      "asset": {
+        "all": [
+          "win64",
+          ".7z"
+        ]
+      },
+      "exe": "rpcs3.exe"
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "rpcs3"
+      ],
+      "flatpak": "net.rpcs3.RPCS3"
+    },
+    "windows": {
+      "paths": [
+        "%LOCALAPPDATA%\\RPCS3\\rpcs3.exe",
+        "C:\\RPCS3\\rpcs3.exe"
+      ]
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/net.rpcs3.RPCS3/config/rpcs3",
+    "native": "~/.config/rpcs3",
+    "portable": "<app>",
+    "windows": "<app>"
+  },
+  "launch": {
+    "args": [
+      "--no-gui",
+      "{file}"
+    ]
+  },
+  "notes": "Keeps config and dev_hdd0 beside the exe on Windows; firmware installs with `--installfw <PS3UPDAT.PUP>`."
+}

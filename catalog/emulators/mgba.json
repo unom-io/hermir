@@ -1,0 +1,58 @@
+{
+  "id": "mgba",
+  "name": "mGBA",
+  "platforms": [
+    "gba",
+    "gb",
+    "gbc"
+  ],
+  "license": "MPL-2.0",
+  "channels": {
+    "linux": {
+      "flatpak": "io.mgba.mGBA"
+    },
+    "windows": {
+      "github": "mgba-emu/mgba",
+      "asset": {
+        "all": [
+          "win64",
+          ".7z"
+        ],
+        "none": [
+          "installer"
+        ]
+      },
+      "exe": "mGBA.exe",
+      "portable": {
+        "file": "portable.ini"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "mgba-qt",
+        "mgba"
+      ],
+      "flatpak": "io.mgba.mGBA"
+    },
+    "windows": {
+      "paths": [
+        "%ProgramFiles%\\mGBA\\mGBA.exe"
+      ],
+      "portable_marker": "portable.ini"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/io.mgba.mGBA/config/mgba",
+    "native": "~/.config/mgba",
+    "portable": "<app>",
+    "windows": "%APPDATA%\\mGBA"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-f}",
+      "{file}"
+    ]
+  }
+}

@@ -221,9 +221,13 @@ uses `releases/latest/download/<asset>` when the name is fixed, and falls back t
 a 403; `url` takes a fixed URL plus a checksum URL (RetroArch's buildbot, ScummVM); `libretro-core`
 fetches `buildbot.libretro.com/nightly/<os>/x86_64/latest/<core>_libretro.<so|dll>.zip` into the
 cores dir — the URL RetroArch's own updater uses. Every download lands as `.part`, is verified,
-then extracted into `<prefix>/<id>/app/` with `data/` beside it; `installed.json` records id,
-version, channel, digest and time. Update installs beside and swaps; remove keeps `data/` unless
-purged. The whole store is idempotent and resumable.
+then extracted into `<prefix>/<id>/app/`, the emulator's home: a portable emulator keeps its
+config, saves and firmware beside its exe, so they live in there too. `<id>/manifest.json` lists
+what the release shipped (path → sha256) and is what makes the rest safe: an **update** replaces
+shipped files, keeps a shipped file the user modified (the new one lands beside it as `.new`),
+deletes unmodified files the new release dropped, and touches nothing else; a **remove** takes
+the unmodified shipped files away and leaves the data, unless purged. `installed.json` records
+id, version, channel, digest and time. The whole store is idempotent and resumable.
 
 **Policy lives here.** No Switch emulator has a channel. Every source is the emulator's own
 release channel. A catalog entry is a reviewed PR, and a weekly CI job dry-resolves every entry so

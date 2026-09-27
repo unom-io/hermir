@@ -1,0 +1,50 @@
+{
+  "id": "dolphin",
+  "name": "Dolphin",
+  "platforms": [
+    "ngc",
+    "wii"
+  ],
+  "license": "GPL-2.0-or-later",
+  "channels": {
+    "linux": {
+      "flatpak": "org.DolphinEmu.dolphin-emu"
+    },
+    "windows": {
+      "url": "https://dl.dolphin-emu.org/releases/2609/dolphin-2609-x64.7z",
+      "version": "2609",
+      "exe": "Dolphin.exe",
+      "portable": {
+        "file": "portable.txt"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "dolphin-emu"
+      ],
+      "flatpak": "org.DolphinEmu.dolphin-emu"
+    },
+    "windows": {
+      "paths": [
+        "%ProgramFiles%\\Dolphin-x64\\Dolphin.exe"
+      ],
+      "portable_marker": "portable.txt"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu",
+    "native": "~/.config/dolphin-emu",
+    "portable": "<app>/User",
+    "windows": "%USERPROFILE%\\Documents\\Dolphin Emulator"
+  },
+  "launch": {
+    "args": [
+      "-b",
+      "-e",
+      "{file}"
+    ]
+  },
+  "notes": "No GitHub releases; the URL is bumped by catalog PRs. `-u <dir>` selects a user directory for profiles."
+}

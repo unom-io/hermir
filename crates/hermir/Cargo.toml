@@ -1,0 +1,22 @@
+[package]
+name = "hermir"
+description = "One interface for managing emulators: install, detect, configure, launch"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+thiserror.workspace = true
+sha2 = "0.11"
+ureq = "3"
+zip = { version = "8", default-features = false, features = ["deflate", "bzip2", "zstd", "lzma"] }
+sevenz-rust2 = "0.23"
+dirs = "7"
+
+[dev-dependencies]
+tempfile = "3"

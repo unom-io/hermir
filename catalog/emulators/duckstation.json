@@ -1,0 +1,53 @@
+{
+  "id": "duckstation",
+  "name": "DuckStation",
+  "platforms": [
+    "psx"
+  ],
+  "license": "PolyForm-Strict-1.0.0",
+  "channels": {
+    "linux": {
+      "flatpak": "org.duckstation.DuckStation"
+    },
+    "windows": {
+      "github": "stenzek/duckstation",
+      "asset": {
+        "name": "duckstation-windows-x64-release.zip"
+      },
+      "exe": "duckstation-qt-x64-ReleaseLTCG.exe",
+      "portable": {
+        "file": "portable.txt"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "duckstation-qt",
+        "duckstation"
+      ],
+      "flatpak": "org.duckstation.DuckStation"
+    },
+    "windows": {
+      "paths": [
+        "%ProgramFiles%\\DuckStation\\duckstation-qt-x64-ReleaseLTCG.exe"
+      ],
+      "portable_marker": "portable.txt"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/org.duckstation.DuckStation/config/duckstation",
+    "native": "~/.local/share/duckstation",
+    "portable": "<app>",
+    "windows": "%USERPROFILE%\\Documents\\DuckStation"
+  },
+  "launch": {
+    "args": [
+      "-batch",
+      "{fullscreen:-fullscreen}",
+      "--",
+      "{file}"
+    ]
+  },
+  "notes": "The licence forbids modification and redistribution: hermir installs the official build unchanged and writes none of its config."
+}

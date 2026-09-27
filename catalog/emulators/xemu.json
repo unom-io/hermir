@@ -1,0 +1,47 @@
+{
+  "id": "xemu",
+  "name": "xemu",
+  "platforms": [
+    "xbox"
+  ],
+  "license": "GPL-2.0-or-later",
+  "channels": {
+    "linux": {
+      "flatpak": "app.xemu.xemu"
+    },
+    "windows": {
+      "github": "xemu-project/xemu",
+      "asset": {
+        "name": "xemu-win-x86_64-release.zip"
+      },
+      "exe": "xemu.exe"
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "xemu"
+      ],
+      "flatpak": "app.xemu.xemu"
+    },
+    "windows": {
+      "paths": [
+        "%ProgramFiles%\\xemu\\xemu.exe"
+      ]
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/app.xemu.xemu/data/xemu/xemu",
+    "native": "~/.local/share/xemu/xemu",
+    "portable": "<app>",
+    "windows": "%APPDATA%\\xemu\\xemu"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-full-screen}",
+      "-dvd_path",
+      "{file}"
+    ]
+  },
+  "notes": "Needs an MCPX ROM, a BIOS and an HDD image the user provides."
+}

@@ -1,0 +1,37 @@
+{
+  "id": "vita3k",
+  "name": "Vita3K",
+  "platforms": [
+    "psvita"
+  ],
+  "license": "GPL-2.0-or-later",
+  "channels": {
+    "windows": {
+      "github": "Vita3K/Vita3K",
+      "asset": {
+        "name": "windows-latest.zip"
+      },
+      "exe": "Vita3K.exe"
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "Vita3K"
+      ]
+    }
+  },
+  "roots": {
+    "native": "~/.local/share/Vita3K/Vita3K",
+    "portable": "<app>",
+    "windows": "%APPDATA%\\Vita3K\\Vita3K"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:--fullscreen}",
+      "-r",
+      "{file}"
+    ]
+  },
+  "notes": "Not on Flathub; the Linux AppImage channel is a later step."
+}

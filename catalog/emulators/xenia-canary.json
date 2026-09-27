@@ -1,0 +1,39 @@
+{
+  "id": "xenia-canary",
+  "name": "Xenia Canary",
+  "platforms": [
+    "xbox360"
+  ],
+  "license": "BSD-3-Clause",
+  "channels": {
+    "windows": {
+      "github": "xenia-canary/xenia-canary-releases",
+      "asset": {
+        "all": [
+          "xenia_canary_windows",
+          ".zip"
+        ]
+      },
+      "exe": "xenia_canary.exe",
+      "portable": {
+        "file": "portable.txt"
+      }
+    }
+  },
+  "detect": {
+    "windows": {
+      "portable_marker": "portable.txt"
+    }
+  },
+  "roots": {
+    "portable": "<app>",
+    "windows": "%USERPROFILE%\\Documents\\Xenia"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:--fullscreen=true}",
+      "{file}"
+    ]
+  },
+  "notes": "Windows only."
+}

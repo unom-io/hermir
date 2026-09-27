@@ -1,0 +1,29 @@
+{
+  "id": "eden",
+  "name": "Eden",
+  "platforms": [
+    "switch"
+  ],
+  "license": "GPL-3.0-or-later",
+  "no_install": "Switch emulators are never installed by hermir. A copy you installed is detected and configured like any other.",
+  "detect": {
+    "linux": {
+      "path": [
+        "eden"
+      ],
+      "flatpak": "dev.eden_emu.eden"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/dev.eden_emu.eden/config/eden",
+    "native": "~/.config/eden",
+    "windows": "%APPDATA%\\eden"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-f}",
+      "-g",
+      "{file}"
+    ]
+  }
+}

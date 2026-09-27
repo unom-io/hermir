@@ -1,0 +1,376 @@
+{
+  "$defs": {
+    "AssetFilter": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "all": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "none": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "all"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "Which release asset: a fixed name, or substrings that must all appear and none that may."
+    },
+    "Channel": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "description": "`flatpak install --user flathub <id>`.",
+          "properties": {
+            "flatpak": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "flatpak"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The latest GitHub release of `owner/repo`, one asset of it, extracted into the prefix.",
+          "properties": {
+            "asset": {
+              "$ref": "#/$defs/AssetFilter"
+            },
+            "exe": {
+              "description": "Path of the executable inside the extracted tree.",
+              "type": "string"
+            },
+            "github": {
+              "type": "string"
+            },
+            "portable": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Portable"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "github",
+            "asset",
+            "exe"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A fixed URL, for projects without GitHub releases. Bumped by catalog PRs.",
+          "properties": {
+            "exe": {
+              "type": "string"
+            },
+            "portable": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/Portable"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "sha256": {
+              "description": "Hex sha256 of the file when the project publishes one; otherwise hermir records the\ndigest it saw and says so.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "url": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url",
+            "version",
+            "exe"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "One way to obtain the emulator on one OS."
+    },
+    "Detect": {
+      "additionalProperties": false,
+      "description": "Detection rules for one OS. Every list is tried; every hit is an `Install`.",
+      "properties": {
+        "flatpak": {
+          "description": "A Flathub app id, looked for in the user and system installations.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "description": "Program names looked up on `PATH`.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "paths": {
+          "description": "Absolute paths of the executable, with `~`, `%VAR%` and `$VAR`.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "portable_marker": {
+          "description": "A file beside the exe that marks a portable install.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Launch": {
+      "additionalProperties": false,
+      "description": "The argv template after the exe. `{file}` is the game, `{fullscreen:-f}` expands to `-f`\nwhen fullscreen is asked for. Rendered in P1; carried as data now.",
+      "properties": {
+        "args": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "PerOs": {
+      "additionalProperties": false,
+      "description": "One slot per OS. A missing key is `None`: honest \"not offered here\".",
+      "properties": {
+        "linux": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Channel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "macos": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Channel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "windows": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Channel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "PerOs2": {
+      "additionalProperties": false,
+      "description": "One slot per OS. A missing key is `None`: honest \"not offered here\".",
+      "properties": {
+        "linux": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Detect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "macos": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Detect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "windows": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Detect"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Portable": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "file": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "dir": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "dir"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "What makes the emulator keep its files beside the exe: a marker file or a directory."
+    },
+    "Roots": {
+      "additionalProperties": false,
+      "description": "Config root per install kind.",
+      "properties": {
+        "flatpak": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "native": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "portable": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "windows": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A catalog entry: one emulator, as `catalog/emulators/<id>.json` spells it.",
+  "properties": {
+    "channels": {
+      "$ref": "#/$defs/PerOs",
+      "default": {},
+      "description": "Where to get it, per OS. Empty means detect-and-configure only."
+    },
+    "detect": {
+      "$ref": "#/$defs/PerOs2",
+      "default": {},
+      "description": "How to find a copy the user installed, per OS."
+    },
+    "id": {
+      "description": "Lowercase, `[a-z0-9-]`, equal to the file name.",
+      "type": "string"
+    },
+    "launch": {
+      "$ref": "#/$defs/Launch"
+    },
+    "license": {
+      "description": "SPDX expression of the emulator's own licence.",
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "no_install": {
+      "description": "Why this entry carries no install channel, when that is deliberate.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "notes": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "platforms": {
+      "description": "Platform ids from `catalog/platforms.json`.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "roots": {
+      "$ref": "#/$defs/Roots",
+      "default": {},
+      "description": "Where the emulator keeps its config and data, per install kind. `<app>` is the exe's\ndirectory, `~` the home, `%VAR%` and `$VAR` environment variables."
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "platforms",
+    "license",
+    "launch"
+  ],
+  "title": "Entry",
+  "type": "object"
+}

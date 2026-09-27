@@ -1,0 +1,50 @@
+{
+  "id": "melonds",
+  "name": "melonDS",
+  "platforms": [
+    "nds"
+  ],
+  "license": "GPL-3.0-or-later",
+  "channels": {
+    "linux": {
+      "flatpak": "net.kuribo64.melonDS"
+    },
+    "windows": {
+      "github": "melonDS-emu/melonDS",
+      "asset": {
+        "all": [
+          "windows-x86_64",
+          ".zip"
+        ]
+      },
+      "exe": "melonDS.exe",
+      "portable": {
+        "dir": "portable"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "melonDS"
+      ],
+      "flatpak": "net.kuribo64.melonDS"
+    },
+    "windows": {
+      "portable_marker": "portable"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/net.kuribo64.melonDS/config/melonDS",
+    "native": "~/.config/melonDS",
+    "portable": "<app>/portable",
+    "windows": "%APPDATA%\\melonDS"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-f}",
+      "{file}"
+    ]
+  },
+  "notes": "1.x writes melonDS.toml; earlier versions wrote melonDS.ini."
+}

@@ -1,0 +1,55 @@
+{
+  "id": "cemu",
+  "name": "Cemu",
+  "platforms": [
+    "wiiu"
+  ],
+  "license": "MPL-2.0",
+  "channels": {
+    "linux": {
+      "flatpak": "info.cemu.Cemu"
+    },
+    "windows": {
+      "github": "cemu-project/Cemu",
+      "asset": {
+        "all": [
+          "windows-x64",
+          ".zip"
+        ]
+      },
+      "exe": "Cemu.exe",
+      "portable": {
+        "dir": "portable"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "Cemu",
+        "cemu"
+      ],
+      "flatpak": "info.cemu.Cemu"
+    },
+    "windows": {
+      "paths": [
+        "C:\\Cemu\\Cemu.exe",
+        "%LOCALAPPDATA%\\Cemu\\Cemu.exe"
+      ],
+      "portable_marker": "portable"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/info.cemu.Cemu/config/Cemu",
+    "native": "~/.config/Cemu",
+    "portable": "<app>/portable",
+    "windows": "%APPDATA%\\Cemu"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-f}",
+      "-g",
+      "{file}"
+    ]
+  }
+}
