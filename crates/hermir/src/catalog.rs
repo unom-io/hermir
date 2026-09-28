@@ -10,68 +10,38 @@ use crate::model::{Entry, Os, Platform};
 /// `(id, json)` for every file under `catalog/emulators/`. A test checks the directory listing
 /// against this list, so a new file cannot be forgotten.
 const EMULATORS: &[(&str, &str)] = &[
-    (
-        "azahar",
-        include_str!("../../../catalog/emulators/azahar.json"),
-    ),
-    ("cemu", include_str!("../../../catalog/emulators/cemu.json")),
-    (
-        "dolphin",
-        include_str!("../../../catalog/emulators/dolphin.json"),
-    ),
+    ("azahar", include_str!("../catalog/emulators/azahar.json")),
+    ("cemu", include_str!("../catalog/emulators/cemu.json")),
+    ("dolphin", include_str!("../catalog/emulators/dolphin.json")),
     (
         "dosbox-staging",
-        include_str!("../../../catalog/emulators/dosbox-staging.json"),
+        include_str!("../catalog/emulators/dosbox-staging.json"),
     ),
     (
         "duckstation",
-        include_str!("../../../catalog/emulators/duckstation.json"),
+        include_str!("../catalog/emulators/duckstation.json"),
     ),
-    ("eden", include_str!("../../../catalog/emulators/eden.json")),
-    (
-        "flycast",
-        include_str!("../../../catalog/emulators/flycast.json"),
-    ),
-    (
-        "melonds",
-        include_str!("../../../catalog/emulators/melonds.json"),
-    ),
-    ("mgba", include_str!("../../../catalog/emulators/mgba.json")),
-    (
-        "pcsx2",
-        include_str!("../../../catalog/emulators/pcsx2.json"),
-    ),
-    (
-        "ppsspp",
-        include_str!("../../../catalog/emulators/ppsspp.json"),
-    ),
+    ("eden", include_str!("../catalog/emulators/eden.json")),
+    ("flycast", include_str!("../catalog/emulators/flycast.json")),
+    ("melonds", include_str!("../catalog/emulators/melonds.json")),
+    ("mgba", include_str!("../catalog/emulators/mgba.json")),
+    ("pcsx2", include_str!("../catalog/emulators/pcsx2.json")),
+    ("ppsspp", include_str!("../catalog/emulators/ppsspp.json")),
     (
         "retroarch",
-        include_str!("../../../catalog/emulators/retroarch.json"),
+        include_str!("../catalog/emulators/retroarch.json"),
     ),
-    (
-        "rpcs3",
-        include_str!("../../../catalog/emulators/rpcs3.json"),
-    ),
-    (
-        "ryujinx",
-        include_str!("../../../catalog/emulators/ryujinx.json"),
-    ),
-    (
-        "scummvm",
-        include_str!("../../../catalog/emulators/scummvm.json"),
-    ),
-    (
-        "vita3k",
-        include_str!("../../../catalog/emulators/vita3k.json"),
-    ),
-    ("xemu", include_str!("../../../catalog/emulators/xemu.json")),
+    ("rpcs3", include_str!("../catalog/emulators/rpcs3.json")),
+    ("ryujinx", include_str!("../catalog/emulators/ryujinx.json")),
+    ("scummvm", include_str!("../catalog/emulators/scummvm.json")),
+    ("vita3k", include_str!("../catalog/emulators/vita3k.json")),
+    ("xemu", include_str!("../catalog/emulators/xemu.json")),
     (
         "xenia-canary",
-        include_str!("../../../catalog/emulators/xenia-canary.json"),
+        include_str!("../catalog/emulators/xenia-canary.json"),
     ),
 ];
-const PLATFORMS: &str = include_str!("../../../catalog/platforms.json");
+const PLATFORMS: &str = include_str!("../catalog/platforms.json");
 
 /// Platforms whose emulators are never installed by hermir (D12).
 const NO_INSTALL_PLATFORMS: &[&str] = &["switch"];
@@ -250,7 +220,7 @@ mod tests {
 
     #[test]
     fn every_catalog_file_is_embedded() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../catalog/emulators");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("catalog/emulators");
         let mut on_disk: Vec<String> = std::fs::read_dir(&dir)
             .unwrap()
             .filter_map(|e| e.ok())
@@ -268,7 +238,7 @@ mod tests {
 
     #[test]
     fn from_dir_matches_embedded() {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../catalog");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("catalog");
         let c = Catalog::from_dir(&dir).unwrap();
         assert_eq!(
             c.entries().len(),
@@ -297,14 +267,13 @@ mod tests {
 
     #[test]
     fn schema_file_is_current() {
-        let path =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../catalog/schema/entry.schema.json");
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("catalog/schema/entry.schema.json");
         let on_disk: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(
             on_disk,
             Catalog::entry_schema(),
-            "regenerate with: hermir catalog schema > catalog/schema/entry.schema.json"
+            "regenerate with: hermir catalog schema > crates/hermir/catalog/schema/entry.schema.json"
         );
     }
 }
