@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Design — nothing implemented |
+| **Status** | P0 (*get*: install, detect, update, remove) implemented; P1–P4 designed (§10) |
 | **Date** | 2026-09-27 |
 | **Name** | Icelandic *hermir*: emulator, simulator; from *herma*, "to mimic". |
 | **One line** | One multi-platform interface for managing emulators: install them, find them, configure them (controllers, video, audio, paths), build their launch, know where their firmware and saves live. A Rust library, and a CLI that is the same thing for every other language. |
