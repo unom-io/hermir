@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use hermir::progress::{Event, Progress};
-use hermir::{Catalog, Hermir, Options, Os, Store};
+use hermir::{Catalog, Hermir, Options, Os};
 
 #[derive(Parser)]
 #[command(
@@ -47,6 +47,7 @@ enum Cmd {
     Install { emulator: String },
     /// Reinstall when the channel moved.
     Update {
+        #[arg(required_unless_present = "all", conflicts_with = "all")]
         emulator: Option<String>,
         #[arg(long)]
         all: bool,
@@ -84,6 +85,7 @@ enum CatalogCmd {
 
 #[derive(Args)]
 struct ResolveArgs {
+    #[arg(required_unless_present = "all", conflicts_with = "all")]
     emulator: Option<String>,
     #[arg(long)]
     all: bool,
@@ -484,6 +486,3 @@ fn which(name: &str) -> bool {
         .map(|p| std::env::split_paths(&p).any(|d| d.join(name).is_file()))
         .unwrap_or(false)
 }
-
-#[allow(dead_code)]
-fn _store_is_used(_: &Store) {}
