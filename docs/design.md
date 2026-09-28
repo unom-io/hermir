@@ -174,8 +174,10 @@ progress on stderr only.
 
 ## 3. Catalog
 
-`catalog/emulators/<id>.json`, one file per emulator, validated by `catalog/schema/emulator.json`
-in CI. The shape, on the emulator that exercises most of it:
+`catalog/emulators/<id>.json`, one file per emulator, validated by `catalog/schema/entry.schema.json`
+in CI. The catalog directory lives inside the library crate (`crates/hermir/catalog/`): it is
+embedded at build time, and a published crate carries nothing from outside its own directory.
+The shape, on the emulator that exercises most of it:
 
 ```jsonc
 {
@@ -377,8 +379,8 @@ hermir/
     config/format/{ini,toml,yaml,xml,racfg}.rs
     config/adapters/{mod,retroarch,dolphin,pcsx2,duckstation,rpcs3,cemu,ppsspp,melonds,azahar,xemu,flycast,vita3k,xenia}.rs
     launch.rs firmware.rs saves.rs
+  crates/hermir/catalog/{emulators/*.json,platforms.json,pads.json,schema/*.json}
   crates/hermir-cli/src/main.rs
-  catalog/{emulators/*.json,platforms.json,pads.json,schema/*.json}
   fixtures/<emu>/<version>/…
   docs/design.md  docs/catalog.md  docs/consumers.md
   .github/workflows/{ci,catalog-dry-run,release}.yml     release: linux-x64, windows-x64, macos-arm64 binaries
