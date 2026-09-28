@@ -85,6 +85,15 @@ impl Http for Ureq {
         let (append, mut done) = match status {
             206 => (true, have),
             200 => (false, 0),
+            // The part is already whole (a run that stopped before renaming it); the digest
+            // check that follows is what decides whether it is good.
+            416 if have > 0 => {
+                progress.on(Event::Download {
+                    done: have,
+                    total: Some(have),
+                });
+                return Ok(have);
+            }
             s => return Err(net(url, format!("HTTP {s}"))),
         };
         let total = resp
