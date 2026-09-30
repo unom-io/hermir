@@ -21,10 +21,10 @@
       "asset": {
         "all": [
           "supermodel-",
-          "-win64.zip"
+          "-windows.zip"
         ]
       },
-      "exe": "Supermodel.exe",
+      "exe": "supermodel.exe",
       "portable": {
         "dir": "Config"
       }
