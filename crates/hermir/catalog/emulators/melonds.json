@@ -55,9 +55,56 @@
           "bios9.bin",
           "firmware.bin"
         ],
-        "note": "optional; melonDS also runs without"
+        "note": "optional; melonDS also runs without",
+        "optional": true
       }
     }
   },
-  "notes": "1.x writes melonDS.toml; earlier versions wrote melonDS.ini."
+  "notes": "Saves and savestates go beside the ROM by default, which fails on a read-only library: prepare points both into the config root unless the user chose a folder.",
+  "first_run": {
+    "linux": [
+      {
+        "dir": "saves"
+      },
+      {
+        "dir": "states"
+      },
+      {
+        "ini": "melonDS.toml",
+        "section": "Instance0",
+        "key": "SaveFilePath",
+        "value": "'{root}/saves'",
+        "when_unset": true
+      },
+      {
+        "ini": "melonDS.toml",
+        "section": "Instance0",
+        "key": "SavestatePath",
+        "value": "'{root}/states'",
+        "when_unset": true
+      }
+    ],
+    "windows": [
+      {
+        "dir": "saves"
+      },
+      {
+        "dir": "states"
+      },
+      {
+        "ini": "melonDS.toml",
+        "section": "Instance0",
+        "key": "SaveFilePath",
+        "value": "'{root}/saves'",
+        "when_unset": true
+      },
+      {
+        "ini": "melonDS.toml",
+        "section": "Instance0",
+        "key": "SavestatePath",
+        "value": "'{root}/states'",
+        "when_unset": true
+      }
+    ]
+  }
 }

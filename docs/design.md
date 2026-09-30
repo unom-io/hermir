@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | P0 (*get*: install, detect, update, remove) implemented; P1–P4 designed (§10) |
+| **Status** | P0 (*get*: install, detect, update, remove) and `prepare` (§7) implemented; P1–P4 designed (§10) |
 | **Date** | 2026-09-27 |
 | **Name** | Icelandic *hermir*: emulator, simulator; from *herma*, "to mimic". |
 | **One line** | One multi-platform interface for managing emulators: install them, find them, configure them (controllers, video, audio, paths), build their launch, know where their firmware and saves live. A Rust library, and a CLI that is the same thing for every other language. |
@@ -134,7 +134,7 @@ let done = e.config().apply(&Patch { players: Some(seats), video: Some(Video { s
 e.config().revert(done.snapshot)?;             // byte-identical restore
 e.config().profile("punktfunk")?.apply(&patch)?; // isolated where the emulator allows it
 e.launch(&LaunchRequest { file, platform: "ps2".into(), profile: None, fullscreen: true })?;
-e.firmware().status("ps2")?;  e.firmware().place("ps2", &[pup])?;
+e.prepare(&install, Some("ps2"), &[bios]);   // first-run answers + firmware, step by step
 e.saves().locations("ps2")?;
 ```
 
@@ -158,7 +158,8 @@ hermir config    get <emu> [<key>]
                  revert <emu> [<snapshot>]
                  support [<emu>]               the knob × emulator matrix, from the adapters themselves
 hermir pads      [--watch]                     (feature `enumerate`) what SDL3 sees, as PadRef JSON
-hermir firmware  status <emu|platform> | place <emu> <platform> <file>…
+hermir prepare   <emu> [--platform p] [--firmware <file>…]   first-run answers + firmware, every copy
+hermir players   <emu> [--pad vendor:product[:name]…] [--revert]   pads into the bindings, seat order; back out
 hermir saves     where <emu> [<platform>]
 hermir launch    <emu> <file> [--platform p] [--profile x] [--fullscreen]   → LaunchSpec
 hermir run       …same…                        spawns it, forwards exit code
@@ -343,9 +344,13 @@ portal call. Files are single arguments; nothing is ever shell-joined.
 
 Two read-mostly views of catalog knowledge, resolved against an `Install`:
 
-- `firmware().status(platform)` → per file: present / missing / not needed, with the human note
-  ("a dumped PS2 BIOS"). `place(platform, files)` copies into the emulator's expected dir, or runs
-  the emulator's own installer where that is the only way (RPCS3 `--installfw <PUP>`).
+- `prepare(install, platform, files)` answers the copy's first-run questions — catalog
+  `first_run`, one ini key or one seed file under the config root, what clicking through writes —
+  and puts the platform's firmware in place: copied into the firmware folder, or handed to the
+  emulator's own installer where that is the only way (RPCS3 `--headless --installfw <PUP>`,
+  judged by `dev_flash`, not by the exit code), or unpacked from an archive while none is
+  installed (Eden's system firmware zip). Each step comes back applied, present or failed; a
+  platform still without its firmware says so with the catalog's note.
 - `saves().locations(platform)` → `SaveLocation { kind: Memcard | Save | State, path, per_game: bool }`,
   so a sync client knows what to watch. hermir does not sync.
 

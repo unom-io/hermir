@@ -7,7 +7,14 @@
   "license": "GPL-2.0-only",
   "channels": {
     "linux": {
-      "flatpak": "net.rpcs3.RPCS3"
+      "github": "RPCS3/rpcs3-binaries-linux",
+      "asset": {
+        "all": [
+          "linux64",
+          ".AppImage"
+        ]
+      },
+      "exe": "AppRun"
     },
     "windows": {
       "github": "RPCS3/rpcs3-binaries-win",
@@ -46,5 +53,41 @@
       "{file}"
     ]
   },
-  "notes": "Keeps config and dev_hdd0 beside the exe on Windows; firmware installs with `--installfw <PS3UPDAT.PUP>`."
+  "notes": "Linux gets RPCS3's own AppImage (x86_64), unpacked: the Flathub build asks on every launch whether to run an unofficial build. Keeps config and dev_hdd0 beside the exe on Windows. Firmware installs headless with `--installfw <PS3UPDAT.PUP>`; the exit code is not the verdict, dev_flash is.",
+  "firmware": {
+    "install": {
+      "args": [
+        "--headless",
+        "--installfw",
+        "{file}"
+      ],
+      "done": "dev_flash/vsh/etc/version.txt"
+    },
+    "platforms": {
+      "ps3": {
+        "any_of": [
+          "PS3UPDAT.PUP"
+        ],
+        "note": "the PlayStation 3 system update, PS3UPDAT.PUP"
+      }
+    }
+  },
+  "first_run": {
+    "linux": [
+      {
+        "ini": "GuiConfigs/CurrentSettings.ini",
+        "section": "main_window",
+        "key": "infoBoxEnabledWelcome",
+        "value": "false"
+      }
+    ],
+    "windows": [
+      {
+        "ini": "GuiConfigs/CurrentSettings.ini",
+        "section": "main_window",
+        "key": "infoBoxEnabledWelcome",
+        "value": "false"
+      }
+    ]
+  }
 }

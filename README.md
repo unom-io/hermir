@@ -19,6 +19,10 @@ hermir update --all
 hermir where dolphin                exe and config root of the best copy on this machine
 hermir detect --json                what the user installed, as data
 hermir core install snes9x          a libretro core into RetroArch's cores directory
+hermir prepare pcsx2 --platform ps2 --firmware scph39001.bin
+hermir players pcsx2                     # the Xbox pad in seat 1, into PCSX2's own bindings
+hermir players pcsx2 --revert            # the player's settings back
+                                    first-run answers and the BIOS, on every copy
 hermir catalog resolve --all        where every channel points, without downloading
 hermir doctor
 ```
@@ -64,9 +68,11 @@ The library is `cargo add hermir`.
 | [RetroArch](https://www.retroarch.com) | 37 systems, cores via `hermir core install` | Flatpak | release build |
 | [RPCS3](https://github.com/RPCS3/rpcs3) | PlayStation 3 | Flatpak | release build |
 | [ScummVM](https://www.scummvm.org) | ScummVM games | Flatpak | release build |
+| [shadPS4](https://github.com/shadps4-emu/shadPS4) | PlayStation 4 | release build | release build |
+| [Supermodel](https://github.com/trzy/Supermodel) | Sega Model 3 | release build | release build |
 | [Vita3K](https://github.com/Vita3K/Vita3K) | PlayStation Vita | — | release build |
 | [xemu](https://github.com/xemu-project/xemu) | Xbox | Flatpak | release build |
-| [Xenia Canary](https://github.com/xenia-canary/xenia-canary) | Xbox 360 | — | release build |
+| [Xenia Canary](https://github.com/xenia-canary/xenia-canary) | Xbox 360 | release build | release build |
 | Eden, Ryujinx | Nintendo Switch | detect only | detect only |
 
 `hermir catalog list` is the live list; `hermir catalog show <id>` is one entry in full. A new

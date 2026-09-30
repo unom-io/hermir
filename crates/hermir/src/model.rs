@@ -115,19 +115,110 @@ pub struct Entry {
     /// created at install, so a consumer can be granted exactly that one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub firmware: Option<Firmware>,
+    /// The answers to what a fresh copy asks before it plays anything (a setup wizard, a
+    /// welcome box), per OS. `prepare` writes them; each one is what clicking through writes.
+    #[serde(default)]
+    pub first_run: PerOs<Vec<FirstRun>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
 
-/// Firmware the emulator reads from one folder under its config root.
+/// Firmware the emulator reads from a folder under its config root, or installs itself.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Firmware {
     /// Relative to the config root: `bios`, `system`, `data`, or `.` for the root itself.
-    pub dir: String,
+    /// Absent when the emulator only takes firmware through its own installer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dir: Option<String>,
+    /// The emulator's own installer, for firmware that is not loose files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub install: Option<FirmwareInstall>,
+    /// Firmware that comes as an archive, unpacked into a folder of its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unpack: Option<FirmwareUnpack>,
     /// Per platform id: what satisfies it.
     #[serde(default)]
     pub platforms: BTreeMap<String, FirmwareNeed>,
+}
+
+/// An archive of firmware files (a Switch system update as a `.zip` of NCAs), unpacked once.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FirmwareUnpack {
+    /// Archive names (`*.zip`). A match is unpacked, never copied into `dir`.
+    pub any_of: Vec<String>,
+    /// Relative to the config root: where the archive's files go.
+    pub into: String,
+    /// A name pattern that, found in `into`, means firmware is installed. Nothing is unpacked
+    /// over it, so firmware the player installed stays.
+    pub present: String,
+}
+
+/// Firmware the emulator installs from one file (RPCS3's `--installfw <PUP>`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FirmwareInstall {
+    /// The argv after the exe; `{file}` is the firmware file.
+    pub args: Vec<String>,
+    /// A file under the config root that exists once firmware is installed. It, not the exit
+    /// code, says whether the install worked.
+    pub done: String,
+}
+
+/// One answer to a first-run question, as a file under the config root.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged, deny_unknown_fields)]
+pub enum FirstRun {
+    /// `key` in `[section]` of an ini (or flat TOML) file, set to `value` in place. The file and
+    /// section are created when missing; every other line stays as it was. `{root}` in `value`
+    /// is the config root's absolute path.
+    Ini {
+        ini: String,
+        section: String,
+        key: String,
+        value: String,
+        /// Only when the key is missing or empty: a value the user chose is kept.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        when_unset: bool,
+    },
+    /// A file written only when it does not exist yet: the emulator's own first-run check.
+    Seed { seed: String, content: String },
+    /// A folder under the config root that must exist before the emulator writes into it.
+    Dir { dir: String },
+    /// A file the emulator ships beside its exe, copied under the config root once (data an
+    /// emulator refuses to start without). Only a copy hermir placed has an exe to copy from.
+    Copy { copy: String, to: String },
+}
+
+/// What `prepare` did, step by step. A consumer shows this; it never guesses.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Prepared {
+    pub emulator: String,
+    pub steps: Vec<PrepareStep>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PrepareStep {
+    /// `first_run`, `firmware` or `firmware_install`.
+    pub kind: String,
+    /// The file the step is about.
+    pub target: PathBuf,
+    pub outcome: StepOutcome,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum StepOutcome {
+    /// Written or installed now.
+    Applied,
+    /// Already so; nothing was touched.
+    Present,
+    /// Nothing to do for this emulator; the note says why.
+    Skipped,
+    Failed,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -138,6 +229,9 @@ pub struct FirmwareNeed {
     /// Where the files come from, in a phrase a UI can show.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// The emulator also runs without it (an HLE BIOS); its absence is no failure.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub optional: bool,
 }
 
 /// One way to obtain the emulator on one OS.

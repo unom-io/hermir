@@ -46,5 +46,23 @@
       "{file}"
     ]
   },
-  "notes": "No GitHub releases; the URL is bumped by catalog PRs. `-u <dir>` selects a user directory for profiles."
+  "notes": "No GitHub releases; the URL is bumped by catalog PRs. `-u <dir>` selects a user directory for profiles.",
+  "first_run": {
+    "linux": [
+      {
+        "ini": "Dolphin.ini",
+        "section": "Analytics",
+        "key": "PermissionAsked",
+        "value": "True"
+      }
+    ],
+    "windows": [
+      {
+        "ini": "Config/Dolphin.ini",
+        "section": "Analytics",
+        "key": "PermissionAsked",
+        "value": "True"
+      }
+    ]
+  }
 }

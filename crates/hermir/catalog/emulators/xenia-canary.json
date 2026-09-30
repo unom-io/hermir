@@ -6,12 +6,22 @@
   ],
   "license": "BSD-3-Clause",
   "channels": {
+    "linux": {
+      "github": "xenia-canary/xenia-canary",
+      "asset": {
+        "all": [
+          "xenia_canary_linux",
+          ".AppImage"
+        ]
+      },
+      "exe": "AppRun"
+    },
     "windows": {
-      "github": "xenia-canary/xenia-canary-releases",
+      "github": "xenia-canary/xenia-canary",
       "asset": {
         "all": [
           "xenia_canary_windows",
-          ".zip"
+          ".7z"
         ]
       },
       "exe": "xenia_canary.exe",
@@ -26,6 +36,7 @@
     }
   },
   "roots": {
+    "native": "~/.local/share/Xenia",
     "portable": "<app>",
     "windows": "%USERPROFILE%\\Documents\\Xenia"
   },
@@ -35,5 +46,5 @@
       "{file}"
     ]
   },
-  "notes": "Windows only."
+  "notes": "Linux gets Canary's own AppImage, unpacked; it outran the Windows build under Proton. The Windows build asks for a disclaimer once, remembered in HKCU\\SOFTWARE\\Xenia XEFLAGS."
 }

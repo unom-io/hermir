@@ -4,8 +4,9 @@
 //! Switch emulator never carries an install channel.
 use std::path::Path;
 
+use crate::channel::extract::is_safe_relative;
 use crate::error::{Error, Result};
-use crate::model::{Entry, Os, Platform};
+use crate::model::{Entry, FirstRun, Os, Platform};
 
 /// `(id, json)` for every file under `catalog/emulators/`. A test checks the directory listing
 /// against this list, so a new file cannot be forgotten.
@@ -34,6 +35,11 @@ const EMULATORS: &[(&str, &str)] = &[
     ("rpcs3", include_str!("../catalog/emulators/rpcs3.json")),
     ("ryujinx", include_str!("../catalog/emulators/ryujinx.json")),
     ("scummvm", include_str!("../catalog/emulators/scummvm.json")),
+    ("shadps4", include_str!("../catalog/emulators/shadps4.json")),
+    (
+        "supermodel",
+        include_str!("../catalog/emulators/supermodel.json"),
+    ),
     ("vita3k", include_str!("../catalog/emulators/vita3k.json")),
     ("xemu", include_str!("../catalog/emulators/xemu.json")),
     (
@@ -170,6 +176,33 @@ impl Catalog {
                             format!("firmware for {p}, a platform it does not play"),
                         ));
                     }
+                }
+                if fw.dir.is_none() && fw.install.is_none() {
+                    return Err(bad(&e.id, "firmware with neither dir nor install".into()));
+                }
+            }
+            // Everything prepare writes stays under the config root.
+            let written = e
+                .firmware
+                .iter()
+                .flat_map(|f| f.dir.iter().chain(f.install.iter().map(|i| &i.done)))
+                .chain(
+                    [Os::Linux, Os::Windows, Os::Macos]
+                        .iter()
+                        .flat_map(|&os| e.first_run.get(os).into_iter().flatten())
+                        .map(|a| match a {
+                            FirstRun::Ini { ini, .. } => ini,
+                            FirstRun::Seed { seed, .. } => seed,
+                            FirstRun::Dir { dir } => dir,
+                            FirstRun::Copy { to, .. } => to,
+                        }),
+                );
+            for rel in written {
+                if rel.is_empty() || !is_safe_relative(Path::new(rel)) {
+                    return Err(bad(
+                        &e.id,
+                        format!("{rel} is not a path under the config root"),
+                    ));
                 }
             }
             if e.no_install.is_some() && has_channel {

@@ -61,5 +61,43 @@
       }
     }
   },
-  "notes": "The licence forbids modification and redistribution: hermir installs the official build unchanged and writes none of its config."
+  "notes": "The licence forbids modification and redistribution: hermir installs the official build unchanged. Of its config it writes only the answers to its first-run questions. The first-run seed carries the settings version this release expects (a file without it is reset to defaults, wizard included); bump it with the emulator.",
+  "first_run": {
+    "linux": [
+      {
+        "seed": "settings.ini",
+        "content": "[Main]\nSettingsVersion = 3\n"
+      },
+      {
+        "ini": "settings.ini",
+        "section": "Main",
+        "key": "SetupWizardIncomplete",
+        "value": "false"
+      },
+      {
+        "ini": "settings.ini",
+        "section": "AutoUpdater",
+        "key": "CheckAtStartup",
+        "value": "false"
+      }
+    ],
+    "windows": [
+      {
+        "seed": "settings.ini",
+        "content": "[Main]\nSettingsVersion = 3\n"
+      },
+      {
+        "ini": "settings.ini",
+        "section": "Main",
+        "key": "SetupWizardIncomplete",
+        "value": "false"
+      },
+      {
+        "ini": "settings.ini",
+        "section": "AutoUpdater",
+        "key": "CheckAtStartup",
+        "value": "false"
+      }
+    ]
+  }
 }

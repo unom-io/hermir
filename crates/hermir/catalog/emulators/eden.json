@@ -15,8 +15,8 @@
     }
   },
   "roots": {
-    "flatpak": "~/.var/app/dev.eden_emu.eden/config/eden",
-    "native": "~/.config/eden",
+    "flatpak": "~/.var/app/dev.eden_emu.eden/data/eden",
+    "native": "~/.local/share/eden",
     "windows": "%APPDATA%\\eden"
   },
   "launch": {
@@ -25,5 +25,24 @@
       "-g",
       "{file}"
     ]
+  },
+  "notes": "The root is Eden's data folder, where keys and system firmware live; its settings are under ~/.config/eden. System firmware comes as a zip of NCAs and is unpacked only while none is installed.",
+  "firmware": {
+    "dir": "keys",
+    "unpack": {
+      "any_of": [
+        "*.zip"
+      ],
+      "into": "nand/system/Contents/registered",
+      "present": "*.nca"
+    },
+    "platforms": {
+      "switch": {
+        "any_of": [
+          "prod.keys"
+        ],
+        "note": "prod.keys and title.keys, dumped from your Switch"
+      }
+    }
   }
 }

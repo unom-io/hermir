@@ -107,13 +107,15 @@
           "bios9.bin",
           "firmware.bin"
         ],
-        "note": "optional"
+        "note": "optional",
+        "optional": true
       },
       "gba": {
         "any_of": [
           "gba_bios.bin"
         ],
-        "note": "optional"
+        "note": "optional",
+        "optional": true
       },
       "tg16": {
         "any_of": [
@@ -136,7 +138,8 @@
           "dc/dc_boot.bin",
           "dc/dc_flash.bin"
         ],
-        "note": "optional"
+        "note": "optional",
+        "optional": true
       }
     }
   },

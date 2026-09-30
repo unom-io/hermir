@@ -1,0 +1,77 @@
+{
+  "id": "shadps4",
+  "name": "shadPS4",
+  "platforms": [
+    "ps4"
+  ],
+  "license": "GPL-2.0-or-later",
+  "channels": {
+    "linux": {
+      "github": "shadps4-emu/shadPS4",
+      "asset": {
+        "all": [
+          "shadps4-linux-sdl",
+          ".zip"
+        ]
+      },
+      "exe": "AppRun"
+    },
+    "windows": {
+      "github": "shadps4-emu/shadPS4",
+      "asset": {
+        "all": [
+          "shadps4-win64-sdl",
+          ".zip"
+        ]
+      },
+      "exe": "shadPS4.exe",
+      "portable": {
+        "dir": "user"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "shadps4"
+      ]
+    }
+  },
+  "roots": {
+    "native": "~/.local/share/shadPS4",
+    "portable": "<app>/user",
+    "windows": "<app>/user"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:--fullscreen=true}",
+      "-g",
+      "{file}"
+    ]
+  },
+  "notes": "The SDL core, not the Qt launcher. It takes the game folder or its eboot.bin. Portable mode keys on a `user` folder in the working directory, not beside the exe.",
+  "firmware": {
+    "dir": "sys_modules",
+    "platforms": {
+      "ps4": {
+        "any_of": [
+          "*.sprx"
+        ],
+        "note": "decrypted PS4 system modules (libSce*.sprx), dumped over GoldHEN's FTP",
+        "optional": true
+      }
+    }
+  },
+  "first_run": {
+    "linux": [
+      {
+        "dir": "home/1000"
+      }
+    ],
+    "windows": [
+      {
+        "dir": "home/1000"
+      }
+    ]
+  }
+}
