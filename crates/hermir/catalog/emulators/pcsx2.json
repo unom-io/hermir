@@ -67,5 +67,32 @@
         "note": "a dumped PlayStation 2 BIOS"
       }
     }
-  }
+  },
+  "first_run": {
+    "linux": [
+      {
+        "seed": "inis/PCSX2.ini",
+        "content": "[UI]\nSettingsVersion = 1\n"
+      },
+      {
+        "ini": "inis/PCSX2.ini",
+        "section": "UI",
+        "key": "SetupWizardIncomplete",
+        "value": "false"
+      }
+    ],
+    "windows": [
+      {
+        "seed": "inis/PCSX2.ini",
+        "content": "[UI]\nSettingsVersion = 1\n"
+      },
+      {
+        "ini": "inis/PCSX2.ini",
+        "section": "UI",
+        "key": "SetupWizardIncomplete",
+        "value": "false"
+      }
+    ]
+  },
+  "notes": "The first-run seed carries the settings version this release expects (a file without it is reset to defaults, wizard included); bump it with the emulator."
 }

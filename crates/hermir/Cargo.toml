@@ -19,6 +19,8 @@ sha2 = "0.11"
 ureq = "3"
 zip = { version = "8", default-features = false, features = ["deflate", "zstd", "lzma"] }
 sevenz-rust2 = { version = "0.23", default-features = false, features = ["ppmd", "util"] }
+tar = "0.4"
+flate2 = "1"
 
 [dev-dependencies]
 tempfile = "3"

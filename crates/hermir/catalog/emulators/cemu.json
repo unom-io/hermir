@@ -51,5 +51,19 @@
       "-g",
       "{file}"
     ]
+  },
+  "first_run": {
+    "linux": [
+      {
+        "seed": "settings.xml",
+        "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<content/>\n"
+      }
+    ],
+    "windows": [
+      {
+        "seed": "settings.xml",
+        "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<content/>\n"
+      }
+    ]
   }
 }

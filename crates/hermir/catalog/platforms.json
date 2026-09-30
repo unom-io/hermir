@@ -296,6 +296,21 @@
     ]
   },
   {
+    "id": "ps4",
+    "name": "PlayStation 4",
+    "aliases": {
+      "romm": "ps4",
+      "esde": "ps4"
+    },
+    "extensions": [
+      ".bin",
+      ".zar"
+    ],
+    "emulators": [
+      "shadps4"
+    ]
+  },
+  {
     "id": "psp",
     "name": "PlayStation Portable",
     "aliases": {
@@ -755,6 +770,20 @@
     "emulators": [
       "scummvm",
       "retroarch"
+    ]
+  },
+  {
+    "id": "model3",
+    "name": "Sega Model 3",
+    "aliases": {
+      "romm": "model3",
+      "esde": "model3"
+    },
+    "extensions": [
+      ".zip"
+    ],
+    "emulators": [
+      "supermodel"
     ]
   }
 ]

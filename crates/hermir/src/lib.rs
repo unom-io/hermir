@@ -16,6 +16,8 @@ pub mod channel;
 pub mod detect;
 pub mod error;
 pub mod model;
+pub mod players;
+pub mod prepare;
 pub mod progress;
 pub mod store;
 
@@ -24,6 +26,7 @@ use std::path::PathBuf;
 pub use catalog::Catalog;
 pub use error::{Error, Result};
 pub use model::*;
+pub use players::{PadRef, Player};
 use progress::Progress;
 pub use store::Store;
 
@@ -83,6 +86,23 @@ impl Hermir {
         self.os
     }
 
+    /// Where `apply_players` keeps what it overwrote.
+    fn snapshots(&self) -> PathBuf {
+        self.store.root().join(".snapshots")
+    }
+
+    /// Restores every emulator with player bindings outstanding: what a consumer calls when
+    /// the game it prepared has exited.
+    pub fn revert_all_players(&self) -> Vec<(String, Vec<PrepareStep>)> {
+        players::outstanding(&self.snapshots())
+            .into_iter()
+            .map(|id| {
+                let steps = players::revert(&self.snapshots(), &id);
+                (id, steps)
+            })
+            .collect()
+    }
+
     pub fn emulator(&self, id: &str) -> Result<EmulatorHandle<'_>> {
         let entry = self
             .catalog
@@ -118,6 +138,12 @@ impl Hermir {
             (Exe::FlatpakRun(_), Some(e)) => e
                 .roots
                 .flatpak
+                .as_deref()
+                .map(|t| detect::expand(t, self.env.as_ref(), None)),
+            // A Linux build without a portable marker (an AppImage) keeps the native layout.
+            (Exe::Path(_), Some(e)) if self.os == Os::Linux && !marks_portable(e, self.os) => e
+                .roots
+                .native
                 .as_deref()
                 .map(|t| detect::expand(t, self.env.as_ref(), None)),
             (Exe::Path(p), Some(e)) => e
@@ -208,6 +234,20 @@ impl Hermir {
     }
 }
 
+/// Whether the channel for `os` makes the emulator keep its files beside the exe.
+fn marks_portable(entry: &Entry, os: Os) -> bool {
+    matches!(
+        entry.channels.get(os),
+        Some(Channel::Github {
+            portable: Some(_),
+            ..
+        }) | Some(Channel::Url {
+            portable: Some(_),
+            ..
+        })
+    )
+}
+
 /// One catalog entry on this machine.
 pub struct EmulatorHandle<'a> {
     h: &'a Hermir,
@@ -281,15 +321,54 @@ impl EmulatorHandle<'_> {
         )
     }
 
-    /// Where this copy reads firmware, when the catalog knows.
+    /// Where this copy reads loose firmware files, when the catalog knows.
     pub fn firmware_dir(&self, install: &Install) -> Option<PathBuf> {
-        let fw = self.entry.firmware.as_ref()?;
+        let dir = self.entry.firmware.as_ref()?.dir.as_ref()?;
         let root = install.config_root.as_ref()?;
-        Some(if fw.dir == "." {
+        Some(if dir == "." {
             root.clone()
         } else {
-            root.join(&fw.dir)
+            root.join(dir)
         })
+    }
+
+    /// Answers `install`'s first-run questions and puts `firmware` for `platform` in place
+    /// (see [`prepare::prepare`]). Idempotent; every step is in the result.
+    pub fn prepare(
+        &self,
+        install: &Install,
+        platform: Option<&str>,
+        firmware: &[PathBuf],
+    ) -> Prepared {
+        prepare::prepare(
+            self.entry,
+            self.h.os,
+            install,
+            platform,
+            firmware,
+            self.h.runner.as_ref(),
+        )
+    }
+
+    /// Writes `players` into this copy's bindings, seat by seat, snapshotting each file it
+    /// touches for [`Self::revert_players`]. Emulators that map SDL pads themselves report so.
+    pub fn apply_players(&self, install: &Install, players: &[Player]) -> Prepared {
+        players::apply(&self.entry.id, install, players, &self.h.snapshots())
+    }
+
+    /// Restores every file [`Self::apply_players`] changed, for every copy.
+    pub fn revert_players(&self) -> Vec<PrepareStep> {
+        players::revert(&self.h.snapshots(), &self.entry.id)
+    }
+
+    /// Every copy of this emulator on the machine, managed first.
+    pub fn copies(&self) -> Result<Vec<Install>> {
+        Ok(self
+            .h
+            .installs()?
+            .into_iter()
+            .filter(|i| i.emulator == self.entry.id)
+            .collect())
     }
 
     /// The best copy on this machine: managed, else the first detected.

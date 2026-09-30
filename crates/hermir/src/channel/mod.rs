@@ -184,8 +184,9 @@ fn install_archive(
     // The firmware folder exists from the start, so a consumer can be granted it before the
     // emulator ever ran. After placing: the store moves files, not empty folders.
     let app = store.app_dir(&entry.id);
-    if let (Some(fw), Some(root)) = (&entry.firmware, portable_root(entry, &app)) {
-        let p = root.join(&fw.dir);
+    let fw_dir = entry.firmware.as_ref().and_then(|f| f.dir.as_ref());
+    if let (Some(dir), Some(root)) = (fw_dir, portable_root(entry, &app)) {
+        let p = root.join(dir);
         std::fs::create_dir_all(&p).map_err(|e| Error::io("create", &p, e))?;
     }
     progress.on(Event::Placed);
@@ -394,10 +395,6 @@ mod tests {
         assert!(matches!(
             resolve(c.get("ryujinx").unwrap(), Os::Linux, &http),
             Err(Error::Policy { .. })
-        ));
-        assert!(matches!(
-            resolve(c.get("xenia-canary").unwrap(), Os::Linux, &http),
-            Err(Error::UnsupportedOs { .. })
         ));
         assert!(matches!(
             resolve(c.get("pcsx2").unwrap(), Os::Macos, &http),

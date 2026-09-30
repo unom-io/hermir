@@ -163,11 +163,25 @@
     },
     "Firmware": {
       "additionalProperties": false,
-      "description": "Firmware the emulator reads from one folder under its config root.",
+      "description": "Firmware the emulator reads from a folder under its config root, or installs itself.",
       "properties": {
         "dir": {
-          "description": "Relative to the config root: `bios`, `system`, `data`, or `.` for the root itself.",
-          "type": "string"
+          "description": "Relative to the config root: `bios`, `system`, `data`, or `.` for the root itself.\nAbsent when the emulator only takes firmware through its own installer.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "install": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FirmwareInstall"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The emulator's own installer, for firmware that is not loose files."
         },
         "platforms": {
           "additionalProperties": {
@@ -176,10 +190,40 @@
           "default": {},
           "description": "Per platform id: what satisfies it.",
           "type": "object"
+        },
+        "unpack": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FirmwareUnpack"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Firmware that comes as an archive, unpacked into a folder of its own."
+        }
+      },
+      "type": "object"
+    },
+    "FirmwareInstall": {
+      "additionalProperties": false,
+      "description": "Firmware the emulator installs from one file (RPCS3's `--installfw <PUP>`).",
+      "properties": {
+        "args": {
+          "description": "The argv after the exe; `{file}` is the firmware file.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "done": {
+          "description": "A file under the config root that exists once firmware is installed. It, not the exit\ncode, says whether the install worked.",
+          "type": "string"
         }
       },
       "required": [
-        "dir"
+        "args",
+        "done"
       ],
       "type": "object"
     },
@@ -199,12 +243,124 @@
             "string",
             "null"
           ]
+        },
+        "optional": {
+          "description": "The emulator also runs without it (an HLE BIOS); its absence is no failure.",
+          "type": "boolean"
         }
       },
       "required": [
         "any_of"
       ],
       "type": "object"
+    },
+    "FirmwareUnpack": {
+      "additionalProperties": false,
+      "description": "An archive of firmware files (a Switch system update as a `.zip` of NCAs), unpacked once.",
+      "properties": {
+        "any_of": {
+          "description": "Archive names (`*.zip`). A match is unpacked, never copied into `dir`.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "into": {
+          "description": "Relative to the config root: where the archive's files go.",
+          "type": "string"
+        },
+        "present": {
+          "description": "A name pattern that, found in `into`, means firmware is installed. Nothing is unpacked\nover it, so firmware the player installed stays.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "any_of",
+        "into",
+        "present"
+      ],
+      "type": "object"
+    },
+    "FirstRun": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "description": "`key` in `[section]` of an ini (or flat TOML) file, set to `value` in place. The file and\nsection are created when missing; every other line stays as it was. `{root}` in `value`\nis the config root's absolute path.",
+          "properties": {
+            "ini": {
+              "type": "string"
+            },
+            "key": {
+              "type": "string"
+            },
+            "section": {
+              "type": "string"
+            },
+            "value": {
+              "type": "string"
+            },
+            "when_unset": {
+              "description": "Only when the key is missing or empty: a value the user chose is kept.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "ini",
+            "section",
+            "key",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A file written only when it does not exist yet: the emulator's own first-run check.",
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "seed": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "seed",
+            "content"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A folder under the config root that must exist before the emulator writes into it.",
+          "properties": {
+            "dir": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "dir"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "A file the emulator ships beside its exe, copied under the config root once (data an\nemulator refuses to start without). Only a copy hermir placed has an exe to copy from.",
+          "properties": {
+            "copy": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "copy",
+            "to"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "One answer to a first-run question, as a file under the config root."
     },
     "Launch": {
       "additionalProperties": false,
@@ -289,6 +445,40 @@
             {
               "type": "null"
             }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "PerOs3": {
+      "additionalProperties": false,
+      "description": "One slot per OS. A missing key is `None`: honest \"not offered here\".",
+      "properties": {
+        "linux": {
+          "items": {
+            "$ref": "#/$defs/FirstRun"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "macos": {
+          "items": {
+            "$ref": "#/$defs/FirstRun"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "windows": {
+          "items": {
+            "$ref": "#/$defs/FirstRun"
+          },
+          "type": [
+            "array",
+            "null"
           ]
         }
       },
@@ -379,6 +569,11 @@
         }
       ],
       "description": "Where the emulator reads firmware, and what each platform needs there. The folder is\ncreated at install, so a consumer can be granted exactly that one."
+    },
+    "first_run": {
+      "$ref": "#/$defs/PerOs3",
+      "default": {},
+      "description": "The answers to what a fresh copy asks before it plays anything (a setup wizard, a\nwelcome box), per OS. `prepare` writes them; each one is what clicking through writes."
     },
     "id": {
       "description": "Lowercase, `[a-z0-9-]`, equal to the file name.",

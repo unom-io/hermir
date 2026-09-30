@@ -49,7 +49,8 @@
           "dc_boot.bin",
           "dc_flash.bin"
         ],
-        "note": "optional; Flycast also runs without"
+        "note": "optional; Flycast also runs without",
+        "optional": true
       }
     }
   },

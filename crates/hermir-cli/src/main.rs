@@ -60,6 +60,25 @@ enum Cmd {
     },
     /// The exe and config root of the best copy on this machine.
     Where { emulator: String },
+    /// Make every copy ready to play: answer its first-run questions, place or install
+    /// `--firmware` for `--platform`.
+    Prepare {
+        emulator: String,
+        #[arg(long)]
+        platform: Option<String>,
+        #[arg(long)]
+        firmware: Vec<PathBuf>,
+    },
+    /// Write pads into every copy's own bindings, seat by seat, or with `--revert` put the
+    /// player's settings back. A pad is `vendor:product[:name]` (hex ids); none means one
+    /// Xbox 360 pad in seat 1.
+    Players {
+        emulator: String,
+        #[arg(long)]
+        revert: bool,
+        #[arg(long)]
+        pad: Vec<String>,
+    },
     /// libretro cores for the RetroArch on this machine.
     Core {
         #[command(subcommand)]
@@ -67,6 +86,26 @@ enum Cmd {
     },
     /// What this machine can and cannot do.
     Doctor,
+}
+
+/// `vendor:product[:name]` → the pad at `index`.
+fn pad_arg(spec: &str, index: u32) -> hermir::Result<hermir::PadRef> {
+    let mut parts = spec.splitn(3, ':');
+    let hex =
+        |s: Option<&str>| s.and_then(|s| u16::from_str_radix(s.trim_start_matches("0x"), 16).ok());
+    let (Some(vendor), Some(product)) = (hex(parts.next()), hex(parts.next())) else {
+        return Err(hermir::Error::Place {
+            what: spec.into(),
+            why: "a pad is vendor:product[:name], hex ids".into(),
+        });
+    };
+    let mut pad = hermir::PadRef::xbox360(index);
+    pad.vendor = vendor;
+    pad.product = product;
+    if let Some(name) = parts.next() {
+        pad.name = name.into();
+    }
+    Ok(pad)
 }
 
 #[derive(Subcommand)]
@@ -424,6 +463,117 @@ fn run(cli: Cli) -> hermir::Result<()> {
                         why: "not on this machine".into(),
                     });
                 }
+            }
+        }
+        Cmd::Prepare {
+            emulator,
+            platform,
+            firmware,
+        } => {
+            let e = h.emulator(&emulator)?;
+            let copies = e.copies()?;
+            if copies.is_empty() {
+                return Err(hermir::Error::Place {
+                    what: emulator,
+                    why: "not on this machine".into(),
+                });
+            }
+            let done: Vec<_> = copies
+                .iter()
+                .map(|i| {
+                    (
+                        i.exe.to_string(),
+                        e.prepare(i, platform.as_deref(), &firmware),
+                    )
+                })
+                .collect();
+            let rows: Vec<serde_json::Value> = done
+                .iter()
+                .map(|(exe, p)| serde_json::json!({ "exe": exe, "steps": p.steps }))
+                .collect();
+            out(json, &rows, || {
+                done.iter()
+                    .flat_map(|(exe, p)| {
+                        std::iter::once(exe.clone()).chain(p.steps.iter().map(|s| {
+                            format!(
+                                "  {:?} {} {}{}",
+                                s.outcome,
+                                s.kind,
+                                s.target.display(),
+                                s.note
+                                    .as_deref()
+                                    .map(|n| format!(" — {n}"))
+                                    .unwrap_or_default()
+                            )
+                        }))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
+            let failed = done
+                .iter()
+                .flat_map(|(_, p)| &p.steps)
+                .any(|s| s.outcome == hermir::StepOutcome::Failed);
+            if failed {
+                std::process::exit(5);
+            }
+        }
+        Cmd::Players {
+            emulator,
+            revert,
+            pad,
+        } => {
+            let e = h.emulator(&emulator)?;
+            let done: Vec<(String, Vec<hermir::PrepareStep>)> = if revert {
+                vec![("revert".to_string(), e.revert_players())]
+            } else {
+                let pads: Vec<hermir::PadRef> = if pad.is_empty() {
+                    vec![hermir::PadRef::xbox360(0)]
+                } else {
+                    pad.iter()
+                        .zip(0u32..)
+                        .map(|(spec, i)| pad_arg(spec, i))
+                        .collect::<hermir::Result<_>>()?
+                };
+                let players: Vec<hermir::Player> = pads
+                    .into_iter()
+                    .zip(1u8..)
+                    .map(|(pad, seat)| hermir::Player { seat, pad })
+                    .collect();
+                e.copies()?
+                    .iter()
+                    .map(|i| (i.exe.to_string(), e.apply_players(i, &players).steps))
+                    .collect()
+            };
+            let rows: Vec<serde_json::Value> = done
+                .iter()
+                .map(|(exe, steps)| serde_json::json!({ "exe": exe, "steps": steps }))
+                .collect();
+            out(json, &rows, || {
+                done.iter()
+                    .flat_map(|(exe, steps)| {
+                        std::iter::once(exe.clone()).chain(steps.iter().map(|s| {
+                            format!(
+                                "  {:?} {} {}{}",
+                                s.outcome,
+                                s.kind,
+                                s.target.display(),
+                                s.note
+                                    .as_deref()
+                                    .map(|n| format!(" — {n}"))
+                                    .unwrap_or_default()
+                            )
+                        }))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
+            if done
+                .iter()
+                .flat_map(|(_, s)| s)
+                .any(|s| s.outcome == hermir::StepOutcome::Failed)
+            {
+                std::process::exit(5);
             }
         }
         Cmd::Core {
