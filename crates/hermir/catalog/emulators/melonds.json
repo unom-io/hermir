@@ -60,6 +60,55 @@
       }
     }
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "melonDS.toml",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "unsupported": "a launch flag (-f); melonDS keeps no start-fullscreen setting"
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "3D.GL",
+        "key": "ScaleFactor",
+        "scale": {
+          "multiplier": {
+            "max": 16
+          }
+        },
+        "also": [
+          {
+            "section": "3D",
+            "key": "Renderer",
+            "value": "1"
+          }
+        ],
+        "note": "selects the OpenGL renderer, the one that scales"
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "Screen",
+        "key": "VSync",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.aspect": {
+        "unsupported": "two screens; Screen/AspectTop and AspectBot are native keys"
+      },
+      "region": {
+        "unsupported": "DS games are region-free"
+      }
+    },
+    "players": {
+      "adapter": "melonds"
+    }
+  },
   "notes": "Saves and savestates go beside the ROM by default, which fails on a read-only library: prepare points both into the config root unless the user chose a folder.",
   "first_run": {
     "linux": [

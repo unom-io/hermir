@@ -10,6 +10,11 @@ repository = "https://github.com/unom-io/hermir"
 readme = "README.md"
 rust-version = "1.96"
 
+# No `unsafe` anywhere in this workspace: the crates are data, files and processes, and a
+# dependency that needs it keeps it behind its own API.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
 [workspace.dependencies]
 hermir = { path = "crates/hermir", version = "0.1.0" }
 serde = { version = "1", features = ["derive"] }

@@ -48,5 +48,39 @@
       "{fullscreen:-fullscreen}",
       "{file}"
     ]
+  },
+  "config": {
+    "files": {
+      "main": {
+        "path": "dosbox-staging.conf",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "sdl",
+        "key": "fullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "unsupported": "DOS draws at the game's resolution"
+      },
+      "video.vsync": {
+        "unsupported": "sdl/vsync changed shape between releases; pass it through native"
+      },
+      "video.aspect": {
+        "unsupported": "render/aspect is a correction, not a shape; pass it through native"
+      },
+      "region": {
+        "unsupported": "not a console"
+      }
+    },
+    "players": {
+      "unsupported": "keyboard and mouse games"
+    }
   }
 }

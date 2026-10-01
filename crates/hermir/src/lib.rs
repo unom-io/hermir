@@ -1,18 +1,30 @@
 //! hermir — one interface for managing emulators.
 //!
 //! ```no_run
-//! use hermir::{Hermir, Options, progress::Quiet};
+//! use hermir::{Hermir, Options, Patch, Region, Video, progress::Quiet};
 //! let h = Hermir::open(Options::default()).unwrap();
 //! let pcsx2 = h.emulator("pcsx2").unwrap();
 //! let row = pcsx2.install(&Quiet).unwrap();
 //! println!("{}", row.exe);
+//! let copy = pcsx2.best().unwrap().unwrap();
+//! let done = pcsx2.apply(&copy, &Patch {
+//!     video: Some(Video { fullscreen: Some(true), scale: Some(3), ..Default::default() }),
+//!     region: Some(Region::Europe),
+//!     ..Default::default()
+//! });
+//! for k in &done.knobs {
+//!     println!("{} {:?} {}", k.knob, k.support, k.note.as_deref().unwrap_or(""));
+//! }
+//! pcsx2.revert();
 //! ```
 //!
 //! `Hermir` holds the catalog, the prefix and the machine; an `EmulatorHandle` is one entry
-//! of the catalog on this machine. Every type is serde and JSON Schema, so the CLI's `--json`
-//! is the same contract as the library.
+//! of the catalog on this machine: install it, prepare it, `apply` a session's players and
+//! settings to it and `revert` them. Every type is serde and JSON Schema, so the CLI's
+//! `--json` is the same contract as the library.
 pub mod catalog;
 pub mod channel;
+pub mod config;
 pub mod detect;
 pub mod error;
 pub mod model;
@@ -26,7 +38,6 @@ use std::path::PathBuf;
 pub use catalog::Catalog;
 pub use error::{Error, Result};
 pub use model::*;
-pub use players::{PadRef, Player};
 use progress::Progress;
 pub use store::Store;
 
@@ -86,20 +97,34 @@ impl Hermir {
         self.os
     }
 
-    /// Where `apply_players` keeps what it overwrote.
+    /// Where `apply` keeps what it overwrote.
     fn snapshots(&self) -> PathBuf {
         self.store.root().join(".snapshots")
     }
 
-    /// Restores every emulator with player bindings outstanding: what a consumer calls when
-    /// the game it prepared has exited.
-    pub fn revert_all_players(&self) -> Vec<(String, Vec<PrepareStep>)> {
-        players::outstanding(&self.snapshots())
+    /// Restores every emulator with a session's changes outstanding: what a consumer calls
+    /// when the game it prepared has exited.
+    pub fn revert_all(&self) -> Vec<(String, Vec<PrepareStep>)> {
+        config::outstanding(&self.snapshots())
             .into_iter()
             .map(|id| {
-                let steps = players::revert(&self.snapshots(), &id);
+                let steps = config::revert(&self.snapshots(), &id);
                 (id, steps)
             })
+            .collect()
+    }
+
+    /// [`Self::revert_all`] under its earlier name.
+    pub fn revert_all_players(&self) -> Vec<(String, Vec<PrepareStep>)> {
+        self.revert_all()
+    }
+
+    /// The knob × emulator matrix: what `apply` can do for each catalog entry.
+    pub fn support(&self) -> Vec<(String, Vec<KnobChange>)> {
+        self.catalog
+            .entries()
+            .iter()
+            .map(|e| (e.id.clone(), config::support(e)))
             .collect()
     }
 
@@ -350,15 +375,56 @@ impl EmulatorHandle<'_> {
         )
     }
 
-    /// Writes `players` into this copy's bindings, seat by seat, snapshotting each file it
-    /// touches for [`Self::revert_players`]. Emulators that map SDL pads themselves report so.
-    pub fn apply_players(&self, install: &Install, players: &[Player]) -> Prepared {
-        players::apply(&self.entry.id, install, players, &self.h.snapshots())
+    /// Writes `patch` into this copy: players into its bindings, video and region into its
+    /// settings, native keys as given. Every file is snapshotted before its first edit, so
+    /// [`Self::revert`] gives the player's own settings back byte for byte. The result says
+    /// per knob whether the emulator took it, and why not when it did not.
+    pub fn apply(&self, install: &Install, patch: &Patch) -> Applied {
+        config::apply(self.entry, self.h.os, install, patch, &self.h.snapshots())
     }
 
-    /// Restores every file [`Self::apply_players`] changed, for every copy.
+    /// Restores every file [`Self::apply`] changed, for every copy of this emulator, and
+    /// forgets the snapshot.
+    pub fn revert(&self) -> Vec<PrepareStep> {
+        config::revert(&self.h.snapshots(), &self.entry.id)
+    }
+
+    /// What [`Self::apply`] can do for this emulator, knob by knob, before asking.
+    pub fn support(&self) -> Vec<KnobChange> {
+        config::support(self.entry)
+    }
+
+    /// [`Self::apply`] with only players, reported step by step as `prepare` is.
+    pub fn apply_players(&self, install: &Install, players: &[Player]) -> Prepared {
+        let patch = Patch {
+            players: Some(players.to_vec()),
+            ..Default::default()
+        };
+        let applied = self.apply(install, &patch);
+        let mut steps = applied.steps;
+        if steps.is_empty()
+            && let Some(k) = applied.knobs.iter().find(|k| k.knob == "players")
+        {
+            steps.push(PrepareStep {
+                kind: "players".into(),
+                target: install.config_root.clone().unwrap_or_default(),
+                outcome: match k.support {
+                    Support::Unsupported => StepOutcome::Skipped,
+                    Support::Applied | Support::Partial => StepOutcome::Present,
+                },
+                note: k.note.clone(),
+            });
+        }
+        Prepared {
+            emulator: applied.emulator,
+            steps,
+        }
+    }
+
+    /// [`Self::revert`] under its earlier name: one snapshot per emulator, so this is the
+    /// same restore.
     pub fn revert_players(&self) -> Vec<PrepareStep> {
-        players::revert(&self.h.snapshots(), &self.entry.id)
+        self.revert()
     }
 
     /// Every copy of this emulator on the machine, managed first.

@@ -36,6 +36,38 @@ The first release: P0 of the [design](docs/design.md), *get*.
   `revert_players` puts the player's own settings back byte for byte.
 - shadPS4 (the SDL core, from its zipped AppImage) and Supermodel (its Linux tarball, with
   `Games.xml` and the crosshairs copied into `~/.supermodel` on first run).
+- `apply`: a session's settings into an emulator's own files, knob by knob — `video.fullscreen`,
+  `video.scale` (a multiple of the console's resolution), `video.vsync`, `video.aspect`,
+  `region`, players, and `native` keys for anything the model lacks. Each knob comes back
+  applied, partial (with what to know) or unsupported (with why). `revert` restores every
+  file a session touched, byte for byte; `support` is the knob × emulator matrix. Where a
+  knob lands is catalog data (`config.files`, `config.knobs`, `config.players`), described
+  for every entry: ini and Qt ini, flat TOML, RetroArch's cfg, two-level YAML (RPCS3, Vita3K),
+  BML (ares), XML (Cemu), JSON (Ryujinx, shadPS4), each patched in place with comments, order, BOM
+  and line endings kept.
+- ares (most cartridge-era systems), Rosalie's Mupen GUI (Nintendo 64) and Snes9x.
 - The `hermir` CLI: `status`, `detect`, `install`, `update`, `remove`, `where`, `core install`,
-  `prepare`, `catalog list|show|validate|schema|resolve`, `doctor`; `--json` on every verb and
-  an exit code per kind of failure.
+  `prepare`, `players`, `config apply|revert|support`,
+  `catalog list|show|validate|schema|resolve`, `doctor`; `--json` on every verb and an exit
+  code per kind of failure.
+- `unsafe` is forbidden across the workspace, as a lint the build enforces.
+
+### Changed
+
+- Player bindings moved from `players.rs` into `config/`, one adapter file per emulator, over
+  the transaction that `apply` shares with every other knob; `apply_players` and
+  `revert_players` remain as shortcuts, and `revert_all_players` is `revert_all`.
+- Dolphin and RetroArch write XInput bindings on Windows (`XInput/<n>/Gamepad`, the `xinput`
+  joypad driver) instead of the Linux evdev and udev forms; emulators keyed by SDL's GUID say
+  on Windows that the USB-derived GUID is a best effort there.
+- Seats past an emulator's ports (xemu's four, Supermodel's two, melonDS's one) are noted
+  rather than written.
+
+### Fixed
+
+- RPCS3 on Windows keeps `config.yml`, `GuiConfigs/` and `input_configs/` under `config/`;
+  the first-run answer and the bindings go there now.
+- Dolphin's settings and pad files on Windows are under `Config/`, not the user directory
+  itself.
+- Eden's settings directory for a native (non-Flatpak) install was derived one level off.
+- A UTF-8 byte-order mark at the start of a settings file no longer hides its first section.

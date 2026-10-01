@@ -35,5 +35,57 @@
       "{file}"
     ]
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "Config.json",
+        "format": "json"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "key": "start_fullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "key": "res_scale",
+        "scale": {
+          "multiplier": {
+            "max": 4
+          }
+        }
+      },
+      "video.vsync": {
+        "unsupported": "enable_vsync became vsync_mode between versions; pass the one your copy has through native"
+      },
+      "video.aspect": {
+        "file": "main",
+        "key": "aspect_ratio",
+        "values": {
+          "auto": "\"Fixed16x9\"",
+          "4:3": "\"Fixed4x3\"",
+          "16:9": "\"Fixed16x9\"",
+          "stretch": "\"Stretched\""
+        }
+      },
+      "region": {
+        "file": "main",
+        "key": "system_region",
+        "values": {
+          "jp": "\"Japan\"",
+          "us": "\"USA\"",
+          "eu": "\"Europe\""
+        }
+      }
+    },
+    "players": {
+      "unsupported": "Ryujinx keys pads by its own controller id in Config.json; not yet described"
+    }
+  },
   "notes": "The Ryubing fork keeps the Ryujinx binary and folder names."
 }

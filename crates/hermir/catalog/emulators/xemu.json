@@ -43,5 +43,60 @@
       "{file}"
     ]
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "xemu.toml",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "display.window",
+        "key": "fullscreen_on_startup",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "display.quality",
+        "key": "surface_scale",
+        "scale": {
+          "multiplier": {
+            "max": 10
+          }
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "display.window",
+        "key": "vsync",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "display.ui",
+        "key": "aspect_ratio",
+        "values": {
+          "auto": "\"auto\"",
+          "4:3": "\"4x3\"",
+          "16:9": "\"16x9\""
+        },
+        "note": "stretch is display.ui.fit, a native key"
+      },
+      "region": {
+        "unsupported": "the EEPROM decides the region"
+      }
+    },
+    "players": {
+      "adapter": "xemu"
+    }
+  },
   "notes": "Needs an MCPX ROM, a BIOS and an HDD image the user provides."
 }

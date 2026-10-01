@@ -94,5 +94,58 @@
       }
     ]
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "inis/PCSX2.ini",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "UI",
+        "key": "StartFullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "EmuCore/GS",
+        "key": "upscale_multiplier",
+        "scale": {
+          "multiplier": {}
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "EmuCore/GS",
+        "key": "VsyncEnable",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "EmuCore/GS",
+        "key": "AspectRatio",
+        "values": {
+          "auto": "Auto 4:3/3:2",
+          "4:3": "4:3",
+          "16:9": "16:9",
+          "stretch": "Stretch"
+        }
+      },
+      "region": {
+        "unsupported": "the BIOS decides the region; PCSX2 has no override"
+      }
+    },
+    "players": {
+      "adapter": "pcsx2"
+    }
+  },
   "notes": "The first-run seed carries the settings version this release expects (a file without it is reset to defaults, wizard included); bump it with the emulator."
 }

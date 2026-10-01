@@ -1,0 +1,59 @@
+{
+  "id": "rmg",
+  "name": "Rosalie's Mupen GUI",
+  "platforms": [
+    "n64"
+  ],
+  "license": "GPL-3.0-only",
+  "channels": {
+    "linux": {
+      "flatpak": "com.github.Rosalie241.RMG"
+    },
+    "windows": {
+      "github": "Rosalie241/RMG",
+      "asset": {
+        "all": [
+          "Portable-Windows64",
+          ".zip"
+        ]
+      },
+      "exe": "RMG.exe",
+      "portable": {
+        "file": "portable.txt"
+      }
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "RMG"
+      ],
+      "flatpak": "com.github.Rosalie241.RMG"
+    },
+    "windows": {
+      "paths": [
+        "%ProgramFiles%\\RMG\\RMG.exe",
+        "%LOCALAPPDATA%\\Programs\\RMG\\RMG.exe"
+      ],
+      "portable_marker": "portable.txt"
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/com.github.Rosalie241.RMG/config/RMG",
+    "native": "~/.config/RMG",
+    "portable": "<app>/Config",
+    "windows": "%APPDATA%\\RMG"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:--fullscreen}",
+      "{file}"
+    ]
+  },
+  "config": {
+    "players": {
+      "automatic": "RMG-Input takes the first pads itself, in the order they appear"
+    }
+  },
+  "notes": "mupen64plus with GLideN64 and ParaLLEl behind a Qt front. The portable zip keeps Config/ beside the exe."
+}

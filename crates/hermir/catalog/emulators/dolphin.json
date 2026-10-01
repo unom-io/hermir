@@ -46,6 +46,83 @@
       "{file}"
     ]
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": {
+          "linux": "Dolphin.ini",
+          "windows": "Config/Dolphin.ini"
+        },
+        "format": "ini"
+      },
+      "gfx": {
+        "path": {
+          "linux": "GFX.ini",
+          "windows": "Config/GFX.ini"
+        },
+        "format": "ini"
+      },
+      "gcpad": {
+        "path": {
+          "linux": "GCPadNew.ini",
+          "windows": "Config/GCPadNew.ini"
+        },
+        "format": "ini"
+      },
+      "wiimote": {
+        "path": {
+          "linux": "WiimoteNew.ini",
+          "windows": "Config/WiimoteNew.ini"
+        },
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "Display",
+        "key": "Fullscreen",
+        "bool": [
+          "True",
+          "False"
+        ]
+      },
+      "video.scale": {
+        "file": "gfx",
+        "section": "Settings",
+        "key": "InternalResolution",
+        "scale": {
+          "multiplier": {}
+        }
+      },
+      "video.vsync": {
+        "file": "gfx",
+        "section": "Hardware",
+        "key": "VSync",
+        "bool": [
+          "True",
+          "False"
+        ]
+      },
+      "video.aspect": {
+        "file": "gfx",
+        "section": "Settings",
+        "key": "AspectRatio",
+        "values": {
+          "auto": "0",
+          "16:9": "1",
+          "4:3": "2",
+          "stretch": "3"
+        }
+      },
+      "region": {
+        "unsupported": "the disc decides; Dolphin's FallbackRegion applies to region-free titles only"
+      }
+    },
+    "players": {
+      "adapter": "dolphin"
+    }
+  },
   "notes": "No GitHub releases; the URL is bumped by catalog PRs. `-u <dir>` selects a user directory for profiles.",
   "first_run": {
     "linux": [

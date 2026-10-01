@@ -50,5 +50,60 @@
       "{fullscreen:--fullscreen}",
       "{file}"
     ]
+  },
+  "config": {
+    "files": {
+      "main": {
+        "path": "PSP/SYSTEM/ppsspp.ini",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "Graphics",
+        "key": "FullScreen",
+        "bool": [
+          "True",
+          "False"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "Graphics",
+        "key": "InternalResolution",
+        "scale": {
+          "multiplier": {
+            "max": 10
+          }
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "Graphics",
+        "key": "VerticalSync",
+        "bool": [
+          "True",
+          "False"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "Graphics",
+        "key": "DisplayStretch",
+        "values": {
+          "auto": "False",
+          "16:9": "False",
+          "stretch": "True"
+        },
+        "note": "the PSP is 16:9; stretch fills the window"
+      },
+      "region": {
+        "unsupported": "PSP games are region-free; the system language is SystemParam/Language"
+      }
+    },
+    "players": {
+      "automatic": "PPSSPP maps SDL pads itself, in the order they appear"
+    }
   }
 }

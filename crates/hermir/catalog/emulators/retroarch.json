@@ -143,5 +143,50 @@
       }
     }
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "retroarch.cfg",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "key": "video_fullscreen",
+        "bool": [
+          "\"true\"",
+          "\"false\""
+        ]
+      },
+      "video.scale": {
+        "unsupported": "internal resolution is a core option, per core"
+      },
+      "video.vsync": {
+        "file": "main",
+        "key": "video_vsync",
+        "bool": [
+          "\"true\"",
+          "\"false\""
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "key": "aspect_ratio_index",
+        "values": {
+          "auto": "\"22\"",
+          "4:3": "\"0\"",
+          "16:9": "\"1\"",
+          "stretch": "\"24\""
+        }
+      },
+      "region": {
+        "unsupported": "a core option, per core"
+      }
+    },
+    "players": {
+      "adapter": "retroarch"
+    }
+  },
   "notes": "Cores come from the buildbot through `hermir core install <core>`; the Windows 7z is portable as shipped."
 }

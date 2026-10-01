@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use hermir::progress::{Event, Progress};
-use hermir::{Catalog, Hermir, Options, Os};
+use hermir::{Aspect, Catalog, Hermir, Options, Os, Region, StepOutcome, Support};
 
 #[derive(Parser)]
 #[command(
@@ -79,6 +79,12 @@ enum Cmd {
         #[arg(long)]
         pad: Vec<String>,
     },
+    /// A session's settings: write them into every copy, put them back, or see what each
+    /// emulator takes.
+    Config {
+        #[command(subcommand)]
+        cmd: ConfigCmd,
+    },
     /// libretro cores for the RetroArch on this machine.
     Core {
         #[command(subcommand)]
@@ -108,6 +114,66 @@ fn pad_arg(spec: &str, index: u32) -> hermir::Result<hermir::PadRef> {
     Ok(pad)
 }
 
+/// `section/key=value` → a native key for `file`; the last slash before `=` splits them.
+fn native_arg(file: &str, spec: &str) -> hermir::Result<hermir::Native> {
+    let Some((left, value)) = spec.split_once('=') else {
+        return Err(hermir::Error::Place {
+            what: spec.into(),
+            why: "a native key is section/key=value".into(),
+        });
+    };
+    let (section, key) = match left.rsplit_once('/') {
+        Some((s, k)) => (s, k),
+        None => ("", left),
+    };
+    if key.trim().is_empty() {
+        return Err(hermir::Error::Place {
+            what: spec.into(),
+            why: "a native key is section/key=value".into(),
+        });
+    }
+    Ok(hermir::Native {
+        file: file.into(),
+        section: section.trim().into(),
+        key: key.trim().into(),
+        value: value.into(),
+    })
+}
+
+fn pads_arg(pad: &[String]) -> hermir::Result<Vec<hermir::Player>> {
+    let pads: Vec<hermir::PadRef> = pad
+        .iter()
+        .zip(0u32..)
+        .map(|(spec, i)| pad_arg(spec, i))
+        .collect::<hermir::Result<_>>()?;
+    Ok(pads
+        .into_iter()
+        .zip(1u8..)
+        .map(|(pad, seat)| hermir::Player { seat, pad })
+        .collect())
+}
+
+fn support_mark(s: Support) -> &'static str {
+    match s {
+        Support::Applied => "+",
+        Support::Partial => "~",
+        Support::Unsupported => "-",
+    }
+}
+
+fn step_line(s: &hermir::PrepareStep) -> String {
+    format!(
+        "  {:?} {} {}{}",
+        s.outcome,
+        s.kind,
+        s.target.display(),
+        s.note
+            .as_deref()
+            .map(|n| format!(" — {n}"))
+            .unwrap_or_default()
+    )
+}
+
 #[derive(Subcommand)]
 enum CatalogCmd {
     /// Every entry, with what it offers on this OS.
@@ -128,6 +194,51 @@ struct ResolveArgs {
     emulator: Option<String>,
     #[arg(long)]
     all: bool,
+}
+
+#[derive(Subcommand)]
+enum ConfigCmd {
+    /// Write video, region, native keys and pads into every copy of an emulator. Every file
+    /// is snapshotted first; `config revert` puts it back.
+    Apply(ApplyArgs),
+    /// Put the player's own files back: one emulator, or every one with changes outstanding.
+    Revert {
+        #[arg(required_unless_present = "all", conflicts_with = "all")]
+        emulator: Option<String>,
+        #[arg(long)]
+        all: bool,
+    },
+    /// What `apply` can do, knob by knob, for one emulator or all of them.
+    Support { emulator: Option<String> },
+}
+
+#[derive(Args)]
+struct ApplyArgs {
+    emulator: String,
+    /// Start in fullscreen (`--fullscreen` alone means yes; `--fullscreen no` says no).
+    #[arg(long, num_args = 0..=1, default_missing_value = "true", value_parser = clap::builder::BoolishValueParser::new())]
+    fullscreen: Option<bool>,
+    /// Internal resolution, as a multiple of the console's: 1 is native, 3 is 3×.
+    #[arg(long)]
+    scale: Option<u8>,
+    #[arg(long, num_args = 0..=1, default_missing_value = "true", value_parser = clap::builder::BoolishValueParser::new())]
+    vsync: Option<bool>,
+    /// auto, 4:3, 16:9 or stretch.
+    #[arg(long, value_parser = clap::value_parser!(Aspect))]
+    aspect: Option<Aspect>,
+    /// auto, jp, us or eu (also ntsc-j, ntsc-u, pal).
+    #[arg(long, value_parser = clap::value_parser!(Region))]
+    region: Option<Region>,
+    /// A key the model does not cover, as `section/key=value` (`key=value` at the top
+    /// level), written as given into `--file`. The section may itself contain slashes.
+    #[arg(long = "set", value_name = "SECTION/KEY=VALUE")]
+    set: Vec<String>,
+    /// The catalog's name for the file `--set` goes into.
+    #[arg(long, default_value = "main")]
+    file: String,
+    /// A pad into the bindings, seat by seat: `vendor:product[:name]`, hex ids.
+    #[arg(long)]
+    pad: Vec<String>,
 }
 
 #[derive(Subcommand)]
@@ -527,19 +638,14 @@ fn run(cli: Cli) -> hermir::Result<()> {
             let done: Vec<(String, Vec<hermir::PrepareStep>)> = if revert {
                 vec![("revert".to_string(), e.revert_players())]
             } else {
-                let pads: Vec<hermir::PadRef> = if pad.is_empty() {
-                    vec![hermir::PadRef::xbox360(0)]
+                let players = if pad.is_empty() {
+                    vec![hermir::Player {
+                        seat: 1,
+                        pad: hermir::PadRef::xbox360(0),
+                    }]
                 } else {
-                    pad.iter()
-                        .zip(0u32..)
-                        .map(|(spec, i)| pad_arg(spec, i))
-                        .collect::<hermir::Result<_>>()?
+                    pads_arg(&pad)?
                 };
-                let players: Vec<hermir::Player> = pads
-                    .into_iter()
-                    .zip(1u8..)
-                    .map(|(pad, seat)| hermir::Player { seat, pad })
-                    .collect();
                 e.copies()?
                     .iter()
                     .map(|i| (i.exe.to_string(), e.apply_players(i, &players).steps))
@@ -575,6 +681,168 @@ fn run(cli: Cli) -> hermir::Result<()> {
             {
                 std::process::exit(5);
             }
+        }
+        Cmd::Config {
+            cmd: ConfigCmd::Apply(a),
+        } => {
+            let e = h.emulator(&a.emulator)?;
+            let video = hermir::Video {
+                fullscreen: a.fullscreen,
+                scale: a.scale,
+                vsync: a.vsync,
+                aspect: a.aspect,
+            };
+            let patch = hermir::Patch {
+                players: (!a.pad.is_empty()).then(|| pads_arg(&a.pad)).transpose()?,
+                video: (!video.is_empty()).then_some(video),
+                region: a.region,
+                native: a
+                    .set
+                    .iter()
+                    .map(|s| native_arg(&a.file, s))
+                    .collect::<hermir::Result<_>>()?,
+            };
+            if patch.is_empty() {
+                return Err(hermir::Error::Place {
+                    what: a.emulator,
+                    why: "nothing to apply; see `hermir config apply --help`".into(),
+                });
+            }
+            let copies = e.copies()?;
+            if copies.is_empty() {
+                return Err(hermir::Error::Place {
+                    what: a.emulator,
+                    why: "not on this machine".into(),
+                });
+            }
+            let done: Vec<(String, hermir::Applied)> = copies
+                .iter()
+                .map(|i| (i.exe.to_string(), e.apply(i, &patch)))
+                .collect();
+            let rows: Vec<serde_json::Value> = done
+                .iter()
+                .map(|(exe, a)| {
+                    serde_json::json!({ "exe": exe, "knobs": a.knobs, "steps": a.steps })
+                })
+                .collect();
+            out(json, &rows, || {
+                done.iter()
+                    .flat_map(|(exe, a)| {
+                        std::iter::once(exe.clone())
+                            .chain(a.knobs.iter().map(|k| {
+                                format!(
+                                    "  {} {:<17}{}{}",
+                                    support_mark(k.support),
+                                    k.knob,
+                                    k.file
+                                        .as_ref()
+                                        .map(|f| format!(" {}", f.display()))
+                                        .unwrap_or_default(),
+                                    k.note
+                                        .as_deref()
+                                        .map(|n| format!(" — {n}"))
+                                        .unwrap_or_default()
+                                )
+                            }))
+                            .chain(a.steps.iter().map(step_line))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
+            if done.iter().any(|(_, a)| a.failed()) {
+                std::process::exit(5);
+            }
+        }
+        Cmd::Config {
+            cmd: ConfigCmd::Revert { emulator, all },
+        } => {
+            let done: Vec<(String, Vec<hermir::PrepareStep>)> = if all {
+                h.revert_all()
+            } else {
+                let id = emulator.ok_or_else(|| hermir::Error::NotInCatalog("<none>".into()))?;
+                vec![(id.clone(), h.emulator(&id)?.revert())]
+            };
+            let rows: Vec<serde_json::Value> = done
+                .iter()
+                .map(|(id, steps)| serde_json::json!({ "emulator": id, "steps": steps }))
+                .collect();
+            out(json, &rows, || {
+                if done.iter().all(|(_, s)| s.is_empty()) {
+                    return "nothing outstanding".into();
+                }
+                done.iter()
+                    .flat_map(|(id, steps)| {
+                        std::iter::once(id.clone()).chain(steps.iter().map(step_line))
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
+            if done
+                .iter()
+                .flat_map(|(_, s)| s)
+                .any(|s| s.outcome == StepOutcome::Failed)
+            {
+                std::process::exit(5);
+            }
+        }
+        Cmd::Config {
+            cmd: ConfigCmd::Support { emulator },
+        } => {
+            let matrix: Vec<(String, Vec<hermir::KnobChange>)> = match &emulator {
+                Some(id) => vec![(id.clone(), h.emulator(id)?.support())],
+                None => h.support(),
+            };
+            let rows: Vec<serde_json::Value> = matrix
+                .iter()
+                .map(|(id, knobs)| serde_json::json!({ "emulator": id, "knobs": knobs }))
+                .collect();
+            out(json, &rows, || {
+                if let [(id, knobs)] = matrix.as_slice()
+                    && emulator.is_some()
+                {
+                    return std::iter::once(id.clone())
+                        .chain(knobs.iter().map(|k| {
+                            format!(
+                                "  {} {:<17}{}",
+                                support_mark(k.support),
+                                k.knob,
+                                k.note
+                                    .as_deref()
+                                    .map(|n| format!(" {n}"))
+                                    .unwrap_or_default()
+                            )
+                        }))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                }
+                let names: Vec<&str> = matrix
+                    .first()
+                    .map(|(_, k)| k.iter().map(|k| k.knob.as_str()).collect())
+                    .unwrap_or_default();
+                let mut lines = vec![format!(
+                    "{:<15} {}",
+                    "",
+                    names
+                        .iter()
+                        .map(|n| format!("{:<11}", n.trim_start_matches("video.")))
+                        .collect::<String>()
+                )];
+                for (id, knobs) in &matrix {
+                    lines.push(format!(
+                        "{:<15} {}",
+                        id,
+                        knobs
+                            .iter()
+                            .map(|k| format!("{:<11}", support_mark(k.support)))
+                            .collect::<String>()
+                    ));
+                }
+                lines.push(
+                    "+ applied   ~ partial   - unsupported; `config support <emulator>` says why"
+                        .into(),
+                );
+                lines.join("\n")
+            });
         }
         Cmd::Core {
             cmd: CoreCmd::Install { core },

@@ -65,5 +65,47 @@
         "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<content/>\n"
       }
     ]
+  },
+  "config": {
+    "files": {
+      "main": {
+        "path": "settings.xml",
+        "format": "xml",
+        "root": "content"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "unsupported": "a launch flag (-f); Cemu keeps no start-fullscreen setting"
+      },
+      "video.scale": {
+        "unsupported": "resolution is a graphic pack in Cemu, enabled per game"
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "Graphic",
+        "key": "VSync",
+        "bool": [
+          "1",
+          "0"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "Graphic",
+        "key": "FullscreenScaling",
+        "values": {
+          "auto": "0",
+          "16:9": "0",
+          "stretch": "1"
+        }
+      },
+      "region": {
+        "unsupported": "Cemu takes the region from the title; its global console_region setting is gone"
+      }
+    },
+    "players": {
+      "adapter": "cemu"
+    }
   }
 }

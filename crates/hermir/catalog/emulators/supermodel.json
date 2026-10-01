@@ -50,6 +50,53 @@
       "{fullscreen:-fullscreen}"
     ]
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "Config/Supermodel.ini",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "Global",
+        "key": "FullScreen",
+        "bool": [
+          "1",
+          "0"
+        ]
+      },
+      "video.scale": {
+        "unsupported": "renders at XResolution × YResolution; set them through native"
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "Global",
+        "key": "VSync",
+        "bool": [
+          "1",
+          "0"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "Global",
+        "key": "WideScreen",
+        "values": {
+          "auto": "0",
+          "4:3": "0",
+          "16:9": "1"
+        }
+      },
+      "region": {
+        "unsupported": "the ROM set decides"
+      }
+    },
+    "players": {
+      "adapter": "supermodel"
+    }
+  },
   "notes": "SDL2 + OpenGL through GLX: it needs X11 or XWayland, not a Wayland socket. With `~/.supermodel` present it keeps Config, NVRAM, Saves and Assets in there; without Games.xml and the crosshair bitmaps it exits. A ROM set is a MAME-style zip, its parent set beside it.",
   "first_run": {
     "linux": [
