@@ -13,7 +13,8 @@
       ".unif"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -28,7 +29,8 @@
       ".fds"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -44,7 +46,9 @@
       ".smc"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares",
+      "snes9x"
     ]
   },
   {
@@ -61,7 +65,9 @@
       ".v64"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "rmg",
+      "ares"
     ]
   },
   {
@@ -152,7 +158,8 @@
     ],
     "emulators": [
       "mgba",
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -168,7 +175,8 @@
     ],
     "emulators": [
       "mgba",
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -184,7 +192,8 @@
     ],
     "emulators": [
       "mgba",
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -255,7 +264,8 @@
     ],
     "emulators": [
       "duckstation",
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -360,7 +370,8 @@
       ".smd"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -375,7 +386,8 @@
       ".sms"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -390,7 +402,8 @@
       ".gg"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -407,7 +420,8 @@
       ".iso"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -422,7 +436,8 @@
       ".32x"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -508,7 +523,8 @@
       ".chd"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -524,7 +540,8 @@
       ".ngc"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -540,7 +557,8 @@
       ".wsc"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -570,7 +588,8 @@
       ".a26"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -685,7 +704,8 @@
       ".cas"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {
@@ -719,7 +739,8 @@
       ".rom"
     ],
     "emulators": [
-      "retroarch"
+      "retroarch",
+      "ares"
     ]
   },
   {

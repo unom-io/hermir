@@ -15,6 +15,7 @@ use crate::model::{
 /// `(id, json)` for every file under `catalog/emulators/`. A test checks the directory listing
 /// against this list, so a new file cannot be forgotten.
 const EMULATORS: &[(&str, &str)] = &[
+    ("ares", include_str!("../catalog/emulators/ares.json")),
     ("azahar", include_str!("../catalog/emulators/azahar.json")),
     ("cemu", include_str!("../catalog/emulators/cemu.json")),
     ("dolphin", include_str!("../catalog/emulators/dolphin.json")),
@@ -36,10 +37,12 @@ const EMULATORS: &[(&str, &str)] = &[
         "retroarch",
         include_str!("../catalog/emulators/retroarch.json"),
     ),
+    ("rmg", include_str!("../catalog/emulators/rmg.json")),
     ("rpcs3", include_str!("../catalog/emulators/rpcs3.json")),
     ("ryujinx", include_str!("../catalog/emulators/ryujinx.json")),
     ("scummvm", include_str!("../catalog/emulators/scummvm.json")),
     ("shadps4", include_str!("../catalog/emulators/shadps4.json")),
+    ("snes9x", include_str!("../catalog/emulators/snes9x.json")),
     (
         "supermodel",
         include_str!("../catalog/emulators/supermodel.json"),

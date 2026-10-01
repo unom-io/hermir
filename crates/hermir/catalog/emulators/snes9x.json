@@ -1,0 +1,55 @@
+{
+  "id": "snes9x",
+  "name": "Snes9x",
+  "platforms": [
+    "snes"
+  ],
+  "license": "LicenseRef-Snes9x",
+  "channels": {
+    "linux": {
+      "flatpak": "com.snes9x.Snes9x"
+    },
+    "windows": {
+      "github": "snes9xgit/snes9x",
+      "asset": {
+        "all": [
+          "win32-x64",
+          ".zip"
+        ]
+      },
+      "exe": "snes9x-x64.exe"
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "snes9x-gtk",
+        "snes9x"
+      ],
+      "flatpak": "com.snes9x.Snes9x"
+    },
+    "windows": {
+      "paths": [
+        "%ProgramFiles%\\Snes9x\\snes9x-x64.exe",
+        "C:\\snes9x\\snes9x-x64.exe"
+      ]
+    }
+  },
+  "roots": {
+    "flatpak": "~/.var/app/com.snes9x.Snes9x/config/snes9x",
+    "native": "~/.config/snes9x",
+    "portable": "<app>",
+    "windows": "<app>"
+  },
+  "launch": {
+    "args": [
+      "{file}"
+    ]
+  },
+  "config": {
+    "players": {
+      "unsupported": "Snes9x's bindings differ between its Windows and GTK builds; not yet described"
+    }
+  },
+  "notes": "The Windows build keeps snes9x.conf beside its exe; the GTK build under ~/.config/snes9x. Its licence is Snes9x's own, non-commercial."
+}
