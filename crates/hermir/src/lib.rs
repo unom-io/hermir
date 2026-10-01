@@ -1,16 +1,27 @@
 //! hermir — one interface for managing emulators.
 //!
 //! ```no_run
-//! use hermir::{Hermir, Options, progress::Quiet};
+//! use hermir::{Hermir, Options, Patch, Region, Video, progress::Quiet};
 //! let h = Hermir::open(Options::default()).unwrap();
 //! let pcsx2 = h.emulator("pcsx2").unwrap();
 //! let row = pcsx2.install(&Quiet).unwrap();
 //! println!("{}", row.exe);
+//! let copy = pcsx2.best().unwrap().unwrap();
+//! let done = pcsx2.apply(&copy, &Patch {
+//!     video: Some(Video { fullscreen: Some(true), scale: Some(3), ..Default::default() }),
+//!     region: Some(Region::Europe),
+//!     ..Default::default()
+//! });
+//! for k in &done.knobs {
+//!     println!("{} {:?} {}", k.knob, k.support, k.note.as_deref().unwrap_or(""));
+//! }
+//! pcsx2.revert();
 //! ```
 //!
 //! `Hermir` holds the catalog, the prefix and the machine; an `EmulatorHandle` is one entry
-//! of the catalog on this machine. Every type is serde and JSON Schema, so the CLI's `--json`
-//! is the same contract as the library.
+//! of the catalog on this machine: install it, prepare it, `apply` a session's players and
+//! settings to it and `revert` them. Every type is serde and JSON Schema, so the CLI's
+//! `--json` is the same contract as the library.
 pub mod catalog;
 pub mod channel;
 pub mod config;

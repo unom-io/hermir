@@ -20,9 +20,14 @@ hermir where dolphin                exe and config root of the best copy on this
 hermir detect --json                what the user installed, as data
 hermir core install snes9x          a libretro core into RetroArch's cores directory
 hermir prepare pcsx2 --platform ps2 --firmware scph39001.bin
-hermir players pcsx2                     # the Xbox pad in seat 1, into PCSX2's own bindings
-hermir players pcsx2 --revert            # the player's settings back
                                     first-run answers and the BIOS, on every copy
+hermir config apply pcsx2 --fullscreen --scale 3 --region pal --pad 045e:028e
+                                    a session into PCSX2's own files: video, region,
+                                    the Xbox pad in seat 1; every file snapshotted first
+hermir config apply pcsx2 --set EmuCore/GS/TextureFiltering=2
+                                    anything the model lacks, as a native key
+hermir config revert --all          every file back, byte for byte
+hermir config support               the knob × emulator matrix
 hermir catalog resolve --all        where every channel points, without downloading
 hermir doctor
 ```
@@ -35,7 +40,8 @@ emulator carries an install channel.
 
 The design — the model, the facade, how configuration is patched and reverted, what comes
 next — is in [`docs/design.md`](https://github.com/unom-io/hermir/blob/main/docs/design.md).
-This is the first step of it: get, find, update, remove.
+Done so far: get, find, update, remove, prepare, and a session's settings in and out again.
+There is no `unsafe` anywhere in the workspace; the build forbids it.
 
 ## Install
 
@@ -55,6 +61,7 @@ The library is `cargo add hermir`.
 
 | Emulator | Plays | Linux | Windows |
 |---|---|---|---|
+| [ares](https://ares-emu.net) | NES, SNES, N64, Game Boy line, Mega Drive line, PlayStation, PC Engine and more | Flatpak | release build |
 | [Azahar](https://github.com/azahar-emu/azahar) | Nintendo 3DS | Flatpak | release build |
 | [Cemu](https://github.com/cemu-project/Cemu) | Wii U | Flatpak | release build |
 | [Dolphin](https://dolphin-emu.org) | GameCube, Wii | Flatpak | release build |
@@ -66,9 +73,11 @@ The library is `cargo add hermir`.
 | [PCSX2](https://github.com/PCSX2/pcsx2) | PlayStation 2 | Flatpak | release build |
 | [PPSSPP](https://github.com/hrydgard/ppsspp) | PlayStation Portable | Flatpak | release build |
 | [RetroArch](https://www.retroarch.com) | 37 systems, cores via `hermir core install` | Flatpak | release build |
-| [RPCS3](https://github.com/RPCS3/rpcs3) | PlayStation 3 | Flatpak | release build |
+| [Rosalie's Mupen GUI](https://github.com/Rosalie241/RMG) | Nintendo 64 | Flatpak | release build |
+| [RPCS3](https://github.com/RPCS3/rpcs3) | PlayStation 3 | AppImage | release build |
 | [ScummVM](https://www.scummvm.org) | ScummVM games | Flatpak | release build |
 | [shadPS4](https://github.com/shadps4-emu/shadPS4) | PlayStation 4 | release build | release build |
+| [Snes9x](https://github.com/snes9xgit/snes9x) | Super Nintendo | Flatpak | release build |
 | [Supermodel](https://github.com/trzy/Supermodel) | Sega Model 3 | release build | release build |
 | [Vita3K](https://github.com/Vita3K/Vita3K) | PlayStation Vita | — | release build |
 | [xemu](https://github.com/xemu-project/xemu) | Xbox | Flatpak | release build |
@@ -79,10 +88,32 @@ The library is `cargo add hermir`.
 emulator is a JSON file and a pull request — see
 [CONTRIBUTING.md](https://github.com/unom-io/hermir/blob/main/CONTRIBUTING.md).
 
+## Configuration
+
+`hermir config apply` writes a session into an emulator's own files and says, knob by knob,
+what it did:
+
+| knob | what it is |
+|---|---|
+| `video.fullscreen` | start fullscreen |
+| `video.scale` | internal resolution, as a multiple of the console's (1 = native) |
+| `video.vsync` | |
+| `video.aspect` | `auto`, `4:3`, `16:9`, `stretch` |
+| `region` | the console region: `auto`, `jp`, `us`, `eu` |
+| `players` | pads in seat order, into the emulator's bindings |
+
+Every file is snapshotted before its first edit; `hermir config revert` puts the player's own
+settings back byte for byte, and one revert undoes the whole session. What an emulator cannot
+do it says, with the reason (`hermir config support pcsx2`: "region — the BIOS decides"), and
+`--set section/key=value` reaches any key the model does not cover, through the same
+transaction. Where each knob lands is data in the catalog entry (`config.files`,
+`config.knobs`), so an emulator with plain `key = value` settings needs no code; only player
+bindings are Rust, one adapter per emulator.
+
 ## Library
 
 ```rust
-use hermir::{Hermir, Options, progress::Quiet};
+use hermir::{Hermir, Options, Patch, Region, Video, progress::Quiet};
 
 let h = Hermir::open(Options::default())?;
 let pcsx2 = h.emulator("pcsx2")?;
@@ -90,6 +121,13 @@ let row = pcsx2.install(&Quiet)?;      // Installed { exe, version, release, dig
 for i in h.installs()? {               // managed + detected, one per exe
     println!("{} {:?} {}", i.emulator, i.kind, i.exe);
 }
+let copy = pcsx2.best()?.unwrap();
+let done = pcsx2.apply(&copy, &Patch {   // Applied { knobs: [{ knob, support, note }], steps }
+    video: Some(Video { fullscreen: Some(true), scale: Some(3), ..Default::default() }),
+    region: Some(Region::Europe),
+    ..Default::default()
+});
+pcsx2.revert();                          // the player's files back, byte for byte
 ```
 
 Every type is serde and JSON Schema, so the CLI's `--json` is the same contract as the library.

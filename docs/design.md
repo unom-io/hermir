@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | P0 (*get*: install, detect, update, remove) and `prepare` (§7) implemented; P1–P4 designed (§10) |
-| **Date** | 2026-09-27 |
+| **Status** | P0 (*get*), `prepare` (§7) and `apply`/`revert`/`support` for players, video, region and native keys (§4) implemented; profiles, launch, audio and saves designed (§10) |
+| **Date** | 2026-10-01 |
 | **Name** | Icelandic *hermir*: emulator, simulator; from *herma*, "to mimic". |
 | **One line** | One multi-platform interface for managing emulators: install them, find them, configure them (controllers, video, audio, paths), build their launch, know where their firmware and saves live. A Rust library, and a CLI that is the same thing for every other language. |
 
@@ -240,27 +240,35 @@ a renamed asset is a PR, not a support thread.
 
 ### 4.1 Formats
 
-Five, each a small round-trip-safe editor that patches keys in place and leaves everything
-else — comments, order, unknown keys — untouched:
+Six, each a small round-trip-safe line editor (`config/{ini,yaml,xml,json}.rs`) that patches
+one key in place and leaves everything else — comments, order, unknown keys, a byte-order
+mark, line endings — untouched. No parsing library: the files are flat enough, and what is not
+changed is not re-serialised.
 
 | format | used by | editor |
 |---|---|---|
-| `ini` (with `A/B.key` sections and Dolphin's `[Section]` + backtick values) | PCSX2, DuckStation, Dolphin, PPSSPP, Azahar, mGBA | own, line-based |
-| `toml` | xemu, Xenia, melonDS ≥ 1.0 | `toml_edit` |
-| `yaml` | RPCS3, Vita3K | own, line-based, key-path patch (no reflow) |
-| `xml` | Cemu (`settings.xml`, `controllerProfiles/*.xml`) | `quick-xml`, node patch |
-| `racfg` (`key = "value"`) | RetroArch, its remaps and autoconfigs | own, line-based |
+| `ini` (also flat TOML and RetroArch's `key = "value"`) | PCSX2, DuckStation, Dolphin, PPSSPP, mGBA, xemu, Xenia, melonDS, RetroArch, Flycast, Supermodel, shadPS4 | own, line-based, keeps the file's `key = value` spelling |
+| `qt` (Qt's ini) | Azahar, Eden | `ini` plus the `key\default=false` companion Qt needs |
+| `yaml` (two levels) / `bml` | RPCS3, Vita3K / ares | own, line-based, section + key, no reflow |
+| `xml` (elements by path) | Cemu `settings.xml` | own, text of one element, missing branches created |
+| `json` (top-level keys) | Ryujinx `Config.json` | own, one scalar per line |
 
-A format editor never knows what an emulator is; an adapter never parses text.
+A format editor never knows what an emulator is; an adapter never parses text. Whole files
+hermir owns (Cemu's controller profiles, RPCS3's input config) are written as such.
 
 ### 4.2 Knobs (data)
 
-A knob is a neutral name (`video.scale`, `video.fullscreen`, `video.vsync`, `video.aspect`,
-`audio.device`, `audio.backend`, `audio.latency_ms`) bound in the catalog to a file, a key and a
-type converter (`bool` in the emulator's spelling, `native_x` for scale multipliers, `enum` with
-a value map). `apply` walks the patch, resolves each knob, patches the file, and records a
-`Change` — `Unsupported` with the catalog's note when the emulator has no such setting. That
-note is the honest answer a UI shows; the matrix `hermir config support` is generated from it.
+A knob is a neutral name (`video.fullscreen`, `video.scale`, `video.vsync`, `video.aspect`,
+`region`; audio is designed, not yet bound) bound in the catalog entry's `config` block to a
+file, a section, a key and a spelling: `bool: [true, false]` as the emulator writes them, a
+`values` table from the neutral value to the emulator's literal, or a `scale` (`multiplier`,
+`percent`, `lines` with a base, a `map` from `n`). `also` carries companion keys (melonDS's
+renderer with its scale, Xenia's second axis, shadPS4's mode string), `note` makes a knob
+partial. `apply` walks the patch, renders each knob, patches the file through the transaction
+(§4.3), and records a `KnobChange` — `Unsupported` with the catalog's note when the emulator
+has no such setting, or when the table lacks that value (RPCS3 has no "auto" region). That
+note is the honest answer a UI shows; `hermir config support` is generated from the same data.
+`Patch::native` reaches any other key of a named file through the same transaction.
 
 Where a setting exists only as a launch flag (Dolphin's `-C Dolphin.Display.Fullscreen=True`,
 Flycast's `-config window:fullscreen=yes`), the knob's binding says `"via": "launch"` and the
@@ -305,9 +313,15 @@ pub trait Adapter: Send + Sync {
 }
 ```
 
-`Txn` is the transaction: every file an adapter touches is snapshotted first (content + mtime
-into `<prefix>/.snapshots/<id>/<n>/`), and `revert` restores the set. A crash mid-apply leaves a
-snapshot that `hermir config revert` finishes. Snapshots are capped (last 8 per emulator).
+The transaction (`config/txn.rs`): every file an apply touches is snapshotted first (its
+bytes, or the fact that it did not exist, under `<prefix>/.snapshots/<id>/`), the edits of one
+file are applied to its text in order, and the result lands atomically. The first snapshot of
+a file is the one that stays, so a second apply writes over hermir's own text, not the
+player's, and one `revert` undoes the whole session and forgets the snapshot. A crash
+mid-apply leaves a snapshot that `hermir config revert` finishes. As implemented the adapter
+contract is a function from a copy and its players to edits plus a note (`config/adapters/`),
+one file per emulator, naming the catalog's files rather than paths; the trait above is where
+`apply_extra` and `launch_extra` will go.
 
 The **index trap** is documented rather than hidden: an SDL index is the enumeration order at
 launch. Adapters prefer GUID or name forms where the emulator accepts them; where only an index
@@ -379,10 +393,10 @@ hermir/
     catalog/{mod,load,schema}.rs
     store/{mod,layout,lock,snapshot}.rs
     channel/{mod,flatpak,github,url,libretro}.rs
-    detect/{mod,env}.rs
-    config/{mod,knobs,txn,profile}.rs
-    config/format/{ini,toml,yaml,xml,racfg}.rs
-    config/adapters/{mod,retroarch,dolphin,pcsx2,duckstation,rpcs3,cemu,ppsspp,melonds,azahar,xemu,flycast,vita3k,xenia}.rs
+    detect.rs players.rs prepare.rs
+    config/{mod,knobs,txn}.rs                    (profile.rs to come)
+    config/{ini,yaml,xml,json}.rs
+    config/adapters/{mod,pad_ini,azahar,cemu,dolphin,duckstation,eden,melonds,pcsx2,retroarch,rpcs3,supermodel,xemu}.rs
     launch.rs firmware.rs saves.rs
   crates/hermir/catalog/{emulators/*.json,platforms.json,pads.json,schema/*.json}
   crates/hermir-cli/src/main.rs
@@ -401,8 +415,8 @@ its feature.
 | # | Delivers | Done when |
 |---|---|---|
 | **P0 — get** | workspace, model, catalog + schema, store, channels, detect, `status/install/update/remove/where/doctor`, release binaries | `hermir install pcsx2` places a working PCSX2 on Windows and a Flatpak on Linux; `status --json` lists managed + detected; a `.part` resumes; weekly dry-run green |
-| **P1 — set** | formats, data knobs, `Txn` + snapshots, `config get/set/apply/revert/support`, `launch`/`run` | `apply --video scale=3,fullscreen=true` on PCSX2, Dolphin, DuckStation, RPCS3, RetroArch; `revert` byte-identical; support matrix generated |
-| **P2 — players** | `PadRef`, pads catalog, adapters for RetroArch, Dolphin, PCSX2, DuckStation, RPCS3; `enumerate` feature; `hermir pads` | two pads in a chosen seat order land as player 1 and 2 in all five, on both OSes, from a real machine |
+| **P1 — set** | formats, data knobs, the transaction, `config apply/revert/support` **(done, from fixtures still to be gathered on real boxes)**; `config get`, `launch`/`run` | `apply --scale 3 --fullscreen` on PCSX2, Dolphin, DuckStation, RPCS3, RetroArch; `revert` byte-identical; support matrix generated |
+| **P2 — players** | `PadRef`, adapters for RetroArch, Dolphin, PCSX2, DuckStation, RPCS3 and the rest **(done)**; pads catalog, `enumerate` feature, `hermir pads` | two pads in a chosen seat order land as player 1 and 2 in all five, on both OSes, from a real machine |
 | **P3 — the rest** | Cemu (Wii U GamePad + Pro), PPSSPP, melonDS, Azahar, xemu, Flycast, Vita3K, Xenia adapters; profiles; firmware + saves views | every catalog emulator has fixtures and a green `hermir check` on one real box per OS |
 | **P4 — consumers** | punktfunk links the crate (installs on approval, `prepare` → `apply`/`revert`); ROM Manager's registry generated from `catalog/`; a `docs/consumers.md` recipe for a script and for a RomM client | the Discord case: a PS2 title on a RomM server plays through punktfunk with pads in seat order and no hand-edited file |
 
@@ -423,6 +437,10 @@ and can ship alone. P1 and P2 are independent of each other.
 - **RetroDECK, RetroBat, Lutris runners** — monoliths or single-OS; not interfaces.
 
 ## 12. Open items
+
+- The knob bindings and the Windows pad forms were written from each emulator's documented
+  config and need the fixtures of §8 from a real box per OS: each entry's `config` block is
+  the place a wrong key gets fixed, in data.
 
 - The Windows-side identity forms (XInput slot vs SDL index) for PCSX2/DuckStation/Dolphin on a
   machine with both kinds of pad plugged in — resolve with fixtures on a real box in P2.
