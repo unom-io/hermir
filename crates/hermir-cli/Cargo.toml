@@ -14,6 +14,9 @@ categories = ["emulators", "command-line-utilities"]
 name = "hermir"
 path = "src/main.rs"
 
+[lints]
+workspace = true
+
 [dependencies]
 hermir.workspace = true
 serde.workspace = true

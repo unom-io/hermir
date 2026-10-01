@@ -10,6 +10,9 @@ readme.workspace = true
 keywords = ["emulator", "emulation", "retrogaming", "retroarch", "installer"]
 categories = ["emulators"]
 
+[lints]
+workspace = true
+
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
