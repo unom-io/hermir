@@ -81,7 +81,7 @@
       "video.vsync": {
         "file": "main",
         "section": "Graphics",
-        "key": "VSyncInterval",
+        "key": "VerticalSync",
         "bool": [
           "True",
           "False"

@@ -14,7 +14,7 @@ use crate::prepare::write_atomic;
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Edit {
     /// `key` in `section` set to `value`, as `format` spells it. For XML the section is the
-    /// element path from the document element; for JSON it is unused.
+    /// element path from the document element; for JSON the object under the root, or none.
     Set {
         file: PathBuf,
         format: Format,
@@ -79,7 +79,7 @@ impl Edit {
                         .collect();
                     xml::set(text, &path, value)
                 }
-                Format::Json => json::set(text, key, value),
+                Format::Json => json::set(text, section, key, value),
             },
         }
     }

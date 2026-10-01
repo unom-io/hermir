@@ -42,7 +42,7 @@
     "flatpak": "~/.var/app/com.github.Rosalie241.RMG/config/RMG",
     "native": "~/.config/RMG",
     "portable": "<app>/Config",
-    "windows": "%LOCALAPPDATA%\\RMG"
+    "windows": "%APPDATA%\\RMG"
   },
   "launch": {
     "args": [

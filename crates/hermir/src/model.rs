@@ -214,7 +214,7 @@ pub enum Format {
     /// Elements by path under the file's `root`; `section` is the path between root and key,
     /// `/`-separated, empty for a child of the root.
     Xml,
-    /// Top-level keys of one object; `section` is unused.
+    /// A key of the root object, or of the object `section` names directly under it.
     Json,
 }
 

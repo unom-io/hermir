@@ -91,10 +91,10 @@
       "video.vsync": {
         "file": "main",
         "section": "Video",
-        "key": "VSync",
+        "key": "VSync Mode",
         "bool": [
-          "true",
-          "false"
+          "Full",
+          "Disabled"
         ]
       },
       "video.aspect": {

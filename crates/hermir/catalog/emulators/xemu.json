@@ -86,9 +86,9 @@
         "values": {
           "auto": "\"auto\"",
           "4:3": "\"4x3\"",
-          "16:9": "\"16x9\"",
-          "stretch": "\"scale\""
-        }
+          "16:9": "\"16x9\""
+        },
+        "note": "stretch is display.ui.fit, a native key"
       },
       "region": {
         "unsupported": "the EEPROM decides the region"

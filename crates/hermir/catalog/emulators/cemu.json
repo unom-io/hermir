@@ -76,12 +76,7 @@
     },
     "knobs": {
       "video.fullscreen": {
-        "file": "main",
-        "key": "fullscreen",
-        "bool": [
-          "true",
-          "false"
-        ]
+        "unsupported": "a launch flag (-f); Cemu keeps no start-fullscreen setting"
       },
       "video.scale": {
         "unsupported": "resolution is a graphic pack in Cemu, enabled per game"
@@ -106,14 +101,7 @@
         }
       },
       "region": {
-        "file": "main",
-        "key": "console_region",
-        "values": {
-          "auto": "255",
-          "jp": "1",
-          "us": "2",
-          "eu": "4"
-        }
+        "unsupported": "Cemu takes the region from the title; its global console_region setting is gone"
       }
     },
     "players": {

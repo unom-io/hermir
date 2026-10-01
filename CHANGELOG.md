@@ -43,7 +43,7 @@ The first release: P0 of the [design](docs/design.md), *get*.
   file a session touched, byte for byte; `support` is the knob × emulator matrix. Where a
   knob lands is catalog data (`config.files`, `config.knobs`, `config.players`), described
   for every entry: ini and Qt ini, flat TOML, RetroArch's cfg, two-level YAML (RPCS3, Vita3K),
-  BML (ares), XML (Cemu), JSON (Ryujinx), each patched in place with comments, order, BOM
+  BML (ares), XML (Cemu), JSON (Ryujinx, shadPS4), each patched in place with comments, order, BOM
   and line endings kept.
 - ares (most cartridge-era systems), Rosalie's Mupen GUI (Nintendo 64) and Snes9x.
 - The `hermir` CLI: `status`, `detect`, `install`, `update`, `remove`, `where`, `core install`,

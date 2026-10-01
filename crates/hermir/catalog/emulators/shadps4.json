@@ -40,7 +40,7 @@
   "roots": {
     "native": "~/.local/share/shadPS4",
     "portable": "<app>/user",
-    "windows": "<app>/user"
+    "windows": "%APPDATA%\\shadPS4"
   },
   "launch": {
     "args": [
@@ -52,25 +52,22 @@
   "config": {
     "files": {
       "main": {
-        "path": {
-          "linux": "{config}/config.toml",
-          "windows": "config.toml"
-        },
-        "format": "ini"
+        "path": "config.json",
+        "format": "json"
       }
     },
     "knobs": {
       "video.fullscreen": {
         "file": "main",
-        "section": "General",
-        "key": "Fullscreen",
+        "section": "GPU",
+        "key": "full_screen",
         "bool": [
           "true",
           "false"
         ],
         "also": [
           {
-            "key": "FullscreenMode",
+            "key": "full_screen_mode",
             "bool": [
               "\"Fullscreen\"",
               "\"Windowed\""
@@ -82,7 +79,7 @@
         "unsupported": "shadPS4 renders at the game's resolution"
       },
       "video.vsync": {
-        "unsupported": "shadPS4 paces by vblank divider; GPU/vblankDivider is a native key"
+        "unsupported": "shadPS4 paces by GPU/vblank_frequency, a native key"
       },
       "video.aspect": {
         "unsupported": "the game decides"
@@ -95,7 +92,7 @@
       "automatic": "shadPS4 maps SDL pads itself, in the order they appear"
     }
   },
-  "notes": "The SDL core, not the Qt launcher. It takes the game folder or its eboot.bin. Portable mode keys on a `user` folder in the working directory, not beside the exe.",
+  "notes": "The SDL core, not the Qt launcher. It takes the game folder or its eboot.bin. Portable mode keys on a `user` folder in the working directory, not beside the exe. Settings are config.json under the user directory, in General, Input and GPU objects.",
   "firmware": {
     "dir": "sys_modules",
     "platforms": {

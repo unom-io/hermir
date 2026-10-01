@@ -281,10 +281,10 @@ mod tests {
         );
         assert_eq!(
             resolve(
-                Path::new("/home/u/.local/share/shadPS4"),
-                "{config}/config.toml"
+                Path::new("/home/u/.local/share/eden"),
+                "{config}/qt-config.ini"
             ),
-            PathBuf::from("/home/u/.config/shadPS4/config.toml")
+            PathBuf::from("/home/u/.config/eden/qt-config.ini")
         );
         assert_eq!(
             resolve(Path::new("/r"), "inis/PCSX2.ini"),
@@ -600,15 +600,17 @@ mod tests {
         );
         assert_eq!(
             read(&rpcs3.join("config.yml")),
-            "Miscellaneous:\n  Start games in fullscreen mode: true\nVideo:\n  Resolution Scale: 200\n  VSync: true\n  Aspect ratio: 16:9\nSystem:\n  License Area: SCEA\n"
+            "Miscellaneous:\n  Start games in fullscreen mode: true\nVideo:\n  Resolution Scale: 200\n  VSync Mode: Full\n  Aspect ratio: 16:9\nSystem:\n  License Area: SCEA\n"
         );
 
         let cemu = tmp.path().join("cemu");
         let a = run(&c, "cemu", Os::Linux, &cemu, &everything(), &snaps);
-        assert_eq!(knob(&a, "video.scale").support, Support::Unsupported);
+        for k in ["video.fullscreen", "video.scale", "region"] {
+            assert_eq!(knob(&a, k).support, Support::Unsupported, "{k}");
+        }
         assert_eq!(
             read(&cemu.join("settings.xml")),
-            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<content>\n\t<fullscreen>true</fullscreen>\n\t<Graphic>\n\t\t<VSync>1</VSync>\n\t\t<FullscreenScaling>0</FullscreenScaling>\n\t</Graphic>\n\t<console_region>2</console_region>\n</content>\n"
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<content>\n\t<Graphic>\n\t\t<VSync>1</VSync>\n\t\t<FullscreenScaling>0</FullscreenScaling>\n\t</Graphic>\n</content>\n"
         );
 
         let ryu = tmp.path().join("Ryujinx");
@@ -623,7 +625,7 @@ mod tests {
         run(&c, "vita3k", Os::Linux, &vita, &everything(), &snaps);
         assert_eq!(
             read(&vita.join("config.yml")),
-            "fullscreen: true\nresolution-multiplier: 2\nv-sync: true\nstretch-the-display-area: false\n"
+            "boot-apps-full-screen: true\nresolution-multiplier: 2\nv-sync: true\nstretch_the_display_area: false\n"
         );
     }
 
@@ -673,7 +675,7 @@ mod tests {
         assert_eq!(knob(&a, "video.aspect").support, Support::Partial);
         assert_eq!(
             read(&fly.join("emu.cfg")),
-            "[window]\nfullscreen = yes\n\n[config]\nrend.Resolution = 960\nrend.vsync = yes\nrend.WideScreen = yes\nDreamcast.Region = 1\n"
+            "[window]\nfullscreen = yes\n\n[config]\nrend.Resolution = 960\nrend.vsync = yes\nrend.WideScreen = yes\nDreamcast.Region = 1\nDreamcast.Broadcast = 0\n"
         );
 
         // Xenia: a second key with the same value; shadPS4: a second key with its own bool.
@@ -683,10 +685,15 @@ mod tests {
             "[GPU]\ndraw_resolution_scale_x = 2\ndraw_resolution_scale_y = 2\nvsync = true\n"
         ));
         let shad = tmp.path().join("home/.local/share/shadPS4");
+        std::fs::create_dir_all(&shad).unwrap();
+        let before = "{\n  \"General\": {\n    \"volume_slider\": 100\n  },\n  \"GPU\": {\n    \"full_screen\": false,\n    \"full_screen_mode\": \"Windowed\"\n  }\n}\n";
+        std::fs::write(shad.join("config.json"), before).unwrap();
         run(&c, "shadps4", Os::Linux, &shad, &everything(), &snaps);
         assert_eq!(
-            read(&tmp.path().join("home/.config/shadPS4/config.toml")),
-            "[General]\nFullscreen = true\nFullscreenMode = \"Fullscreen\"\n"
+            read(&shad.join("config.json")),
+            before
+                .replace("\"full_screen\": false", "\"full_screen\": true")
+                .replace("\"Windowed\"", "\"Fullscreen\"")
         );
 
         // melonDS: the scale selects the renderer that scales, and says so.

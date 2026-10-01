@@ -63,8 +63,8 @@
     }
   },
   "roots": {
-    "flatpak": "~/.var/app/dev.ares.ares/config/ares",
-    "native": "~/.config/ares",
+    "flatpak": "~/.var/app/dev.ares.ares/data/ares",
+    "native": "~/.local/share/ares",
     "portable": "<app>",
     "windows": "%LOCALAPPDATA%\\ares"
   },
@@ -98,7 +98,7 @@
         ]
       },
       "video.aspect": {
-        "unsupported": "Video/AspectCorrection and Video/Output are native keys"
+        "unsupported": "Video/AspectCorrectionMode and Video/Output are native keys"
       },
       "region": {
         "file": "main",
@@ -115,5 +115,5 @@
       "unsupported": "ares binds pads by its own device ids in settings.bml; not yet described"
     }
   },
-  "notes": "One emulator for most cartridge-era systems; `--system <name>` picks one when a file is ambiguous. Settings live in settings.bml beside the exe when that file exists (the managed install places it), else in the user's config directory. The Windows zip's exact name has shifted between releases; the catalog dry run says when it does."
+  "notes": "One emulator for most cartridge-era systems; `--system <name>` picks one when a file is ambiguous. Settings live in settings.bml beside the exe when that file exists (the managed install places it), else under the user's data directory (~/.local/share/ares, %LOCALAPPDATA%\\ares). The release assets are ares-windows-x64.zip and the arm64 and PDB zips beside it."
 }

@@ -83,7 +83,7 @@
       "video.vsync": {
         "file": "main",
         "section": "Renderer",
-        "key": "use_vsync_new",
+        "key": "use_vsync",
         "bool": [
           "true",
           "false"

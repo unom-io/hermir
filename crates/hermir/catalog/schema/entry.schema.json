@@ -580,7 +580,7 @@
         },
         {
           "const": "json",
-          "description": "Top-level keys of one object; `section` is unused.",
+          "description": "A key of the root object, or of the object `section` names directly under it.",
           "type": "string"
         }
       ]

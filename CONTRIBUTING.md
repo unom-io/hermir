@@ -86,7 +86,7 @@ catalog change too:
   start means the settings directory beside a data root (`~/.config/<x>` for
   `~/.local/share/<x>`). Formats: `ini` (also flat TOML and RetroArch's cfg), `qt` (Qt's ini,
   which needs a `key\default=false` companion), `yaml` (two levels), `bml`, `xml` (with the
-  document element as `root`), `json` (top-level keys).
+  document element as `root`), `json` (a key of the root, or of one object under it).
 - **Knobs** are `video.fullscreen`, `video.scale`, `video.vsync`, `video.aspect`, `region`.
   A bool knob takes `bool: [true, false]` in the emulator's spelling; `video.scale` takes a
   `scale` (`multiplier`, `percent`, `lines` with a base, or a `map` from `n`); the others a

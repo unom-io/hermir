@@ -251,7 +251,7 @@ changed is not re-serialised.
 | `qt` (Qt's ini) | Azahar, Eden | `ini` plus the `key\default=false` companion Qt needs |
 | `yaml` (two levels) / `bml` | RPCS3, Vita3K / ares | own, line-based, section + key, no reflow |
 | `xml` (elements by path) | Cemu `settings.xml` | own, text of one element, missing branches created |
-| `json` (top-level keys) | Ryujinx `Config.json` | own, one scalar per line |
+| `json` (root, or one object under it) | Ryujinx `Config.json`, shadPS4 `config.json` | own, one scalar per line |
 
 A format editor never knows what an emulator is; an adapter never parses text. Whole files
 hermir owns (Cemu's controller profiles, RPCS3's input config) are written as such.
@@ -438,9 +438,10 @@ and can ship alone. P1 and P2 are independent of each other.
 
 ## 12. Open items
 
-- The knob bindings and the Windows pad forms were written from each emulator's documented
-  config and need the fixtures of §8 from a real box per OS: each entry's `config` block is
-  the place a wrong key gets fixed, in data.
+- The knob bindings were checked against each emulator's current source (settings readers,
+  config specs, release workflows), except Eden's, whose git host was unreachable; what is
+  still owed is the fixtures of §8 from a real box per OS, which also decide the Windows pad
+  forms. Each entry's `config` block is the place a wrong key gets fixed, in data.
 
 - The Windows-side identity forms (XInput slot vs SDL index) for PCSX2/DuckStation/Dolphin on a
   machine with both kinds of pad plugged in — resolve with fixtures on a real box in P2.
