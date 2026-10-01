@@ -33,5 +33,53 @@
       "{file}"
     ]
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "config.yml",
+        "format": "yaml"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "key": "fullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "key": "resolution-multiplier",
+        "scale": {
+          "multiplier": {}
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "key": "v-sync",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "key": "stretch-the-display-area",
+        "values": {
+          "auto": "false",
+          "16:9": "false",
+          "stretch": "true"
+        }
+      },
+      "region": {
+        "unsupported": "Vita3K has no region setting"
+      }
+    },
+    "players": {
+      "automatic": "Vita3K maps SDL pads itself, in the order they appear"
+    }
+  },
   "notes": "Not on Flathub; the Linux AppImage channel is a later step."
 }

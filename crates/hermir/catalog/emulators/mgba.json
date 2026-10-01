@@ -54,5 +54,51 @@
       "{fullscreen:-f}",
       "{file}"
     ]
+  },
+  "config": {
+    "files": {
+      "main": {
+        "path": "config.ini",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "ports.qt",
+        "key": "fullscreen",
+        "bool": [
+          "1",
+          "0"
+        ]
+      },
+      "video.scale": {
+        "unsupported": "a 2D console; the Game Boy draws at one resolution"
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "ports.qt",
+        "key": "videoSync",
+        "bool": [
+          "1",
+          "0"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "ports.qt",
+        "key": "lockAspectRatio",
+        "values": {
+          "auto": "1",
+          "stretch": "0"
+        }
+      },
+      "region": {
+        "unsupported": "Game Boy games are region-free"
+      }
+    },
+    "players": {
+      "automatic": "mGBA maps SDL pads itself, in the order they appear"
+    }
   }
 }

@@ -52,5 +52,60 @@
       "{fullscreen:-f}",
       "{file}"
     ]
+  },
+  "config": {
+    "files": {
+      "main": {
+        "path": "qt-config.ini",
+        "format": "qt"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "UI",
+        "key": "fullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "Renderer",
+        "key": "resolution_factor",
+        "scale": {
+          "multiplier": {
+            "max": 10
+          }
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "Renderer",
+        "key": "use_vsync_new",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.aspect": {
+        "unsupported": "two screens; the layout is Layout/layout_option"
+      },
+      "region": {
+        "file": "main",
+        "section": "System",
+        "key": "region_value",
+        "values": {
+          "auto": "-1",
+          "jp": "0",
+          "us": "1",
+          "eu": "2"
+        }
+      }
+    },
+    "players": {
+      "adapter": "azahar"
+    }
   }
 }

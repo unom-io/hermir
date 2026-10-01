@@ -53,7 +53,75 @@
       "{file}"
     ]
   },
-  "notes": "Linux gets RPCS3's own AppImage (x86_64), unpacked: the Flathub build asks on every launch whether to run an unofficial build. Keeps config and dev_hdd0 beside the exe on Windows. Firmware installs headless with `--installfw <PS3UPDAT.PUP>`; the exit code is not the verdict, dev_flash is.",
+  "config": {
+    "files": {
+      "main": {
+        "path": {
+          "linux": "config.yml",
+          "windows": "config/config.yml"
+        },
+        "format": "yaml"
+      },
+      "input": {
+        "path": {
+          "linux": "input_configs/global/Default.yml",
+          "windows": "config/input_configs/global/Default.yml"
+        },
+        "format": "yaml"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "Miscellaneous",
+        "key": "Start games in fullscreen mode",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "Video",
+        "key": "Resolution Scale",
+        "scale": {
+          "percent": {}
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "Video",
+        "key": "VSync",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "Video",
+        "key": "Aspect ratio",
+        "values": {
+          "4:3": "4:3",
+          "16:9": "16:9"
+        }
+      },
+      "region": {
+        "file": "main",
+        "section": "System",
+        "key": "License Area",
+        "values": {
+          "jp": "SCEJ",
+          "us": "SCEA",
+          "eu": "SCEE"
+        }
+      }
+    },
+    "players": {
+      "adapter": "rpcs3"
+    }
+  },
+  "notes": "Linux gets RPCS3's own AppImage (x86_64), unpacked: the Flathub build asks on every launch whether to run an unofficial build. Keeps dev_hdd0 and dev_flash beside the exe on Windows, and config.yml, GuiConfigs and input_configs under config/ there. Firmware installs headless with `--installfw <PS3UPDAT.PUP>`; the exit code is not the verdict, dev_flash is.",
   "firmware": {
     "install": {
       "args": [
@@ -83,7 +151,7 @@
     ],
     "windows": [
       {
-        "ini": "GuiConfigs/CurrentSettings.ini",
+        "ini": "config/GuiConfigs/CurrentSettings.ini",
         "section": "main_window",
         "key": "infoBoxEnabledWelcome",
         "value": "false"

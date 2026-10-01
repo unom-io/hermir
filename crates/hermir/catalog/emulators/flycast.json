@@ -54,5 +54,68 @@
       }
     }
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "emu.cfg",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "window",
+        "key": "fullscreen",
+        "bool": [
+          "yes",
+          "no"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "config",
+        "key": "rend.Resolution",
+        "scale": {
+          "lines": {
+            "base": 480
+          }
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "config",
+        "key": "rend.vsync",
+        "bool": [
+          "yes",
+          "no"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "config",
+        "key": "rend.WideScreen",
+        "values": {
+          "auto": "no",
+          "4:3": "no",
+          "16:9": "yes"
+        },
+        "note": "16:9 is the widescreen hack"
+      },
+      "region": {
+        "file": "main",
+        "section": "config",
+        "key": "Dreamcast.Region",
+        "values": {
+          "auto": "3",
+          "jp": "0",
+          "us": "1",
+          "eu": "2"
+        }
+      }
+    },
+    "players": {
+      "automatic": "Flycast maps SDL pads itself, in the order they appear"
+    }
+  },
   "notes": "Where a Windows install keeps emu.cfg (beside the exe or under %APPDATA%) is verified when the adapter lands."
 }

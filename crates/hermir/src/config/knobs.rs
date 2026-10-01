@@ -1,0 +1,139 @@
+//! The neutral knobs of a patch turned into edits, by the catalog's bindings. No emulator is
+//! named here: a knob is a file, a section, a key and a spelling, and the catalog has them.
+use super::{Cx, Edit};
+use crate::model::{Binding, Entry, Knob, KnobChange, Patch, Support};
+
+/// What a neutral knob is asked to be.
+#[derive(Clone, Copy)]
+enum Neutral {
+    Bool(bool),
+    Scale(u8),
+    Choice(&'static str),
+}
+
+/// The neutral spellings a `values` map may carry for `knob`.
+pub(crate) fn neutral_values(knob: &str) -> &'static [&'static str] {
+    match knob {
+        "video.aspect" => &["auto", "4:3", "16:9", "stretch"],
+        "region" => &["auto", "jp", "us", "eu"],
+        _ => &[],
+    }
+}
+
+/// One `KnobChange` per knob the patch carries, and the edits behind the applied ones.
+pub(crate) fn plan(entry: &Entry, cx: &Cx, patch: &Patch) -> (Vec<KnobChange>, Vec<Edit>) {
+    let mut wanted: Vec<(&str, Neutral)> = Vec::new();
+    if let Some(v) = &patch.video {
+        if let Some(f) = v.fullscreen {
+            wanted.push(("video.fullscreen", Neutral::Bool(f)));
+        }
+        if let Some(n) = v.scale {
+            wanted.push(("video.scale", Neutral::Scale(n)));
+        }
+        if let Some(s) = v.vsync {
+            wanted.push(("video.vsync", Neutral::Bool(s)));
+        }
+        if let Some(a) = v.aspect {
+            wanted.push(("video.aspect", Neutral::Choice(a.as_str())));
+        }
+    }
+    if let Some(r) = patch.region {
+        wanted.push(("region", Neutral::Choice(r.as_str())));
+    }
+    let mut changes = Vec::new();
+    let mut edits = Vec::new();
+    for (name, neutral) in wanted {
+        let binding = entry.config.as_ref().and_then(|c| c.knobs.get(name));
+        let planned = match binding {
+            None => Err(format!("not described for {} yet", entry.id)),
+            Some(Knob::Unsupported { unsupported }) => Err(unsupported.clone()),
+            Some(Knob::Bound(b)) => render(entry, cx, name, b, neutral),
+        };
+        changes.push(match planned {
+            Ok((more, file, note)) => {
+                edits.extend(more);
+                KnobChange {
+                    knob: name.into(),
+                    support: if note.is_some() {
+                        Support::Partial
+                    } else {
+                        Support::Applied
+                    },
+                    note,
+                    file: Some(file),
+                }
+            }
+            Err(note) => KnobChange {
+                knob: name.into(),
+                support: Support::Unsupported,
+                note: Some(note),
+                file: None,
+            },
+        });
+    }
+    (changes, edits)
+}
+
+type Rendered = Result<(Vec<Edit>, std::path::PathBuf, Option<String>), String>;
+
+fn render(entry: &Entry, cx: &Cx, knob: &str, b: &Binding, neutral: Neutral) -> Rendered {
+    let (path, file) = cx.file(&b.file)?;
+    let literal = spell(
+        entry,
+        knob,
+        neutral,
+        b.bool.as_ref(),
+        b.values.as_ref(),
+        b.scale.as_ref(),
+        None,
+    )?;
+    let mut edits = Edit::set(&path, file, &b.section, &b.key, &literal);
+    for a in &b.also {
+        let (a_path, a_file) = match &a.file {
+            Some(name) => cx.file(name)?,
+            None => (path.clone(), file),
+        };
+        let value = spell(
+            entry,
+            knob,
+            neutral,
+            a.bool.as_ref(),
+            a.values.as_ref(),
+            None,
+            a.value.as_deref().map(|v| v.replace("{value}", &literal)),
+        )?;
+        let section = a.section.as_deref().unwrap_or(&b.section);
+        edits.extend(Edit::set(&a_path, a_file, section, &a.key, &value));
+    }
+    Ok((edits, path, b.note.clone()))
+}
+
+/// The emulator's literal for `neutral`, by whichever spelling the binding carries.
+fn spell(
+    entry: &Entry,
+    knob: &str,
+    neutral: Neutral,
+    bool_: Option<&[String; 2]>,
+    values: Option<&std::collections::BTreeMap<String, String>>,
+    scale: Option<&crate::model::Scale>,
+    literal: Option<String>,
+) -> Result<String, String> {
+    if let Some(l) = literal {
+        return Ok(l);
+    }
+    match neutral {
+        Neutral::Bool(v) => bool_
+            .map(|[t, f]| if v { t.clone() } else { f.clone() })
+            .ok_or_else(|| format!("{knob} of {} has no true/false spelling", entry.id)),
+        Neutral::Scale(n) => {
+            let s = scale.ok_or_else(|| format!("{knob} of {} has no scale", entry.id))?;
+            let (min, max) = s.range();
+            s.render(n)
+                .ok_or_else(|| format!("{}× is outside {}'s {min}×–{max}×", n, entry.id))
+        }
+        Neutral::Choice(c) => values
+            .and_then(|m| m.get(c))
+            .cloned()
+            .ok_or_else(|| format!("{} has no {knob} {c}", entry.id)),
+    }
+}

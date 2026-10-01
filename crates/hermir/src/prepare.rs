@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::channel::flatpak::Runner;
+pub use crate::config::ini::{get as ini_get, set as ini_set};
 use crate::model::{
     Entry, Exe, FirmwareInstall, FirstRun, Install, Os, PrepareStep, Prepared, StepOutcome,
 };
@@ -175,33 +176,6 @@ fn first_run(root: &Path, install: &Install, answer: &FirstRun) -> PrepareStep {
     }
 }
 
-/// The value of `key` in `[section]`, trimmed and unquoted; `None` when it is not there.
-pub fn ini_get(text: &str, section: &str, key: &str) -> Option<String> {
-    let mut current: Option<&str> = None;
-    for l in text.lines() {
-        let t = l.trim();
-        if let Some(h) = t.strip_prefix('[').and_then(|r| r.strip_suffix(']')) {
-            current = Some(h);
-            continue;
-        }
-        if current != Some(section) {
-            continue;
-        }
-        if let Some((k, v)) = entry(l)
-            && k.trim() == key
-        {
-            let v = v.trim();
-            let unquoted = v
-                .strip_prefix('"')
-                .and_then(|s| s.strip_suffix('"'))
-                .or_else(|| v.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')))
-                .unwrap_or(v);
-            return Some(unquoted.to_string());
-        }
-    }
-    None
-}
-
 /// Copies `file` into `dir` unless a file of that name and size is there.
 fn place(file: &Path, dir: &Path) -> PrepareStep {
     let Some(name) = file.file_name() else {
@@ -359,92 +333,6 @@ fn run_installer(
     step("firmware_install", &done, StepOutcome::Failed, Some(why))
 }
 
-/// `text` with `key` in `[section]` set to `value`; `None` when it already is. Every other
-/// byte stays. A missing key goes after its section's last entry, a missing section at the
-/// end, spelled as the file spells `key = value` (or `key=value`) and with its line endings.
-/// An empty `section` is the part before any header (a RetroArch cfg has nothing else).
-pub fn ini_set(text: &str, section: &str, key: &str, value: &str) -> Option<String> {
-    let crlf = text.contains("\r\n");
-    let nl = if crlf { "\r\n" } else { "\n" };
-    let lines: Vec<&str> = text.split_inclusive('\n').collect();
-    let spaced = lines
-        .iter()
-        .find_map(|l| entry(l))
-        .is_none_or(|(k, _)| k.ends_with(' '));
-    let sep = if spaced { " = " } else { "=" };
-    // `[ Global ]` (Supermodel) names the section Global.
-    let header = |l: &str| {
-        let t = l.trim();
-        t.strip_prefix('[')
-            .and_then(|r| r.strip_suffix(']'))
-            .map(|s| s.trim().to_string())
-    };
-    let mut current: Option<String> = Some(String::new());
-    let mut last_entry: Option<usize> = None;
-    let mut section_seen = section.is_empty();
-    for (i, l) in lines.iter().enumerate() {
-        if let Some(h) = header(l) {
-            current = Some(h);
-            if current.as_deref() == Some(section) {
-                section_seen = true;
-                last_entry = Some(i);
-            }
-            continue;
-        }
-        if current.as_deref() != Some(section) {
-            continue;
-        }
-        let Some((left, right)) = entry(l) else {
-            continue;
-        };
-        last_entry = Some(i);
-        if left.trim() != key {
-            continue;
-        }
-        let body = right.trim_end_matches(['\r', '\n']);
-        if body.trim() == value {
-            return None;
-        }
-        let lead = &body[..body.len() - body.trim_start().len()];
-        let ending = &right[body.len()..];
-        let mut out: String = lines[..i].concat();
-        out.push_str(&format!("{left}={lead}{value}{ending}"));
-        out.push_str(&lines[i + 1..].concat());
-        return Some(out);
-    }
-    let line = format!("{key}{sep}{value}{nl}");
-    if section_seen {
-        let Some(at) = last_entry else {
-            return Some(format!("{line}{text}"));
-        };
-        let mut out: String = lines[..=at].concat();
-        if !out.ends_with('\n') {
-            out.push_str(nl);
-        }
-        out.push_str(&line);
-        out.push_str(&lines[at + 1..].concat());
-        return Some(out);
-    }
-    let mut out = text.to_string();
-    if !out.is_empty() && !out.ends_with('\n') {
-        out.push_str(nl);
-    }
-    if !out.is_empty() {
-        out.push_str(nl);
-    }
-    out.push_str(&format!("[{section}]{nl}{line}"));
-    Some(out)
-}
-
-/// `(left of =, right of =)` for a `key = value` line; `None` for comments, headers, blanks.
-fn entry(line: &str) -> Option<(&str, &str)> {
-    let t = line.trim_start();
-    if t.is_empty() || t.starts_with([';', '#', '[']) {
-        return None;
-    }
-    line.split_once('=')
-}
-
 /// `*` as any run of characters, case-insensitive: enough for firmware names.
 pub fn glob(pattern: &str, name: &str) -> bool {
     let (p, n) = (pattern.to_ascii_lowercase(), name.to_ascii_lowercase());
@@ -486,51 +374,6 @@ mod tests {
     use crate::catalog::Catalog;
     use crate::channel::flatpak::fake::FakeRunner;
     use crate::model::InstallKind;
-
-    #[test]
-    fn ini_set_changes_one_value_and_nothing_else() {
-        let t = "; top\n[UI]\nSetupWizardIncomplete = true\nTheme = dark\n\n[Filenames]\nBIOS = \n";
-        let out = ini_set(t, "UI", "SetupWizardIncomplete", "false").unwrap();
-        assert_eq!(out, t.replace("Incomplete = true", "Incomplete = false"));
-        assert_eq!(ini_set(&out, "UI", "SetupWizardIncomplete", "false"), None);
-    }
-
-    #[test]
-    fn ini_set_adds_a_key_to_its_section_in_the_files_spelling() {
-        let t = "[main_window]\ngeometry=abc\n\n[Meta]\nx=1\n";
-        let out = ini_set(t, "main_window", "infoBoxEnabledWelcome", "false").unwrap();
-        assert_eq!(
-            out,
-            "[main_window]\ngeometry=abc\ninfoBoxEnabledWelcome=false\n\n[Meta]\nx=1\n"
-        );
-        let spaced = "[Main]\nA = 1\n";
-        assert_eq!(
-            ini_set(spaced, "Main", "B", "2").unwrap(),
-            "[Main]\nA = 1\nB = 2\n"
-        );
-    }
-
-    #[test]
-    fn ini_set_adds_a_missing_section_and_keeps_crlf() {
-        let t = "[Main]\r\nA = 1\r\n";
-        assert_eq!(
-            ini_set(t, "AutoUpdater", "CheckAtStartup", "false").unwrap(),
-            "[Main]\r\nA = 1\r\n\r\n[AutoUpdater]\r\nCheckAtStartup = false\r\n"
-        );
-        assert_eq!(
-            ini_set("", "Analytics", "PermissionAsked", "True").unwrap(),
-            "[Analytics]\nPermissionAsked = True\n"
-        );
-    }
-
-    #[test]
-    fn ini_set_matches_keys_only_in_their_section() {
-        let t = "[A]\nk = 1\n[B]\nk = 1\n";
-        assert_eq!(
-            ini_set(t, "B", "k", "2").unwrap(),
-            "[A]\nk = 1\n[B]\nk = 2\n"
-        );
-    }
 
     #[test]
     fn globs_match_firmware_names() {

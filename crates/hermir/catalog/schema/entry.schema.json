@@ -1,5 +1,58 @@
 {
   "$defs": {
+    "Also": {
+      "additionalProperties": false,
+      "description": "A key written alongside a knob. `value` is a literal, with `{value}` standing for the\nknob's own rendered value; `bool` and `values` spell the knob's neutral value for this key.",
+      "properties": {
+        "bool": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "file": {
+          "description": "Another file name; the knob's own by default.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "key": {
+          "type": "string"
+        },
+        "section": {
+          "description": "Another section; the knob's own by default.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "type": "object"
+    },
     "AssetFilter": {
       "anyOf": [
         {
@@ -37,6 +90,73 @@
         }
       ],
       "description": "Which release asset: a fixed name, or substrings that must all appear and none that may."
+    },
+    "Binding": {
+      "additionalProperties": false,
+      "description": "One knob bound to one key, with the spelling the emulator expects. Exactly one of `bool`,\n`values` and `scale` is present, by the knob's type: `bool` for `video.fullscreen` and\n`video.vsync`, `values` for `video.aspect` and `region`, `scale` for `video.scale`.",
+      "properties": {
+        "also": {
+          "description": "Keys written alongside every write of this knob (the renderer a scale needs, a second\naxis, a mode string beside a flag).",
+          "items": {
+            "$ref": "#/$defs/Also"
+          },
+          "type": "array"
+        },
+        "bool": {
+          "description": "`[true, false]` as the emulator spells them (`True`/`False`, `1`/`0`, `yes`/`no`).",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "file": {
+          "description": "A name from `files`.",
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "note": {
+          "description": "A caveat that makes the knob partial: it is written, and this is what to know.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scale": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Scale"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "section": {
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Neutral value → the emulator's literal, quotes included where its format wants them.\nA neutral value missing here is unsupported, and says so.",
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "file",
+        "key"
+      ],
+      "type": "object"
     },
     "Channel": {
       "anyOf": [
@@ -126,6 +246,63 @@
       ],
       "description": "One way to obtain the emulator on one OS."
     },
+    "Config": {
+      "additionalProperties": false,
+      "description": "What `apply` may write into a copy, as the catalog describes it: data, so an emulator with\nplain `key = value` settings needs no code at all.",
+      "properties": {
+        "files": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ConfigFile"
+          },
+          "description": "Named files under the config root. Knobs, adapters and `Patch::native` refer to them\nby name; `main` is the conventional name of the settings file.",
+          "type": "object"
+        },
+        "knobs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Knob"
+          },
+          "description": "Knob → where it lands, or why it cannot. The knobs are [`KNOBS`]; one not listed here\nis reported as not described.",
+          "type": "object"
+        },
+        "players": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlayersSupport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How player bindings are written. Absent: not described."
+        }
+      },
+      "type": "object"
+    },
+    "ConfigFile": {
+      "additionalProperties": false,
+      "description": "One settings file of an emulator.",
+      "properties": {
+        "format": {
+          "$ref": "#/$defs/Format"
+        },
+        "path": {
+          "$ref": "#/$defs/FilePath",
+          "description": "Relative to the config root, for every OS or per OS where the layout differs.\n`{config}/` at the start is the settings directory beside a data root: `~/.config/<x>`\nfor `~/.local/share/<x>`, a Flatpak's `config/<x>` for its `data/<x>`, the root itself\nelsewhere."
+        },
+        "root": {
+          "description": "XML: the document element the keys hang off (Cemu's `content`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "format"
+      ],
+      "type": "object"
+    },
     "Detect": {
       "additionalProperties": false,
       "description": "Detection rules for one OS. Every list is tried; every hit is an `Install`.",
@@ -160,6 +337,17 @@
         }
       },
       "type": "object"
+    },
+    "FilePath": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/PerOs4"
+        }
+      ],
+      "description": "A path for every OS, or one per OS."
     },
     "Firmware": {
       "additionalProperties": false,
@@ -362,6 +550,62 @@
       ],
       "description": "One answer to a first-run question, as a file under the config root."
     },
+    "Format": {
+      "description": "How a settings file is patched. Each is a line editor that leaves everything else alone.",
+      "oneOf": [
+        {
+          "const": "ini",
+          "description": "`key = value` under `[section]`: ini, flat TOML, RetroArch's cfg. An empty section is\nthe top of the file.",
+          "type": "string"
+        },
+        {
+          "const": "qt",
+          "description": "Qt's ini: every key written gets its `key\\default=false` companion, or Qt ignores it.",
+          "type": "string"
+        },
+        {
+          "const": "yaml",
+          "description": "Two-level YAML: `Section:` then `  Key: value`; an empty section is the top level.",
+          "type": "string"
+        },
+        {
+          "const": "bml",
+          "description": "ares's BML: `Section` then `  Key: value`.",
+          "type": "string"
+        },
+        {
+          "const": "xml",
+          "description": "Elements by path under the file's `root`; `section` is the path between root and key,\n`/`-separated, empty for a child of the root.",
+          "type": "string"
+        },
+        {
+          "const": "json",
+          "description": "Top-level keys of one object; `section` is unused.",
+          "type": "string"
+        }
+      ]
+    },
+    "Knob": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "description": "The emulator has no such setting; the note is what a UI shows.",
+          "properties": {
+            "unsupported": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "unsupported"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/Binding"
+        }
+      ],
+      "description": "Where a neutral knob lands in an emulator's files, or why it cannot."
+    },
     "Launch": {
       "additionalProperties": false,
       "description": "The argv template after the exe. `{file}` is the game, `{fullscreen:-f}` expands to `-f`\nwhen fullscreen is asked for. Rendered in P1; carried as data now.",
@@ -484,6 +728,74 @@
       },
       "type": "object"
     },
+    "PerOs4": {
+      "additionalProperties": false,
+      "description": "One slot per OS. A missing key is `None`: honest \"not offered here\".",
+      "properties": {
+        "linux": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "macos": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "windows": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "PlayersSupport": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "description": "A Rust adapter writes them: `crates/hermir/src/config/adapters/<adapter>.rs`.",
+          "properties": {
+            "adapter": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "adapter"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The emulator picks up SDL pads itself, in the order they appear; there is nothing to\nwrite. The note says so in the emulator's terms.",
+          "properties": {
+            "automatic": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "automatic"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "unsupported": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "unsupported"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "How an emulator's player bindings come to be."
+    },
     "Portable": {
       "anyOf": [
         {
@@ -543,6 +855,115 @@
         }
       },
       "type": "object"
+    },
+    "Scale": {
+      "description": "How `video.scale`, a multiplier `n` of the console's resolution, is spelled.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "`n` itself, `min..=max`.",
+          "properties": {
+            "multiplier": {
+              "properties": {
+                "max": {
+                  "default": 8,
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "min": {
+                  "default": 1,
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "multiplier"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`n × 100`, a percentage of the console's resolution (RPCS3).",
+          "properties": {
+            "percent": {
+              "properties": {
+                "max": {
+                  "default": 8,
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "min": {
+                  "default": 1,
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "percent"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`n × base`, vertical lines (Flycast's 480).",
+          "properties": {
+            "lines": {
+              "properties": {
+                "base": {
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "max": {
+                  "default": 8,
+                  "format": "uint8",
+                  "maximum": 255,
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "base"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "lines"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "`n` (as a decimal string, JSON's key) → the emulator's own value; an `n` missing here\nis unsupported.",
+          "properties": {
+            "map": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "map"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -553,6 +974,17 @@
       "$ref": "#/$defs/PerOs",
       "default": {},
       "description": "Where to get it, per OS. Empty means detect-and-configure only."
+    },
+    "config": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Config"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "How a copy is configured: its settings files, where each neutral knob lands in them,\nhow its player bindings are written. Absent while nothing is described yet."
     },
     "detect": {
       "$ref": "#/$defs/PerOs2",

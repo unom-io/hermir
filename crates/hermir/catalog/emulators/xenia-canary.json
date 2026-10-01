@@ -46,5 +46,58 @@
       "{file}"
     ]
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "xenia-canary.config.toml",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "Display",
+        "key": "fullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "GPU",
+        "key": "draw_resolution_scale_x",
+        "scale": {
+          "multiplier": {
+            "max": 3
+          }
+        },
+        "also": [
+          {
+            "key": "draw_resolution_scale_y",
+            "value": "{value}"
+          }
+        ]
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "GPU",
+        "key": "vsync",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.aspect": {
+        "unsupported": "Xenia keeps the game's aspect"
+      },
+      "region": {
+        "unsupported": "XConfig/user_country is a numeric country code; pass it through native"
+      }
+    },
+    "players": {
+      "automatic": "Xenia takes XInput pads in slot order"
+    }
+  },
   "notes": "Linux gets Canary's own AppImage, unpacked; it outran the Windows build under Proton. The Windows build asks for a disclaimer once, remembered in HKCU\\SOFTWARE\\Xenia XEFLAGS."
 }

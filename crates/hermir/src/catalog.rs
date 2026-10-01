@@ -2,11 +2,15 @@
 //! loadable from a directory for validation. Parsing is strict (unknown keys fail) and
 //! `validate` holds the rules a schema cannot: ids match file names, platforms exist, and a
 //! Switch emulator never carries an install channel.
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::channel::extract::is_safe_relative;
+use crate::config::adapters;
 use crate::error::{Error, Result};
-use crate::model::{Entry, FirstRun, Os, Platform};
+use crate::model::{
+    Config, Entry, FirstRun, Format, KNOBS, Knob, Os, Platform, PlayersSupport, Scale,
+};
 
 /// `(id, json)` for every file under `catalog/emulators/`. A test checks the directory listing
 /// against this list, so a new file cannot be forgotten.
@@ -205,6 +209,9 @@ impl Catalog {
                     ));
                 }
             }
+            if let Some(cfg) = &e.config {
+                validate_config(&e.id, cfg)?;
+            }
             if e.no_install.is_some() && has_channel {
                 return Err(bad(
                     &e.id,
@@ -224,6 +231,117 @@ impl Catalog {
         }
         Ok(())
     }
+}
+
+/// The rules of a `config` block: files are under the root, knobs are the known ones and
+/// carry the one spelling their type takes, every file named exists, every adapter has code.
+fn validate_config(id: &str, cfg: &Config) -> Result<()> {
+    let bad = |why: String| Error::Catalog {
+        entry: id.into(),
+        why,
+    };
+    for (name, f) in &cfg.files {
+        for p in f.path.all() {
+            let rel = p
+                .strip_prefix("{config}/")
+                .or_else(|| p.strip_prefix("{config}\\"))
+                .unwrap_or(p);
+            if rel.is_empty() || !is_safe_relative(Path::new(rel)) {
+                return Err(bad(format!(
+                    "file {name}: {p} is not under the config root"
+                )));
+            }
+        }
+        match (f.format, &f.root) {
+            (Format::Xml, None) => {
+                return Err(bad(format!("file {name}: xml needs its root element")));
+            }
+            (Format::Xml, Some(_)) | (_, None) => {}
+            (_, Some(_)) => return Err(bad(format!("file {name}: only xml has a root"))),
+        }
+    }
+    let file_known = |name: &str| cfg.files.contains_key(name);
+    for (knob, k) in &cfg.knobs {
+        if !KNOBS.contains(&knob.as_str()) {
+            return Err(bad(format!(
+                "unknown knob {knob}; one of {}",
+                KNOBS.join(", ")
+            )));
+        }
+        let Knob::Bound(b) = k else { continue };
+        if !file_known(&b.file) {
+            return Err(bad(format!("{knob}: no file named {}", b.file)));
+        }
+        let (want_bool, want_scale, want_values) = match knob.as_str() {
+            "video.fullscreen" | "video.vsync" => (true, false, false),
+            "video.scale" => (false, true, false),
+            _ => (false, false, true),
+        };
+        if b.bool.is_some() != want_bool
+            || b.scale.is_some() != want_scale
+            || b.values.is_some() != want_values
+        {
+            let want = if want_bool {
+                "bool"
+            } else if want_scale {
+                "scale"
+            } else {
+                "values"
+            };
+            return Err(bad(format!("{knob} takes `{want}` and nothing else")));
+        }
+        if let Some(values) = &b.values {
+            let allowed = crate::config::neutral_values(knob);
+            if values.is_empty() {
+                return Err(bad(format!("{knob}: empty values")));
+            }
+            for v in values.keys() {
+                if !allowed.contains(&v.as_str()) {
+                    return Err(bad(format!(
+                        "{knob}: {v} is not one of {}",
+                        allowed.join(", ")
+                    )));
+                }
+            }
+        }
+        if let Some(scale) = &b.scale {
+            let (min, max) = scale.range();
+            let sane = match scale {
+                Scale::Lines { base, .. } => *base > 0 && max >= 1,
+                Scale::Map(m) => {
+                    !m.is_empty() && m.keys().all(|k| k.parse::<u8>().is_ok_and(|n| n >= 1))
+                }
+                _ => min >= 1 && max >= min,
+            };
+            if !sane || max > 16 {
+                return Err(bad(format!("{knob}: a scale runs from 1× to at most 16×")));
+            }
+        }
+        for a in &b.also {
+            if a.file.as_deref().is_some_and(|f| !file_known(f)) {
+                return Err(bad(format!("{knob}: also {}: no such file", a.key)));
+            }
+            let spellings = [a.value.is_some(), a.bool.is_some(), a.values.is_some()];
+            if spellings.iter().filter(|&&x| x).count() != 1 {
+                return Err(bad(format!(
+                    "{knob}: also {}: exactly one of value, bool, values",
+                    a.key
+                )));
+            }
+            if a.values.as_ref().is_some_and(BTreeMap::is_empty) {
+                return Err(bad(format!("{knob}: also {}: empty values", a.key)));
+            }
+        }
+    }
+    if let Some(PlayersSupport::Adapter { adapter }) = &cfg.players
+        && !adapters::exists(adapter)
+    {
+        return Err(bad(format!(
+            "players adapter {adapter} has no code; one of {}",
+            adapters::ADAPTERS.join(", ")
+        )));
+    }
+    Ok(())
 }
 
 fn parse_entry(id: &str, json: &str) -> Result<Entry> {

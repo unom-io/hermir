@@ -119,8 +119,471 @@ pub struct Entry {
     /// welcome box), per OS. `prepare` writes them; each one is what clicking through writes.
     #[serde(default)]
     pub first_run: PerOs<Vec<FirstRun>>,
+    /// How a copy is configured: its settings files, where each neutral knob lands in them,
+    /// how its player bindings are written. Absent while nothing is described yet.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<Config>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+}
+
+/// What `apply` may write into a copy, as the catalog describes it: data, so an emulator with
+/// plain `key = value` settings needs no code at all.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Config {
+    /// Named files under the config root. Knobs, adapters and `Patch::native` refer to them
+    /// by name; `main` is the conventional name of the settings file.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub files: BTreeMap<String, ConfigFile>,
+    /// Knob → where it lands, or why it cannot. The knobs are [`KNOBS`]; one not listed here
+    /// is reported as not described.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub knobs: BTreeMap<String, Knob>,
+    /// How player bindings are written. Absent: not described.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub players: Option<PlayersSupport>,
+}
+
+/// The neutral knobs, in the order `support` lists them.
+pub const KNOBS: &[&str] = &[
+    "video.fullscreen",
+    "video.scale",
+    "video.vsync",
+    "video.aspect",
+    "region",
+];
+
+/// One settings file of an emulator.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigFile {
+    /// Relative to the config root, for every OS or per OS where the layout differs.
+    /// `{config}/` at the start is the settings directory beside a data root: `~/.config/<x>`
+    /// for `~/.local/share/<x>`, a Flatpak's `config/<x>` for its `data/<x>`, the root itself
+    /// elsewhere.
+    pub path: FilePath,
+    pub format: Format,
+    /// XML: the document element the keys hang off (Cemu's `content`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root: Option<String>,
+}
+
+/// A path for every OS, or one per OS.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum FilePath {
+    Same(String),
+    PerOs(PerOs<String>),
+}
+
+impl FilePath {
+    pub fn get(&self, os: Os) -> Option<&str> {
+        match self {
+            FilePath::Same(p) => Some(p),
+            FilePath::PerOs(p) => p.get(os).map(String::as_str),
+        }
+    }
+
+    /// Every path spelled, for validation.
+    pub fn all(&self) -> Vec<&str> {
+        match self {
+            FilePath::Same(p) => vec![p],
+            FilePath::PerOs(p) => [&p.linux, &p.windows, &p.macos]
+                .into_iter()
+                .flatten()
+                .map(String::as_str)
+                .collect(),
+        }
+    }
+}
+
+/// How a settings file is patched. Each is a line editor that leaves everything else alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Format {
+    /// `key = value` under `[section]`: ini, flat TOML, RetroArch's cfg. An empty section is
+    /// the top of the file.
+    Ini,
+    /// Qt's ini: every key written gets its `key\default=false` companion, or Qt ignores it.
+    Qt,
+    /// Two-level YAML: `Section:` then `  Key: value`; an empty section is the top level.
+    Yaml,
+    /// ares's BML: `Section` then `  Key: value`.
+    Bml,
+    /// Elements by path under the file's `root`; `section` is the path between root and key,
+    /// `/`-separated, empty for a child of the root.
+    Xml,
+    /// Top-level keys of one object; `section` is unused.
+    Json,
+}
+
+/// Where a neutral knob lands in an emulator's files, or why it cannot.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged, deny_unknown_fields)]
+pub enum Knob {
+    /// The emulator has no such setting; the note is what a UI shows.
+    Unsupported {
+        unsupported: String,
+    },
+    Bound(Box<Binding>),
+}
+
+/// One knob bound to one key, with the spelling the emulator expects. Exactly one of `bool`,
+/// `values` and `scale` is present, by the knob's type: `bool` for `video.fullscreen` and
+/// `video.vsync`, `values` for `video.aspect` and `region`, `scale` for `video.scale`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Binding {
+    /// A name from `files`.
+    pub file: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub section: String,
+    pub key: String,
+    /// `[true, false]` as the emulator spells them (`True`/`False`, `1`/`0`, `yes`/`no`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bool: Option<[String; 2]>,
+    /// Neutral value → the emulator's literal, quotes included where its format wants them.
+    /// A neutral value missing here is unsupported, and says so.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub values: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<Scale>,
+    /// Keys written alongside every write of this knob (the renderer a scale needs, a second
+    /// axis, a mode string beside a flag).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub also: Vec<Also>,
+    /// A caveat that makes the knob partial: it is written, and this is what to know.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// A key written alongside a knob. `value` is a literal, with `{value}` standing for the
+/// knob's own rendered value; `bool` and `values` spell the knob's neutral value for this key.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Also {
+    /// Another file name; the knob's own by default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// Another section; the knob's own by default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub section: Option<String>,
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bool: Option<[String; 2]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub values: Option<BTreeMap<String, String>>,
+}
+
+/// How `video.scale`, a multiplier `n` of the console's resolution, is spelled.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Scale {
+    /// `n` itself, `min..=max`.
+    Multiplier {
+        #[serde(default = "one")]
+        min: u8,
+        #[serde(default = "eight")]
+        max: u8,
+    },
+    /// `n × 100`, a percentage of the console's resolution (RPCS3).
+    Percent {
+        #[serde(default = "one")]
+        min: u8,
+        #[serde(default = "eight")]
+        max: u8,
+    },
+    /// `n × base`, vertical lines (Flycast's 480).
+    Lines {
+        base: u32,
+        #[serde(default = "eight")]
+        max: u8,
+    },
+    /// `n` (as a decimal string, JSON's key) → the emulator's own value; an `n` missing here
+    /// is unsupported.
+    Map(BTreeMap<String, String>),
+}
+
+fn one() -> u8 {
+    1
+}
+
+fn eight() -> u8 {
+    8
+}
+
+impl Scale {
+    /// The literal for `n`, or `None` when `n` is out of range.
+    pub fn render(&self, n: u8) -> Option<String> {
+        match self {
+            Scale::Multiplier { min, max } => (*min..=*max).contains(&n).then(|| n.to_string()),
+            Scale::Percent { min, max } => (*min..=*max)
+                .contains(&n)
+                .then(|| (u32::from(n) * 100).to_string()),
+            Scale::Lines { base, max } => (1..=*max)
+                .contains(&n)
+                .then(|| (u32::from(n) * base).to_string()),
+            Scale::Map(map) => map.get(&n.to_string()).cloned(),
+        }
+    }
+
+    /// `(min, max)` of what renders.
+    pub fn range(&self) -> (u8, u8) {
+        match self {
+            Scale::Multiplier { min, max } | Scale::Percent { min, max } => (*min, *max),
+            Scale::Lines { max, .. } => (1, *max),
+            Scale::Map(map) => {
+                let keys = map.keys().filter_map(|k| k.parse::<u8>().ok());
+                (keys.clone().min().unwrap_or(1), keys.max().unwrap_or(1))
+            }
+        }
+    }
+}
+
+/// How an emulator's player bindings come to be.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged, deny_unknown_fields)]
+pub enum PlayersSupport {
+    /// A Rust adapter writes them: `crates/hermir/src/config/adapters/<adapter>.rs`.
+    Adapter {
+        adapter: String,
+    },
+    /// The emulator picks up SDL pads itself, in the order they appear; there is nothing to
+    /// write. The note says so in the emulator's terms.
+    Automatic {
+        automatic: String,
+    },
+    Unsupported {
+        unsupported: String,
+    },
+}
+
+/// A pad as the consumer sees it: its USB identity and the order it appeared in.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct PadRef {
+    /// The kernel's device name (`Microsoft X-Box 360 pad`), what evdev shows.
+    pub name: String,
+    /// USB (3) unless the pad says otherwise; part of SDL's GUID.
+    #[serde(default = "usb")]
+    pub bus: u16,
+    pub vendor: u16,
+    pub product: u16,
+    #[serde(default)]
+    pub version: u16,
+    /// Position among the pads at launch, 0-based. SDL and evdev number devices that way.
+    pub index: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evdev: Option<PathBuf>,
+}
+
+fn usb() -> u16 {
+    3
+}
+
+/// One seat: player `seat` (1-based) plays on `pad`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Player {
+    pub seat: u8,
+    pub pad: PadRef,
+}
+
+/// What a consumer wants a copy to be for a session. Every field left out means "leave as
+/// is"; `apply` says per knob what it did.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Patch {
+    /// Pads in seat order, into the emulator's bindings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub players: Option<Vec<Player>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub video: Option<Video>,
+    /// The console region the emulator should present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<Region>,
+    /// Keys the model does not cover, written as given.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub native: Vec<Native>,
+}
+
+impl Patch {
+    pub fn is_empty(&self) -> bool {
+        self.players.is_none()
+            && self.video.as_ref().is_none_or(Video::is_empty)
+            && self.region.is_none()
+            && self.native.is_empty()
+    }
+}
+
+/// The display side of a session.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Video {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fullscreen: Option<bool>,
+    /// Internal resolution as a multiple of the console's own, 1 for native.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scale: Option<u8>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vsync: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub aspect: Option<Aspect>,
+}
+
+impl Video {
+    pub fn is_empty(&self) -> bool {
+        self.fullscreen.is_none()
+            && self.scale.is_none()
+            && self.vsync.is_none()
+            && self.aspect.is_none()
+    }
+}
+
+/// How the picture fills the window.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum Aspect {
+    /// The game's own.
+    #[serde(rename = "auto")]
+    Auto,
+    #[serde(rename = "4:3")]
+    FourThree,
+    #[serde(rename = "16:9")]
+    SixteenNine,
+    /// Fill the window, whatever the shape.
+    #[serde(rename = "stretch")]
+    Stretch,
+}
+
+impl Aspect {
+    /// The neutral spelling, the key into a binding's `values`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Aspect::Auto => "auto",
+            Aspect::FourThree => "4:3",
+            Aspect::SixteenNine => "16:9",
+            Aspect::Stretch => "stretch",
+        }
+    }
+}
+
+impl std::str::FromStr for Aspect {
+    type Err = String;
+    fn from_str(s: &str) -> std::result::Result<Aspect, String> {
+        match s.to_ascii_lowercase().as_str() {
+            "auto" | "native" => Ok(Aspect::Auto),
+            "4:3" | "4x3" => Ok(Aspect::FourThree),
+            "16:9" | "16x9" | "wide" => Ok(Aspect::SixteenNine),
+            "stretch" | "fill" => Ok(Aspect::Stretch),
+            other => Err(format!(
+                "unknown aspect {other}; auto, 4:3, 16:9 or stretch"
+            )),
+        }
+    }
+}
+
+/// The console region: what the emulated system reports to the game.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum Region {
+    /// The emulator's own choice, usually the game's.
+    #[serde(rename = "auto")]
+    Auto,
+    /// Japan, NTSC-J.
+    #[serde(rename = "jp")]
+    Japan,
+    /// The Americas, NTSC-U.
+    #[serde(rename = "us")]
+    Usa,
+    /// Europe and Australia, PAL.
+    #[serde(rename = "eu")]
+    Europe,
+}
+
+impl Region {
+    /// The neutral spelling, the key into a binding's `values`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Region::Auto => "auto",
+            Region::Japan => "jp",
+            Region::Usa => "us",
+            Region::Europe => "eu",
+        }
+    }
+}
+
+impl std::str::FromStr for Region {
+    type Err = String;
+    fn from_str(s: &str) -> std::result::Result<Region, String> {
+        match s.to_ascii_lowercase().as_str() {
+            "auto" => Ok(Region::Auto),
+            "jp" | "japan" | "ntsc-j" | "ntscj" => Ok(Region::Japan),
+            "us" | "usa" | "ntsc-u" | "ntscu" | "ntsc" => Ok(Region::Usa),
+            "eu" | "europe" | "pal" => Ok(Region::Europe),
+            other => Err(format!("unknown region {other}; auto, jp, us or eu")),
+        }
+    }
+}
+
+/// A key written as given into a file the catalog names, for what the model does not cover.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Native {
+    /// A name from the entry's `config.files`; `main` when left out.
+    #[serde(default = "main", skip_serializing_if = "is_main")]
+    pub file: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub section: String,
+    pub key: String,
+    /// The literal, in the file's own spelling (quotes included where it wants them).
+    pub value: String,
+}
+
+fn main() -> String {
+    "main".into()
+}
+
+fn is_main(s: &str) -> bool {
+    s == "main"
+}
+
+/// What `apply` did: one line per knob the patch carried, one step per file it touched.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Applied {
+    pub emulator: String,
+    pub knobs: Vec<KnobChange>,
+    pub steps: Vec<PrepareStep>,
+}
+
+impl Applied {
+    /// A file could not be written.
+    pub fn failed(&self) -> bool {
+        self.steps.iter().any(|s| s.outcome == StepOutcome::Failed)
+    }
+}
+
+/// One knob of a patch, and what became of it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct KnobChange {
+    /// `video.fullscreen`, `video.scale`, `video.vsync`, `video.aspect`, `region`, `players`,
+    /// or `native:<file>:<key>`.
+    pub knob: String,
+    pub support: Support,
+    /// Why not, or what to know.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// The file the knob lands in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<PathBuf>,
+}
+
+/// Whether a knob reached the emulator.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Support {
+    /// Written, as asked.
+    Applied,
+    /// Written, with the note's caveat.
+    Partial,
+    /// Not written; the note says why.
+    Unsupported,
 }
 
 /// Firmware the emulator reads from a folder under its config root, or installs itself.
@@ -478,6 +941,48 @@ mod tests {
         };
         assert!(n.matches("Windows-Latest.zip"));
         assert!(!n.matches("windows-latest.zip.sha256"));
+    }
+
+    #[test]
+    fn knobs_deserialize_by_shape_and_scales_render() {
+        let k: Knob = serde_json::from_str(r#"{"unsupported":"no such setting"}"#).unwrap();
+        assert!(matches!(k, Knob::Unsupported { .. }));
+        let k: Knob = serde_json::from_str(
+            r#"{"file":"main","section":"EmuCore/GS","key":"upscale_multiplier","scale":{"multiplier":{"max":8}}}"#,
+        )
+        .unwrap();
+        let Knob::Bound(b) = k else { panic!() };
+        assert_eq!(b.scale.as_ref().unwrap().render(3).as_deref(), Some("3"));
+        assert_eq!(b.scale.as_ref().unwrap().render(9), None);
+        assert!(serde_json::from_str::<Knob>(r#"{"file":"main","key":"k","nope":1}"#).is_err());
+        let s: Scale = serde_json::from_str(r#"{"percent":{}}"#).unwrap();
+        assert_eq!(s.render(2).as_deref(), Some("200"));
+        let s: Scale = serde_json::from_str(r#"{"lines":{"base":480}}"#).unwrap();
+        assert_eq!(s.render(2).as_deref(), Some("960"));
+        let s: Scale = serde_json::from_str(r#"{"map":{"1":"2","2":"4"}}"#).unwrap();
+        assert_eq!(s.render(2).as_deref(), Some("4"));
+        assert_eq!(s.render(3), None);
+        assert_eq!(s.range(), (1, 2));
+        let p: FilePath =
+            serde_json::from_str(r#"{"linux":"Dolphin.ini","windows":"Config/Dolphin.ini"}"#)
+                .unwrap();
+        assert_eq!(p.get(Os::Windows), Some("Config/Dolphin.ini"));
+        assert_eq!(p.get(Os::Macos), None);
+    }
+
+    #[test]
+    fn patch_spellings_are_the_cli_ones() {
+        let p: Patch = serde_json::from_str(
+            r#"{"video":{"fullscreen":true,"scale":3,"aspect":"16:9"},"region":"eu","native":[{"key":"k","value":"v"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(p.video.unwrap().aspect, Some(Aspect::SixteenNine));
+        assert_eq!(p.region, Some(Region::Europe));
+        assert_eq!(p.native[0].file, "main");
+        assert_eq!(serde_json::to_string(&Region::Usa).unwrap(), "\"us\"");
+        assert_eq!("PAL".parse::<Region>(), Ok(Region::Europe));
+        assert_eq!("4x3".parse::<Aspect>(), Ok(Aspect::FourThree));
+        assert!(Patch::default().is_empty());
     }
 
     #[test]

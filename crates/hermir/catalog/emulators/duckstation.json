@@ -61,6 +61,69 @@
       }
     }
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "settings.ini",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "Main",
+        "key": "StartFullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "GPU",
+        "key": "ResolutionScale",
+        "scale": {
+          "multiplier": {
+            "max": 16
+          }
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "Display",
+        "key": "VSync",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "Display",
+        "key": "AspectRatio",
+        "values": {
+          "auto": "Auto (Game Native)",
+          "4:3": "4:3",
+          "16:9": "16:9",
+          "stretch": "Stretch To Fill"
+        }
+      },
+      "region": {
+        "file": "main",
+        "section": "Console",
+        "key": "Region",
+        "values": {
+          "auto": "Auto",
+          "jp": "NTSC-J",
+          "us": "NTSC-U",
+          "eu": "PAL"
+        }
+      }
+    },
+    "players": {
+      "adapter": "duckstation"
+    }
+  },
   "notes": "The licence forbids modification and redistribution: hermir installs the official build unchanged. Of its config it writes only the answers to its first-run questions. The first-run seed carries the settings version this release expects (a file without it is reset to defaults, wizard included); bump it with the emulator.",
   "first_run": {
     "linux": [

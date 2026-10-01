@@ -26,6 +26,80 @@
       "{file}"
     ]
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": {
+          "linux": "{config}/qt-config.ini",
+          "windows": "config/qt-config.ini"
+        },
+        "format": "qt"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "UI",
+        "key": "fullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "Renderer",
+        "key": "resolution_setup",
+        "scale": {
+          "map": {
+            "1": "2",
+            "2": "4",
+            "3": "5",
+            "4": "6",
+            "5": "7",
+            "6": "8",
+            "7": "9",
+            "8": "10"
+          }
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "Renderer",
+        "key": "vsync_mode",
+        "bool": [
+          "2",
+          "0"
+        ],
+        "note": "FIFO for on, immediate for off"
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "Renderer",
+        "key": "aspect_ratio",
+        "values": {
+          "auto": "0",
+          "16:9": "0",
+          "4:3": "1",
+          "stretch": "4"
+        }
+      },
+      "region": {
+        "file": "main",
+        "section": "System",
+        "key": "region_index",
+        "values": {
+          "auto": "-1",
+          "jp": "0",
+          "us": "1",
+          "eu": "2"
+        }
+      }
+    },
+    "players": {
+      "adapter": "eden"
+    }
+  },
   "notes": "The root is Eden's data folder, where keys and system firmware live; its settings are under ~/.config/eden. System firmware comes as a zip of NCAs and is unpacked only while none is installed.",
   "firmware": {
     "dir": "keys",

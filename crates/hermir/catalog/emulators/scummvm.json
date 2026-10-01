@@ -42,5 +42,52 @@
       "{file}"
     ]
   },
+  "config": {
+    "files": {
+      "main": {
+        "path": "scummvm.ini",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "scummvm",
+        "key": "fullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "unsupported": "the engines draw at the game's resolution"
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "scummvm",
+        "key": "vsync",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "scummvm",
+        "key": "aspect_ratio",
+        "values": {
+          "auto": "false",
+          "4:3": "true"
+        },
+        "note": "the 4:3 correction of 320×200 games"
+      },
+      "region": {
+        "unsupported": "not a console"
+      }
+    },
+    "players": {
+      "unsupported": "keyboard and mouse games"
+    }
+  },
   "notes": "Launches a game directory, not a file."
 }
