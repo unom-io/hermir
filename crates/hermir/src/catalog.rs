@@ -198,16 +198,22 @@ impl Catalog {
             let written = e
                 .firmware
                 .iter()
-                .flat_map(|f| f.dir.iter().chain(f.install.iter().map(|i| &i.done)))
+                .flat_map(|f| {
+                    f.dir
+                        .iter()
+                        .chain(f.install.iter().map(|i| &i.done))
+                        .chain(f.unpack.iter().map(|u| &u.into))
+                })
                 .chain(
                     [Os::Linux, Os::Windows, Os::Macos]
                         .iter()
                         .flat_map(|&os| e.first_run.get(os).into_iter().flatten())
-                        .map(|a| match a {
-                            FirstRun::Ini { ini, .. } => ini,
-                            FirstRun::Seed { seed, .. } => seed,
-                            FirstRun::Dir { dir } => dir,
-                            FirstRun::Copy { to, .. } => to,
+                        .flat_map(|a| match a {
+                            FirstRun::Ini { ini, .. } => vec![ini],
+                            FirstRun::Seed { seed, .. } => vec![seed],
+                            FirstRun::Dir { dir } => vec![dir],
+                            // What is copied comes from beside the exe, so it stays in there too.
+                            FirstRun::Copy { copy, to } => vec![copy, to],
                         }),
                 );
             for rel in written {
@@ -453,6 +459,16 @@ mod tests {
         };
         *sha256 = Some("abc".into());
         assert!(c.validate().is_err());
+    }
+
+    #[test]
+    fn firmware_unpacks_under_the_config_root() {
+        let mut c = Catalog::embedded().unwrap();
+        let e = c.entries.iter_mut().find(|e| e.id == "eden").unwrap();
+        let unpack = e.firmware.as_mut().unwrap().unpack.as_mut().unwrap();
+        unpack.into = "../../.ssh".into();
+        let err = c.validate().unwrap_err().to_string();
+        assert!(err.contains("not a path under the config root"), "{err}");
     }
 
     #[test]

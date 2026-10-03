@@ -17,6 +17,11 @@ pub trait Env: Send + Sync {
     fn exists(&self, path: &Path) -> bool;
     /// `name` resolved on `PATH`, with `PATHEXT` on Windows.
     fn which(&self, name: &str) -> Option<PathBuf>;
+    /// `path` with its links resolved, so two names for one program are one copy. As given
+    /// when it cannot be resolved.
+    fn canonical(&self, path: &Path) -> PathBuf {
+        path.to_path_buf()
+    }
 }
 
 /// The real machine.
@@ -46,17 +51,23 @@ impl Env for RealEnv {
     fn exists(&self, path: &Path) -> bool {
         path.is_file() || path.is_dir()
     }
+    fn canonical(&self, path: &Path) -> PathBuf {
+        std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    }
     fn which(&self, name: &str) -> Option<PathBuf> {
         let path = std::env::var_os("PATH")?;
-        let exts: Vec<String> = if self.os == Os::Windows {
-            std::env::var("PATHEXT")
-                .unwrap_or_else(|_| ".EXE;.CMD;.BAT".into())
-                .split(';')
-                .map(|s| s.to_ascii_lowercase())
-                .collect()
-        } else {
-            vec![String::new()]
-        };
+        // On Windows the name as given first (it may carry its extension), then with each of
+        // PATHEXT's.
+        let mut exts = vec![String::new()];
+        if self.os == Os::Windows {
+            exts.extend(
+                std::env::var("PATHEXT")
+                    .unwrap_or_else(|_| ".EXE;.CMD;.BAT".into())
+                    .split(';')
+                    .filter(|s| !s.is_empty())
+                    .map(|s| s.to_ascii_lowercase()),
+            );
+        }
         for dir in std::env::split_paths(&path) {
             for ext in &exts {
                 let p = dir.join(format!("{name}{ext}"));
@@ -70,11 +81,14 @@ impl Env for RealEnv {
 }
 
 /// `~`, `$VAR`, `%VAR%` and `<app>` (given) expanded. Unknown variables stay as written, so a
-/// missing `%LOCALAPPDATA%` is a path that does not exist rather than a crash.
+/// missing `%LOCALAPPDATA%` is a path that does not exist rather than a crash. `~` is the home
+/// only on its own or before a separator; `~user` stays as written.
 pub fn expand(s: &str, env: &dyn Env, app_dir: Option<&Path>) -> PathBuf {
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
-    if let Some(r) = rest.strip_prefix("~") {
+    if let Some(r) = rest.strip_prefix('~')
+        && (r.is_empty() || r.starts_with(['/', '\\']))
+    {
         out.push_str(&env.home().unwrap_or_default().to_string_lossy());
         rest = r;
     }
@@ -82,40 +96,39 @@ pub fn expand(s: &str, env: &dyn Env, app_dir: Option<&Path>) -> PathBuf {
         out.push_str(&app_dir.unwrap_or(Path::new(".")).to_string_lossy());
         rest = r;
     }
-    let mut chars = rest.char_indices().peekable();
-    while let Some((i, c)) = chars.next() {
+    let var_char = |c: char| c.is_ascii_alphanumeric() || c == '_';
+    let mut i = 0;
+    while let Some(c) = rest[i..].chars().next() {
         match c {
+            // `%NAME%`: known, its value; unknown, as written, closing `%` included.
             '%' => {
                 if let Some(end) = rest[i + 1..].find('%') {
                     let name = &rest[i + 1..i + 1 + end];
-                    if let Some(v) = env.var(name) {
-                        out.push_str(&v);
-                        for _ in 0..end + 1 {
-                            chars.next();
+                    if !name.is_empty() && name.chars().all(|c| var_char(c) || c == '(' || c == ')')
+                    {
+                        match env.var(name) {
+                            Some(v) => out.push_str(&v),
+                            None => out.push_str(&rest[i..i + end + 2]),
                         }
+                        i += end + 2;
                         continue;
                     }
                 }
-                out.push(c);
             }
             '$' => {
-                let name: String = rest[i + 1..]
-                    .chars()
-                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-                    .collect();
+                let name: String = rest[i + 1..].chars().take_while(|c| var_char(*c)).collect();
                 if !name.is_empty()
                     && let Some(v) = env.var(&name)
                 {
                     out.push_str(&v);
-                    for _ in 0..name.len() {
-                        chars.next();
-                    }
+                    i += 1 + name.len();
                     continue;
                 }
-                out.push(c);
             }
-            _ => out.push(c),
+            _ => {}
         }
+        out.push(c);
+        i += c.len_utf8();
     }
     PathBuf::from(out)
 }
@@ -157,16 +170,37 @@ pub fn detect_entry(entry: &Entry, env: &dyn Env) -> Vec<Install> {
             found.push(native(entry, rules, exe, env));
         }
     }
-    found.dedup_by(|a, b| a.exe == b.exe);
+    // One row per program: two `PATH` names, or a `PATH` name and a known path, for one file
+    // are one copy.
+    let mut seen = Vec::new();
+    found.retain(|i| match &i.exe {
+        Exe::Path(p) => {
+            let c = env.canonical(p);
+            let new = !seen.contains(&c);
+            seen.push(c);
+            new
+        }
+        Exe::FlatpakRun(_) => true,
+    });
     found
 }
 
+/// Whether the app is in the user installation (`$FLATPAK_USER_DIR`, by default
+/// `~/.local/share/flatpak`) or the system one (`$FLATPAK_SYSTEM_DIR`, by default
+/// `/var/lib/flatpak`).
 fn flatpak_present(id: &str, env: &dyn Env) -> bool {
     let user = env
-        .home()
-        .map(|h| h.join(".local/share/flatpak/app").join(id))
-        .is_some_and(|p| env.exists(&p));
-    user || env.exists(&Path::new("/var/lib/flatpak/app").join(id))
+        .var("FLATPAK_USER_DIR")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| env.home().map(|h| h.join(".local/share/flatpak")));
+    let system = env
+        .var("FLATPAK_SYSTEM_DIR")
+        .filter(|v| !v.is_empty())
+        .map_or_else(|| PathBuf::from("/var/lib/flatpak"), PathBuf::from);
+    user.into_iter()
+        .chain(std::iter::once(system))
+        .any(|dir| env.exists(&dir.join("app").join(id)))
 }
 
 /// The directory of `exe` under `os` path rules, so a Windows path parses on any host.
@@ -236,6 +270,8 @@ pub(crate) mod fake {
         pub vars: BTreeMap<String, String>,
         pub files: BTreeSet<PathBuf>,
         pub on_path: BTreeMap<String, PathBuf>,
+        /// A link → what it points at.
+        pub links: BTreeMap<PathBuf, PathBuf>,
     }
 
     impl FakeEnv {
@@ -246,7 +282,12 @@ pub(crate) mod fake {
                 vars: BTreeMap::new(),
                 files: BTreeSet::new(),
                 on_path: BTreeMap::new(),
+                links: BTreeMap::new(),
             }
+        }
+        pub fn link(mut self, from: &str, to: &str) -> Self {
+            self.links.insert(PathBuf::from(from), PathBuf::from(to));
+            self
         }
         pub fn file(mut self, p: &str) -> Self {
             self.files.insert(PathBuf::from(p));
@@ -278,6 +319,12 @@ pub(crate) mod fake {
         fn which(&self, name: &str) -> Option<PathBuf> {
             self.on_path.get(name).cloned()
         }
+        fn canonical(&self, path: &Path) -> PathBuf {
+            self.links
+                .get(path)
+                .cloned()
+                .unwrap_or_else(|| path.to_path_buf())
+        }
     }
 }
 
@@ -308,6 +355,51 @@ mod tests {
             expand("<app>/inis", &env, Some(Path::new("/opt/p"))),
             PathBuf::from("/opt/p/inis")
         );
+        // `~user` is someone else's home: left as written.
+        assert_eq!(expand("~foo/x", &env, None), PathBuf::from("~foo/x"));
+        assert_eq!(expand("~", &env, None), PathBuf::from("/home/u"));
+    }
+
+    #[test]
+    fn unknown_windows_variables_stay_whole_and_names_may_be_anything_unicode_around() {
+        let env = FakeEnv::new(Os::Windows, "C:\\Users\\u").var("B", "XX");
+        // `%A%` is unknown and stays as written; `B` after it is not taken for `%B%`.
+        assert_eq!(expand("%A%B%", &env, None), PathBuf::from("%A%B%"));
+        assert_eq!(expand("%A%%B%", &env, None), PathBuf::from("%A%XX"));
+        assert_eq!(
+            expand("C:\\Spiele\\Émulateurs\\%B%\\x", &env, None),
+            PathBuf::from("C:\\Spiele\\Émulateurs\\XX\\x")
+        );
+        assert_eq!(expand("50% off", &env, None), PathBuf::from("50% off"));
+        let env = FakeEnv::new(Os::Linux, "/home/u").var("Ü", "nope");
+        assert_eq!(expand("/ä/$Ü/ö", &env, None), PathBuf::from("/ä/$Ü/ö"));
+    }
+
+    #[test]
+    fn two_names_for_one_program_are_one_copy() {
+        let c = Catalog::embedded().unwrap();
+        let env = FakeEnv::new(Os::Linux, "/home/u")
+            .bin("pcsx2-qt", "/usr/bin/pcsx2-qt")
+            .bin("pcsx2", "/usr/bin/pcsx2")
+            .link("/usr/bin/pcsx2", "/usr/bin/pcsx2-qt");
+        let found = detect_entry(c.get("pcsx2").unwrap(), &env);
+        assert_eq!(found.len(), 1, "{found:?}");
+    }
+
+    #[test]
+    fn flatpak_installations_are_where_flatpak_says() {
+        let c = Catalog::embedded().unwrap();
+        let pcsx2 = c.get("pcsx2").unwrap();
+        let env = FakeEnv::new(Os::Linux, "/home/u")
+            .var("FLATPAK_USER_DIR", "/data/flatpak")
+            .file("/data/flatpak/app/net.pcsx2.PCSX2");
+        assert_eq!(detect_entry(pcsx2, &env).len(), 1);
+        let env = FakeEnv::new(Os::Linux, "/home/u")
+            .var("FLATPAK_SYSTEM_DIR", "/sys-flatpak")
+            .file("/sys-flatpak/app/net.pcsx2.PCSX2");
+        assert_eq!(detect_entry(pcsx2, &env).len(), 1);
+        let env = FakeEnv::new(Os::Linux, "/home/u").file("/var/lib/flatpak/app/net.pcsx2.PCSX2");
+        assert_eq!(detect_entry(pcsx2, &env).len(), 1);
     }
 
     #[test]

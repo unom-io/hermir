@@ -175,8 +175,13 @@ impl Hermir {
             .into_iter()
             .map(|r| self.managed_install(&r))
             .collect();
+        let env = self.env.as_ref();
+        let same = |a: &Exe, b: &Exe| match (a, b) {
+            (Exe::Path(a), Exe::Path(b)) => env.canonical(a) == env.canonical(b),
+            (a, b) => a == b,
+        };
         for d in self.detect() {
-            if !out.iter().any(|i| i.exe == d.exe) {
+            if !out.iter().any(|i| same(&i.exe, &d.exe)) {
                 out.push(d);
             }
         }
@@ -191,12 +196,13 @@ impl Hermir {
                 .flatpak
                 .as_deref()
                 .map(|t| detect::expand(t, self.env.as_ref(), None)),
-            // A Linux build without a portable marker (an AppImage) keeps the native layout.
-            (Exe::Path(_), Some(e)) if self.os == Os::Linux && !marks_portable(e, self.os) => e
-                .roots
-                .native
-                .as_deref()
-                .map(|t| detect::expand(t, self.env.as_ref(), None)),
+            // A build without a portable marker keeps the layout of the OS: an AppImage the
+            // native one, a Windows zip `%APPDATA%`, as detection resolves them.
+            (Exe::Path(_), Some(e)) if !marks_portable(e, self.os) => match self.os {
+                Os::Windows => e.roots.windows.as_deref(),
+                _ => e.roots.native.as_deref(),
+            }
+            .map(|t| detect::expand(t, self.env.as_ref(), None)),
             (Exe::Path(p), Some(e)) => e
                 .roots
                 .portable
@@ -443,6 +449,7 @@ impl EmulatorHandle<'_> {
     /// cannot be written as asked ([`Patch::validate`]) is an error before anything is; the
     /// prefix lock is held while it writes.
     pub fn apply(&self, install: &Install, patch: &Patch) -> Result<Applied> {
+        self.mine(install)?;
         patch.validate().map_err(Error::Invalid)?;
         let _lock = self.h.store.lock()?;
         Ok(config::apply(
@@ -466,6 +473,7 @@ impl EmulatorHandle<'_> {
     /// What this copy's files hold for each knob, in the neutral spelling `apply` takes: a
     /// knob the file does not set reads as unset, with a note.
     pub fn get(&self, install: &Install) -> Result<Vec<KnobValue>> {
+        self.mine(install)?;
         config::get(self.entry, self.h.os, install).map_err(Error::Invalid)
     }
 
@@ -478,8 +486,21 @@ impl EmulatorHandle<'_> {
         section: &str,
         key: &str,
     ) -> Result<Option<String>> {
+        self.mine(install)?;
         config::get_native(self.entry, self.h.os, install, file, section, key)
             .map_err(Error::Invalid)
+    }
+
+    /// An install of another emulator would be patched with this one's keys.
+    fn mine(&self, install: &Install) -> Result<()> {
+        if install.emulator == self.entry.id {
+            Ok(())
+        } else {
+            Err(Error::Invalid(format!(
+                "that copy is {}, not {}",
+                install.emulator, self.entry.id
+            )))
+        }
     }
 
     /// What [`Self::apply`] can do for this emulator, knob by knob, before asking.
@@ -499,11 +520,17 @@ impl EmulatorHandle<'_> {
 
     /// The best copy on this machine: managed, else the first detected.
     pub fn best(&self) -> Result<Option<Install>> {
-        Ok(self
-            .h
-            .installs()?
-            .into_iter()
-            .find(|i| i.emulator == self.entry.id))
+        let env = self.h.env.as_ref();
+        let copies: Vec<Install> = self.copies()?;
+        // A managed row whose program is gone (deleted by hand) is not a copy to act on.
+        Ok(copies
+            .iter()
+            .find(|i| match &i.exe {
+                Exe::Path(p) => env.exists(p),
+                Exe::FlatpakRun(_) => true,
+            })
+            .or(copies.first())
+            .cloned())
     }
 }
 
@@ -655,5 +682,61 @@ mod tests {
         // Region was never going to be written, so it stays unsupported.
         let region = done.knobs.iter().find(|k| k.knob == "region").unwrap();
         assert_eq!(region.support, Support::Unsupported);
+    }
+
+    #[test]
+    fn a_managed_copy_keeps_its_os_layout_and_one_whose_program_is_gone_is_not_the_best() {
+        let tmp = tempfile::tempdir().unwrap();
+        let prefix = tmp.path().join("prefix");
+        let env = crate::detect::fake::FakeEnv::new(Os::Windows, "C:\\Users\\u")
+            .var("APPDATA", "C:\\Users\\u\\AppData\\Roaming")
+            .var("ProgramFiles", "C:\\Program Files")
+            .file("C:\\Program Files\\xemu\\xemu.exe");
+        let h = Hermir::open(Options {
+            prefix: Some(prefix.clone()),
+            os: Some(Os::Windows),
+            http: Box::new(FakeHttp::default()),
+            runner: Box::new(FakeRunner::default()),
+            env: Some(Box::new(env)),
+            require_verified: false,
+        })
+        .unwrap();
+        {
+            let _lock = h.store().lock().unwrap();
+            h.store()
+                .record(Installed {
+                    emulator: "xemu".into(),
+                    channel: "github".into(),
+                    exe: Exe::Path(prefix.join("xemu/app/xemu.exe")),
+                    version: None,
+                    release: None,
+                    sha256: None,
+                    verified: Verified::None,
+                    kept: Vec::new(),
+                    installed_at: "2026-10-03T00:00:00Z".into(),
+                })
+                .unwrap();
+        }
+        let e = h.emulator("xemu").unwrap();
+        let copies = e.copies().unwrap();
+        assert_eq!(copies.len(), 2);
+        // xemu's Windows zip has no portable marker: its settings are under %APPDATA%.
+        assert_eq!(copies[0].kind, InstallKind::Managed);
+        assert_eq!(
+            copies[0].config_root.as_deref(),
+            Some(std::path::Path::new(
+                "C:\\Users\\u\\AppData\\Roaming\\xemu\\xemu"
+            ))
+        );
+        // The managed exe was deleted by hand; the installed copy is the one to act on.
+        let best = e.best().unwrap().unwrap();
+        assert_eq!(best.kind, InstallKind::Native);
+        // And an install of another emulator is not this one's to patch.
+        let pcsx2 = h.emulator("pcsx2").unwrap();
+        let patch = Patch {
+            region: Some(Region::Europe),
+            ..Default::default()
+        };
+        assert!(matches!(pcsx2.apply(&best, &patch), Err(Error::Invalid(_))));
     }
 }
