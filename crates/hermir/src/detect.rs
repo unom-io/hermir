@@ -405,7 +405,7 @@ mod tests {
         let env = RealEnv::with_home(Os::Linux, home.clone());
         assert_eq!(
             env.var("XDG_CONFIG_HOME"),
-            Some("/tmp/check/home/.config".into())
+            Some(home.join(".config").to_string_lossy().into_owned())
         );
         assert!(
             env.home_vars()

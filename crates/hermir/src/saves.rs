@@ -116,8 +116,10 @@ fn folder(value: &str, root: &Path, env: &dyn Env) -> PathBuf {
     } else {
         PathBuf::from(value)
     };
-    let drive = value.as_bytes().get(1) == Some(&b':');
-    if path.is_absolute() || drive || value.starts_with(['/', '\\']) {
+    // Absolute on either OS, whichever this host is: `/…`, `\\…`, `C:…`.
+    let spelled = path.to_string_lossy();
+    let drive = spelled.as_bytes().get(1) == Some(&b':');
+    if path.is_absolute() || drive || spelled.starts_with(['/', '\\']) {
         path
     } else {
         root.join(path)

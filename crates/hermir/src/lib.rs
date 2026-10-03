@@ -1008,10 +1008,9 @@ mod tests {
             ..Default::default()
         };
         let spec = e.launch(&copy, &req).unwrap();
-        assert_eq!(
-            spec.args[..2],
-            ["-u".to_string(), dir.display().to_string()]
-        );
+        assert_eq!(spec.args[0], "-u");
+        // The same folder, whichever separators this host joined it with.
+        assert_eq!(std::path::Path::new(&spec.args[1]), dir);
 
         p.remove().unwrap();
         assert!(!p.exists());

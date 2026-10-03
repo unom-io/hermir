@@ -94,6 +94,24 @@ fn through_link(dest: &Path, rel: &Path) -> bool {
     false
 }
 
+/// Whether a folder `rel` needs is already something else: a file, or a link written as one.
+fn under_a_file(dest: &Path, rel: &Path) -> bool {
+    let mut at = dest.to_path_buf();
+    let mut parts = rel.components().peekable();
+    while let Some(c) = parts.next() {
+        if parts.peek().is_none() {
+            return false;
+        }
+        at.push(c);
+        match fs::symlink_metadata(&at) {
+            Ok(m) if !m.is_dir() => return true,
+            Ok(_) => {}
+            Err(_) => return false,
+        }
+    }
+    false
+}
+
 fn untar(archive: &Path, dest: &Path) -> Result<()> {
     let file = fs::File::open(archive).map_err(|e| Error::io("open", archive, e))?;
     let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(file));
@@ -217,6 +235,13 @@ fn unzip(archive: &Path, dest: &Path) -> Result<()> {
             return Err(refuse(
                 archive,
                 format!("entry {} lies through a link", rel.display()),
+            ));
+        }
+        // Where links are written as files (Windows), an entry through one lies under a file.
+        if under_a_file(dest, &rel) {
+            return Err(refuse(
+                archive,
+                format!("entry {} lies under a file", rel.display()),
             ));
         }
         let out = dest.join(&rel);
