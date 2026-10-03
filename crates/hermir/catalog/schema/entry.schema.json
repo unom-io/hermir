@@ -282,6 +282,10 @@
       "additionalProperties": false,
       "description": "One settings file of an emulator.",
       "properties": {
+        "case_insensitive": {
+          "description": "INI: the emulator matches section and key names whatever their case (Dolphin), so a\nfile that spells `[ui]` is edited there rather than given a second `[UI]`.",
+          "type": "boolean"
+        },
         "format": {
           "$ref": "#/$defs/Format"
         },

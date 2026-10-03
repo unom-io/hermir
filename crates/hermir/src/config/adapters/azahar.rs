@@ -1,6 +1,7 @@
 //! Azahar (Citra's lineage): one 3DS, so one player, in profile 1 of `qt-config.ini`, each
 //! control `api:controller,…,engine:sdl,guid:<guid>,port:<index>`.
 use super::{Bindings, Cx, Plan, beyond, guid_note, join, set};
+use crate::config::ini::qt_value;
 use crate::model::Player;
 
 pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
@@ -11,14 +12,20 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
         });
     };
     let (g, i) = (p.pad.sdl_guid(true), p.pad.index);
-    let btn = |b: u32| format!("\"api:controller,button:{b},engine:sdl,guid:{g},port:{i}\"");
+    let btn = |b: u32| {
+        qt_value(&format!(
+            "api:controller,button:{b},engine:sdl,guid:{g},port:{i}"
+        ))
+    };
     let axis = |a: u32| {
-        format!(
-            "\"api:controller,axis:{a},direction:+,engine:sdl,guid:{g},port:{i},threshold:0.500000\""
-        )
+        qt_value(&format!(
+            "api:controller,axis:{a},direction:+,engine:sdl,guid:{g},port:{i},threshold:0.500000"
+        ))
     };
     let stick = |x: u32, y: u32| {
-        format!("\"api:controller,axis_x:{x},axis_y:{y},engine:sdl,guid:{g},port:{i}\"")
+        qt_value(&format!(
+            "api:controller,axis_x:{x},axis_y:{y},engine:sdl,guid:{g},port:{i}"
+        ))
     };
     let binds = [
         ("button_a", btn(1)),

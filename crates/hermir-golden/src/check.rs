@@ -7,6 +7,7 @@
 //! - **D** the keys that changed are the ones the catalog binds for the session's knobs;
 //! - **E** where `after/<session>/` exists, hermir changed what the emulator changed, to the
 //!   same values, and nothing else;
+//! - **H** `get` reads back what each applied knob was set to;
 //! - **G** a second apply changes nothing;
 //! - **F** revert gives `before/` back byte for byte, and leaves nothing outstanding.
 //!
@@ -16,10 +17,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use hermir::{
-    Catalog, Entry, Exe, Hermir, Install, InstallKind, Knob, Options, Patch, StepOutcome,
+    Binding, Catalog, Entry, Exe, Hermir, Install, InstallKind, Knob, KnobValue, Options, Patch,
+    StepOutcome, Support,
 };
 
-use crate::fixture::Fixture;
+use crate::fixture::{Fixture, Session};
 use crate::oracle::{Flat, Oracle};
 
 /// Relative path → bytes, for every file under a directory.
@@ -186,6 +188,13 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
         }
     }
 
+    // H
+    failures.extend(read_back(
+        entry,
+        &s,
+        &emu.get(&install).map_err(|e| e.to_string())?,
+    ));
+
     // E
     let after_dir = fx.dir.join("after").join(session);
     if after_dir.is_dir() {
@@ -216,7 +225,7 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
     }
 
     // F
-    for st in emu.revert().map_err(|e| e.to_string())? {
+    for st in emu.revert(false).map_err(|e| e.to_string())? {
         if st.outcome == StepOutcome::Failed {
             failures.push(format!(
                 "F: revert of {} failed: {}",
@@ -232,7 +241,7 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
             describe(&before, &reverted)
         ));
     }
-    if !emu.revert().map_err(|e| e.to_string())?.is_empty() {
+    if !emu.revert(false).map_err(|e| e.to_string())?.is_empty() {
         failures.push("F: a snapshot is still outstanding after revert".into());
     }
 
@@ -302,6 +311,69 @@ fn against_emulator(
         }
     }
     failures
+}
+
+/// Check H: every knob `apply` reported written reads back as what the session asked for, or
+/// as a value the emulator spells the same way (PPSSPP writes 16:9 and auto alike).
+fn read_back(entry: &Entry, s: &Session, got: &[KnobValue]) -> Vec<String> {
+    let mut asked: Vec<(&str, String)> = Vec::new();
+    if let Some(v) = &s.patch.video {
+        if let Some(f) = v.fullscreen {
+            asked.push(("video.fullscreen", f.to_string()));
+        }
+        if let Some(n) = v.scale {
+            asked.push(("video.scale", n.to_string()));
+        }
+        if let Some(f) = v.vsync {
+            asked.push(("video.vsync", f.to_string()));
+        }
+        if let Some(a) = v.aspect {
+            asked.push(("video.aspect", a.as_str().to_string()));
+        }
+    }
+    if let Some(r) = s.patch.region {
+        asked.push(("region", r.as_str().to_string()));
+    }
+    let mut failures = Vec::new();
+    for (knob, want) in asked {
+        if !matches!(
+            s.expect.get(knob),
+            Some(Support::Applied | Support::Partial)
+        ) {
+            continue;
+        }
+        let Some(Knob::Bound(b)) = entry.config.as_ref().and_then(|c| c.knobs.get(knob)) else {
+            continue;
+        };
+        let read = got.iter().find(|v| v.knob == knob);
+        let value = read.and_then(|v| v.value.as_deref());
+        let same = value.is_some_and(|v| v == want || spell(b, v) == spell(b, &want));
+        if !same {
+            failures.push(format!(
+                "H: {knob} was set to {want}, get reads {:?} ({:?})",
+                value,
+                read.and_then(|v| v.literal.as_deref().or(v.note.as_deref()))
+            ));
+        }
+    }
+    failures
+}
+
+/// How the binding spells a neutral value.
+fn spell(b: &Binding, neutral: &str) -> Option<String> {
+    if let Some([t, f]) = &b.bool {
+        return match neutral {
+            "true" => Some(t.clone()),
+            "false" => Some(f.clone()),
+            _ => None,
+        };
+    }
+    if let Some(values) = &b.values {
+        return values.get(neutral).cloned();
+    }
+    b.scale
+        .as_ref()
+        .and_then(|sc| sc.render(neutral.parse().ok()?))
 }
 
 /// Keys whose value differs between `a` and `b`, or that only one has.

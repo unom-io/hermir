@@ -129,7 +129,7 @@ let done = pcsx2.apply(&copy, &Patch {   // Ok(Applied { knobs: [{ knob, support
     region: Some(Region::Europe),
     ..Default::default()
 })?;
-pcsx2.revert()?;                         // the player's files back, byte for byte
+pcsx2.revert(false)?;                    // the player's files back, byte for byte
 ```
 
 Every type is serde and JSON Schema, so the CLI's `--json` is the same contract as the library.

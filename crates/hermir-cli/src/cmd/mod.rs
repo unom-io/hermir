@@ -105,8 +105,17 @@ pub fn run(cli: Cli) -> Result<Outcome> {
         } => config::players(&h, &emulator, revert, &pads),
         Cmd::Config { cmd } => match cmd {
             ConfigCmd::Apply(a) => config::apply(&h, &a),
-            ConfigCmd::Revert { emulator, all } => config::revert(&h, emulator, all),
+            ConfigCmd::Revert {
+                emulator,
+                all,
+                force,
+            } => config::revert(&h, emulator, all, force),
             ConfigCmd::Support { emulator } => config::support(&h, emulator.as_deref()),
+            ConfigCmd::Get {
+                emulator,
+                what,
+                file,
+            } => config::get(&h, &emulator, what.as_deref(), &file),
         },
     }
 }

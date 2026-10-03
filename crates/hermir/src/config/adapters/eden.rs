@@ -2,6 +2,7 @@
 //! `engine:sdl,guid:<guid>,port:<index>,…` with SDL's game-controller numbers. Eden zeroes
 //! the name CRC in the GUID.
 use super::{Bindings, Cx, Plan, beyond, guid_note, join, set};
+use crate::config::ini::qt_value;
 use crate::model::Player;
 
 pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
@@ -9,16 +10,18 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
     for p in players.iter().filter(|p| p.seat <= 8) {
         let n = u32::from(p.seat) - 1;
         let (g, i) = (p.pad.sdl_guid(false), p.pad.index);
-        let btn = |b: u32| format!("\"engine:sdl,guid:{g},port:{i},button:{b}\"");
+        let btn = |b: u32| qt_value(&format!("engine:sdl,guid:{g},port:{i},button:{b}"));
         let axis = |a: u32| {
-            format!("\"engine:sdl,guid:{g},port:{i},axis:{a},threshold:0.500000,invert:+\"")
+            qt_value(&format!(
+                "engine:sdl,guid:{g},port:{i},axis:{a},threshold:0.500000,invert:+"
+            ))
         };
         let stick = |x: u32, y: u32| {
-            format!(
-                "\"engine:sdl,guid:{g},port:{i},axis_x:{x},axis_y:{y},offset_x:-0.000000,\
+            qt_value(&format!(
+                "engine:sdl,guid:{g},port:{i},axis_x:{x},axis_y:{y},offset_x:-0.000000,\
                  offset_y:-0.000000,invert_x:+,invert_y:+,deadzone:0.150000,range:0.950000,\
-                 threshold:0.500000\""
-            )
+                 threshold:0.500000"
+            ))
         };
         let binds = [
             ("button_a", btn(1)),

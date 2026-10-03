@@ -1,7 +1,7 @@
 //! The neutral knobs of a patch turned into edits, by the catalog's bindings. No emulator is
 //! named here: a knob is a file, a section, a key and a spelling, and the catalog has them.
-use super::{Cx, Edit};
-use crate::model::{Binding, Entry, Knob, KnobChange, Patch, Support};
+use super::{Cx, Edit, txn};
+use crate::model::{Binding, Entry, KNOBS, Knob, KnobChange, KnobValue, Patch, Support};
 
 /// What a neutral knob is asked to be.
 #[derive(Clone, Copy)]
@@ -139,4 +139,89 @@ fn spell(
             .cloned()
             .ok_or_else(|| format!("{} has no {knob} {c}", entry.id)),
     }
+}
+
+/// What each knob reads in this copy's files, spelled back in its neutral form.
+pub(crate) fn read(entry: &Entry, cx: &Cx) -> Vec<KnobValue> {
+    KNOBS
+        .iter()
+        .map(|&name| {
+            let mut v = KnobValue {
+                knob: name.into(),
+                value: None,
+                literal: None,
+                file: None,
+                note: None,
+            };
+            let binding = entry.config.as_ref().and_then(|c| c.knobs.get(name));
+            let b = match binding {
+                None => {
+                    v.note = Some(format!("not described for {} yet", entry.id));
+                    return v;
+                }
+                Some(Knob::Unsupported { unsupported }) => {
+                    v.note = Some(unsupported.clone());
+                    return v;
+                }
+                Some(Knob::Bound(b)) => b,
+            };
+            let (path, file) = match cx.file(&b.file) {
+                Ok(f) => f,
+                Err(why) => {
+                    v.note = Some(why);
+                    return v;
+                }
+            };
+            v.file = Some(path.clone());
+            match txn::read(&path, file, &b.section, &b.key) {
+                Ok(Some(literal)) => {
+                    v.value = neutral(name, b, &literal);
+                    if v.value.is_none() {
+                        v.note = Some("a value hermir has no neutral name for".into());
+                    }
+                    v.literal = Some(literal);
+                }
+                Ok(None) => v.note = Some("not set: the emulator's default".into()),
+                Err(why) => v.note = Some(why),
+            }
+            v
+        })
+        .collect()
+}
+
+/// `literal` spelled back as the knob's neutral value, by the binding that writes it. The
+/// catalog spells a value with the quotes its format wants (`"true"` in a RetroArch cfg,
+/// `"16x9"` in TOML); a reader may hand it back without them, so quotes do not count.
+fn neutral(knob: &str, b: &Binding, literal: &str) -> Option<String> {
+    let unquote = |s: &str| -> String {
+        ['"', '\'']
+            .iter()
+            .find_map(|q| s.strip_prefix(*q).and_then(|r| r.strip_suffix(*q)))
+            .unwrap_or(s)
+            .to_string()
+    };
+    let read = unquote(literal);
+    let is = |spelled: &str| unquote(spelled) == read;
+    if let Some([t, f]) = &b.bool {
+        return if is(t) {
+            Some("true".into())
+        } else if is(f) {
+            Some("false".into())
+        } else {
+            None
+        };
+    }
+    if let Some(values) = &b.values {
+        return neutral_values(knob)
+            .iter()
+            .find(|n| values.get(**n).is_some_and(|l| is(l)))
+            .map(|n| n.to_string());
+    }
+    if let Some(scale) = &b.scale {
+        let (min, max) = scale.range();
+        return (min..=max)
+            .find(|n| scale.render(*n).is_some_and(|l| is(&l)))
+            .map(|n| n.to_string());
+    }
+    None
 }

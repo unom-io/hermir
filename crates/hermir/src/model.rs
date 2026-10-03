@@ -167,6 +167,10 @@ pub struct ConfigFile {
     /// XML: the document element the keys hang off (Cemu's `content`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root: Option<String>,
+    /// INI: the emulator matches section and key names whatever their case (Dolphin), so a
+    /// file that spells `[ui]` is edited there rather than given a second `[UI]`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub case_insensitive: bool,
 }
 
 /// A path for every OS, or one per OS.
@@ -612,6 +616,25 @@ pub struct KnobChange {
     pub file: Option<PathBuf>,
 }
 
+/// One knob as a copy has it now: what `get` reads.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct KnobValue {
+    /// `video.fullscreen`, `video.scale`, `video.vsync`, `video.aspect` or `region`.
+    pub knob: String,
+    /// The neutral value (`true`, `3`, `16:9`, `eu`), when the file holds one hermir can name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    /// What the file holds, as the emulator spells it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub literal: Option<String>,
+    /// The file the knob lives in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<PathBuf>,
+    /// Why there is no value: not set, not described, unsupported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
 /// Whether a knob reached the emulator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -724,6 +747,9 @@ pub enum StepOutcome {
     Present,
     /// Nothing to do for this emulator; the note says why.
     Skipped,
+    /// Changed by someone else since hermir wrote it, so left as it is; the note says what to
+    /// do about it.
+    Conflict,
     Failed,
 }
 

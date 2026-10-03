@@ -40,7 +40,7 @@ pub fn apply(h: &Hermir, a: &ApplyArgs) -> Result<Outcome> {
 /// `players`: `config apply` with pads only, or `config revert`.
 pub fn players(h: &Hermir, emulator: &str, revert: bool, pads: &PadArgs) -> Result<Outcome> {
     if revert {
-        return self::revert(h, Some(emulator.to_string()), false);
+        return self::revert(h, Some(emulator.to_string()), false, false);
     }
     let players = parse::players(pads)?.unwrap_or_else(|| {
         vec![hermir::Player {
@@ -91,14 +91,14 @@ struct Reverted {
     steps: Vec<PrepareStep>,
 }
 
-pub fn revert(h: &Hermir, emulator: Option<String>, all: bool) -> Result<Outcome> {
+pub fn revert(h: &Hermir, emulator: Option<String>, all: bool, force: bool) -> Result<Outcome> {
     let done: Vec<Reverted> = match emulator {
         Some(id) if !all => vec![Reverted {
-            steps: h.emulator(&id)?.revert()?,
+            steps: h.emulator(&id)?.revert(force)?,
             emulator: id,
         }],
         _ => h
-            .revert_all()?
+            .revert_all(force)?
             .into_iter()
             .map(|(emulator, steps)| Reverted { emulator, steps })
             .collect(),
@@ -116,12 +116,12 @@ pub fn revert(h: &Hermir, emulator: Option<String>, all: bool) -> Result<Outcome
     let failed = done
         .iter()
         .flat_map(|r| &r.steps)
-        .any(|s| s.outcome == StepOutcome::Failed);
+        .any(|s| matches!(s.outcome, StepOutcome::Failed | StepOutcome::Conflict));
     let out = Outcome::new(&done, human);
     Ok(if failed {
         out.failed(
             CONFIG_FAILED,
-            "a file could not be restored; its snapshot is kept",
+            "a file was not restored; its snapshot is kept for the next revert",
         )
     } else {
         out
@@ -218,4 +218,60 @@ pub fn prepare(
     } else {
         out
     })
+}
+
+#[derive(Serialize)]
+struct Native<'a> {
+    file: &'a str,
+    section: &'a str,
+    key: &'a str,
+    value: Option<String>,
+}
+
+/// What every copy holds: all knobs, one knob, or one native key.
+pub fn get(h: &Hermir, emulator: &str, what: Option<&str>, file: &str) -> Result<Outcome> {
+    let e = h.emulator(emulator)?;
+    let copies = copies(h, emulator)?;
+    let native = what.filter(|w| !hermir::KNOBS.contains(w));
+    if let Some(spec) = native {
+        let (section, key) = spec.rsplit_once('/').unwrap_or(("", spec));
+        let mut rows = Vec::new();
+        let mut lines = Vec::new();
+        for i in &copies {
+            let value = e.get_native(i, file, section, key)?;
+            lines.push(format!(
+                "{}\n  {spec} = {}",
+                i.exe,
+                value.as_deref().unwrap_or("(not set)")
+            ));
+            rows.push(serde_json::json!({
+                "install": i,
+                "native": Native { file, section, key, value },
+            }));
+        }
+        return Ok(Outcome::new(&rows, lines.join("\n")));
+    }
+    let mut rows = Vec::new();
+    let mut lines = Vec::new();
+    for i in &copies {
+        let knobs: Vec<hermir::KnobValue> = e
+            .get(i)?
+            .into_iter()
+            .filter(|k| what.is_none_or(|w| k.knob == w))
+            .collect();
+        lines.push(i.exe.to_string());
+        for k in &knobs {
+            lines.push(format!(
+                "  {:<17}{}{}",
+                k.knob,
+                k.value.as_deref().or(k.literal.as_deref()).unwrap_or("-"),
+                k.note
+                    .as_deref()
+                    .map(|n| format!(" — {n}"))
+                    .unwrap_or_default()
+            ));
+        }
+        rows.push(serde_json::json!({ "install": i, "knobs": knobs }));
+    }
+    Ok(Outcome::new(&rows, lines.join("\n")))
 }

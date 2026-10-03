@@ -15,11 +15,11 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::model::{
-    Applied, ConfigFile, Entry, Install, KNOBS, Knob, KnobChange, Os, Patch, PlayersSupport,
-    PrepareStep, StepOutcome, Support,
+    Applied, ConfigFile, Entry, Install, KNOBS, Knob, KnobChange, KnobValue, Os, Patch,
+    PlayersSupport, PrepareStep, StepOutcome, Support,
 };
 pub(crate) use knobs::neutral_values;
-pub(crate) use txn::Edit;
+pub(crate) use txn::{Edit, write_atomic};
 pub use txn::{outstanding, revert};
 
 /// One copy, as the planners see it: the OS, the config root, the catalog's named files.
@@ -153,6 +153,36 @@ pub fn apply(entry: &Entry, os: Os, install: &Install, patch: &Patch, snapshots:
         knobs,
         steps,
     }
+}
+
+/// What this copy's files hold for each knob, back in the neutral spelling: what `apply`
+/// would write, read the other way. `Err` when the catalog does not know where it keeps them.
+pub fn get(entry: &Entry, os: Os, install: &Install) -> Result<Vec<KnobValue>, String> {
+    let root = install
+        .config_root
+        .as_deref()
+        .ok_or("the catalog does not know where this copy keeps its config")?;
+    let files = entry.config.as_ref().map_or(&NO_FILES, |c| &c.files);
+    Ok(knobs::read(entry, &Cx { os, root, files }))
+}
+
+/// What `key` in `section` of the catalog's `file` holds in this copy, as the file spells it.
+pub fn get_native(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    file: &str,
+    section: &str,
+    key: &str,
+) -> Result<Option<String>, String> {
+    let root = install
+        .config_root
+        .as_deref()
+        .ok_or("the catalog does not know where this copy keeps its config")?;
+    let files = entry.config.as_ref().map_or(&NO_FILES, |c| &c.files);
+    let cx = Cx { os, root, files };
+    let (path, f) = cx.file(file)?;
+    txn::read(&path, f, section, key)
 }
 
 /// What `apply` can do for this emulator, knob by knob, from the catalog and the adapters:
@@ -343,7 +373,7 @@ mod tests {
                 .iter()
                 .all(|s| s.outcome == StepOutcome::Present)
         );
-        let r = revert(&snaps, "eden");
+        let r = revert(&snaps, "eden", false);
         assert_eq!(r.len(), 1);
         assert_eq!(read(&cfg), seed);
         assert!(outstanding(&snaps).is_empty());
@@ -390,7 +420,7 @@ mod tests {
         );
         assert!(!a.failed());
         assert!(
-            revert(&snaps, "pcsx2")
+            revert(&snaps, "pcsx2", false)
                 .iter()
                 .all(|s| s.outcome == StepOutcome::Applied)
         );
@@ -497,7 +527,7 @@ mod tests {
         );
         // A file that was not there before revert goes away with it.
         assert!(
-            revert(&snaps, "melonds")
+            revert(&snaps, "melonds", false)
                 .iter()
                 .all(|s| s.outcome == StepOutcome::Applied)
         );

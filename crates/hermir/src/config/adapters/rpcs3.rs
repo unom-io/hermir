@@ -1,6 +1,7 @@
 //! RPCS3's global input config, whole: its SDL handler names a device `<SDL name> <n>` with n
 //! counting same-named pads from 1, and takes SDL's control names. Seven players.
 use super::{Bindings, Cx, Edit, Plan, beyond};
+use crate::config::yaml;
 use crate::model::Player;
 
 pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
@@ -36,10 +37,9 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
     for seat in 1..=7u8 {
         match players.iter().find(|p| p.seat == seat) {
             Some(p) => {
+                let device = yaml::quote(&format!("{} {}", p.pad.sdl_name(), p.pad.index + 1));
                 content.push_str(&format!(
-                    "Player {seat} Input:\n  Handler: SDL\n  Device: \"{} {}\"\n  Config:\n",
-                    p.pad.sdl_name(),
-                    p.pad.index + 1
+                    "Player {seat} Input:\n  Handler: SDL\n  Device: {device}\n  Config:\n"
                 ));
                 for (k, v) in binds {
                     content.push_str(&format!("    {k}: {v}\n"));

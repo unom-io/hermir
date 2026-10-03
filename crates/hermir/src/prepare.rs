@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crate::channel::flatpak::Runner;
 pub use crate::config::ini::{get as ini_get, set as ini_set};
+use crate::config::write_atomic;
 use crate::model::{
     Entry, Exe, FirmwareInstall, FirstRun, Install, Os, PrepareStep, Prepared, StepOutcome,
 };
@@ -358,15 +359,6 @@ pub fn glob(pattern: &str, name: &str) -> bool {
         }
     }
     true
-}
-
-pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = path.with_extension("hermir-part");
-    std::fs::write(&tmp, bytes)?;
-    std::fs::rename(&tmp, path)
 }
 
 #[cfg(test)]

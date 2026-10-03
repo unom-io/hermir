@@ -54,28 +54,32 @@
           "linux": "Dolphin.ini",
           "windows": "Config/Dolphin.ini"
         },
-        "format": "ini"
+        "format": "ini",
+        "case_insensitive": true
       },
       "gfx": {
         "path": {
           "linux": "GFX.ini",
           "windows": "Config/GFX.ini"
         },
-        "format": "ini"
+        "format": "ini",
+        "case_insensitive": true
       },
       "gcpad": {
         "path": {
           "linux": "GCPadNew.ini",
           "windows": "Config/GCPadNew.ini"
         },
-        "format": "ini"
+        "format": "ini",
+        "case_insensitive": true
       },
       "wiimote": {
         "path": {
           "linux": "WiimoteNew.ini",
           "windows": "Config/WiimoteNew.ini"
         },
-        "format": "ini"
+        "format": "ini",
+        "case_insensitive": true
       }
     },
     "knobs": {

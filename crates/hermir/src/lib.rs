@@ -16,7 +16,7 @@
 //! for k in &done.knobs {
 //!     println!("{} {:?} {}", k.knob, k.support, k.note.as_deref().unwrap_or(""));
 //! }
-//! pcsx2.revert()?;
+//! pcsx2.revert(false)?;
 //! # Ok(())
 //! # }
 //! ```
@@ -124,13 +124,14 @@ impl Hermir {
     }
 
     /// Restores every emulator with a session's changes outstanding: what a consumer calls
-    /// when the game it prepared has exited. Holds the prefix lock while it writes.
-    pub fn revert_all(&self) -> Result<Vec<(String, Vec<PrepareStep>)>> {
+    /// when the game it prepared has exited. A file changed since hermir wrote it is left as it
+    /// is (a [`StepOutcome::Conflict`]) unless `force`. Holds the prefix lock while it writes.
+    pub fn revert_all(&self, force: bool) -> Result<Vec<(String, Vec<PrepareStep>)>> {
         let _lock = self.store.lock()?;
         Ok(config::outstanding(&self.snapshots())
             .into_iter()
             .map(|id| {
-                let steps = config::revert(&self.snapshots(), &id);
+                let steps = config::revert(&self.snapshots(), &id, force);
                 (id, steps)
             })
             .collect())
@@ -440,10 +441,31 @@ impl EmulatorHandle<'_> {
     }
 
     /// Restores every file [`Self::apply`] changed, for every copy of this emulator, and
-    /// forgets the snapshot. The prefix lock is held while it writes.
-    pub fn revert(&self) -> Result<Vec<PrepareStep>> {
+    /// forgets what it restored. A file changed since hermir wrote it is left as it is, its
+    /// snapshot kept (a [`StepOutcome::Conflict`]), unless `force`. The prefix lock is held
+    /// while it writes.
+    pub fn revert(&self, force: bool) -> Result<Vec<PrepareStep>> {
         let _lock = self.h.store.lock()?;
-        Ok(config::revert(&self.h.snapshots(), &self.entry.id))
+        Ok(config::revert(&self.h.snapshots(), &self.entry.id, force))
+    }
+
+    /// What this copy's files hold for each knob, in the neutral spelling `apply` takes: a
+    /// knob the file does not set reads as unset, with a note.
+    pub fn get(&self, install: &Install) -> Result<Vec<KnobValue>> {
+        config::get(self.entry, self.h.os, install).map_err(Error::Invalid)
+    }
+
+    /// What `key` in `section` of the catalog's `file` holds in this copy, as the file spells
+    /// it: the read side of [`Patch::native`].
+    pub fn get_native(
+        &self,
+        install: &Install,
+        file: &str,
+        section: &str,
+        key: &str,
+    ) -> Result<Option<String>> {
+        config::get_native(self.entry, self.h.os, install, file, section, key)
+            .map_err(Error::Invalid)
     }
 
     /// What [`Self::apply`] can do for this emulator, knob by knob, before asking.
@@ -581,8 +603,8 @@ mod tests {
             e.apply(&pcsx2_copy(&root), &patch),
             Err(Error::Locked(_))
         ));
-        assert!(matches!(e.revert(), Err(Error::Locked(_))));
-        assert!(matches!(h.revert_all(), Err(Error::Locked(_))));
+        assert!(matches!(e.revert(false), Err(Error::Locked(_))));
+        assert!(matches!(h.revert_all(false), Err(Error::Locked(_))));
         assert!(matches!(
             e.prepare(&pcsx2_copy(&root), None, &[]),
             Err(Error::Locked(_))

@@ -123,14 +123,28 @@ pub enum ConfigCmd {
     /// is snapshotted first; `config revert` puts it back.
     Apply(ApplyArgs),
     /// Put the player's own files back: one emulator, or every one with changes outstanding.
+    /// A file changed since hermir wrote it is left as it is, unless `--force`.
     Revert {
         #[arg(required_unless_present = "all", conflicts_with = "all")]
         emulator: Option<String>,
         #[arg(long)]
         all: bool,
+        /// Restore files changed since hermir wrote them too.
+        #[arg(long)]
+        force: bool,
     },
     /// What `apply` can do, knob by knob, for one emulator or all of them.
     Support { emulator: Option<String> },
+    /// What every copy's files hold now: each knob in the neutral spelling `apply` takes, one
+    /// knob (`video.scale`), or a native key (`section/key`, in `--file`).
+    Get {
+        emulator: String,
+        /// A knob name, or `section/key` for a key the model does not cover.
+        what: Option<String>,
+        /// The catalog's name for the file a native key is in.
+        #[arg(long, default_value = "main")]
+        file: String,
+    },
 }
 
 #[derive(Args)]
