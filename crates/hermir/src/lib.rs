@@ -2,20 +2,23 @@
 //!
 //! ```no_run
 //! use hermir::{Hermir, Options, Patch, Region, Video, progress::Quiet};
-//! let h = Hermir::open(Options::default()).unwrap();
-//! let pcsx2 = h.emulator("pcsx2").unwrap();
-//! let row = pcsx2.install(&Quiet).unwrap();
+//! # fn main() -> hermir::Result<()> {
+//! let h = Hermir::open(Options::default())?;
+//! let pcsx2 = h.emulator("pcsx2")?;
+//! let row = pcsx2.install(&Quiet)?;
 //! println!("{}", row.exe);
-//! let copy = pcsx2.best().unwrap().unwrap();
+//! let copy = pcsx2.best()?.expect("installed above");
 //! let done = pcsx2.apply(&copy, &Patch {
 //!     video: Some(Video { fullscreen: Some(true), scale: Some(3), ..Default::default() }),
 //!     region: Some(Region::Europe),
 //!     ..Default::default()
-//! });
+//! })?;
 //! for k in &done.knobs {
 //!     println!("{} {:?} {}", k.knob, k.support, k.note.as_deref().unwrap_or(""));
 //! }
-//! pcsx2.revert();
+//! pcsx2.revert()?;
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! `Hermir` holds the catalog, the prefix and the machine; an `EmulatorHandle` is one entry
@@ -110,19 +113,20 @@ impl Hermir {
     }
 
     /// Restores every emulator with a session's changes outstanding: what a consumer calls
-    /// when the game it prepared has exited.
-    pub fn revert_all(&self) -> Vec<(String, Vec<PrepareStep>)> {
-        config::outstanding(&self.snapshots())
+    /// when the game it prepared has exited. Holds the prefix lock while it writes.
+    pub fn revert_all(&self) -> Result<Vec<(String, Vec<PrepareStep>)>> {
+        let _lock = self.store.lock()?;
+        Ok(config::outstanding(&self.snapshots())
             .into_iter()
             .map(|id| {
                 let steps = config::revert(&self.snapshots(), &id);
                 (id, steps)
             })
-            .collect()
+            .collect())
     }
 
     /// [`Self::revert_all`] under its earlier name.
-    pub fn revert_all_players(&self) -> Vec<(String, Vec<PrepareStep>)> {
+    pub fn revert_all_players(&self) -> Result<Vec<(String, Vec<PrepareStep>)>> {
         self.revert_all()
     }
 
@@ -389,29 +393,41 @@ impl EmulatorHandle<'_> {
         install: &Install,
         platform: Option<&str>,
         firmware: &[PathBuf],
-    ) -> Prepared {
-        prepare::prepare(
+    ) -> Result<Prepared> {
+        let _lock = self.h.store.lock()?;
+        Ok(prepare::prepare(
             self.entry,
             self.h.os,
             install,
             platform,
             firmware,
             self.h.runner.as_ref(),
-        )
+        ))
     }
 
     /// Writes `patch` into this copy: players into its bindings, video and region into its
     /// settings, native keys as given. Every file is snapshotted before its first edit, so
     /// [`Self::revert`] gives the player's own settings back byte for byte. The result says
-    /// per knob whether the emulator took it, and why not when it did not.
-    pub fn apply(&self, install: &Install, patch: &Patch) -> Applied {
-        config::apply(self.entry, self.h.os, install, patch, &self.h.snapshots())
+    /// per knob whether the emulator took it, and why not when it did not. A patch that
+    /// cannot be written as asked ([`Patch::validate`]) is an error before anything is; the
+    /// prefix lock is held while it writes.
+    pub fn apply(&self, install: &Install, patch: &Patch) -> Result<Applied> {
+        patch.validate().map_err(Error::Invalid)?;
+        let _lock = self.h.store.lock()?;
+        Ok(config::apply(
+            self.entry,
+            self.h.os,
+            install,
+            patch,
+            &self.h.snapshots(),
+        ))
     }
 
     /// Restores every file [`Self::apply`] changed, for every copy of this emulator, and
-    /// forgets the snapshot.
-    pub fn revert(&self) -> Vec<PrepareStep> {
-        config::revert(&self.h.snapshots(), &self.entry.id)
+    /// forgets the snapshot. The prefix lock is held while it writes.
+    pub fn revert(&self) -> Result<Vec<PrepareStep>> {
+        let _lock = self.h.store.lock()?;
+        Ok(config::revert(&self.h.snapshots(), &self.entry.id))
     }
 
     /// What [`Self::apply`] can do for this emulator, knob by knob, before asking.
@@ -420,12 +436,12 @@ impl EmulatorHandle<'_> {
     }
 
     /// [`Self::apply`] with only players, reported step by step as `prepare` is.
-    pub fn apply_players(&self, install: &Install, players: &[Player]) -> Prepared {
+    pub fn apply_players(&self, install: &Install, players: &[Player]) -> Result<Prepared> {
         let patch = Patch {
             players: Some(players.to_vec()),
             ..Default::default()
         };
-        let applied = self.apply(install, &patch);
+        let applied = self.apply(install, &patch)?;
         let mut steps = applied.steps;
         if steps.is_empty()
             && let Some(k) = applied.knobs.iter().find(|k| k.knob == "players")
@@ -435,20 +451,21 @@ impl EmulatorHandle<'_> {
                 target: install.config_root.clone().unwrap_or_default(),
                 outcome: match k.support {
                     Support::Unsupported => StepOutcome::Skipped,
+                    Support::Failed => StepOutcome::Failed,
                     Support::Applied | Support::Partial => StepOutcome::Present,
                 },
                 note: k.note.clone(),
             });
         }
-        Prepared {
+        Ok(Prepared {
             emulator: applied.emulator,
             steps,
-        }
+        })
     }
 
     /// [`Self::revert`] under its earlier name: one snapshot per emulator, so this is the
     /// same restore.
-    pub fn revert_players(&self) -> Vec<PrepareStep> {
+    pub fn revert_players(&self) -> Result<Vec<PrepareStep>> {
         self.revert()
     }
 
@@ -512,5 +529,112 @@ mod tests {
             .unwrap_err();
         assert!(matches!(err, Error::Unverified { .. }));
         assert_eq!(err.exit_code(), 4);
+    }
+
+    fn pcsx2_copy(root: &std::path::Path) -> Install {
+        Install {
+            emulator: "pcsx2".into(),
+            kind: InstallKind::Flatpak,
+            exe: Exe::FlatpakRun("net.pcsx2.PCSX2".into()),
+            version: None,
+            config_root: Some(root.to_path_buf()),
+        }
+    }
+
+    #[test]
+    fn a_patch_that_cannot_be_written_as_asked_writes_nothing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = open(&tmp.path().join("prefix"), false);
+        let e = h.emulator("pcsx2").unwrap();
+        let root = tmp.path().join("PCSX2");
+        let seat = |seat: u8, name: &str| Player {
+            seat,
+            pad: PadRef {
+                name: name.into(),
+                ..PadRef::xbox360(0)
+            },
+        };
+        for players in [
+            vec![seat(0, "pad")],
+            vec![seat(1, "pad"), seat(1, "pad")],
+            vec![seat(1, "pad\n[GCPad2]\nDevice = evil")],
+        ] {
+            let patch = Patch {
+                players: Some(players),
+                ..Default::default()
+            };
+            let err = e.apply(&pcsx2_copy(&root), &patch).unwrap_err();
+            assert!(matches!(err, Error::Invalid(_)), "{err}");
+            assert_eq!(err.exit_code(), 2);
+        }
+        let patch = Patch {
+            native: vec![Native {
+                file: "main".into(),
+                section: "UI".into(),
+                key: "StartFullscreen".into(),
+                value: "true\nevil = 1".into(),
+            }],
+            ..Default::default()
+        };
+        assert!(matches!(
+            e.apply(&pcsx2_copy(&root), &patch),
+            Err(Error::Invalid(_))
+        ));
+        assert!(!root.exists(), "nothing was written");
+    }
+
+    #[test]
+    fn writes_wait_for_the_prefix_lock() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = open(&tmp.path().join("prefix"), false);
+        let e = h.emulator("pcsx2").unwrap();
+        let held = h.store().lock().unwrap();
+        let patch = Patch {
+            region: Some(Region::Europe),
+            ..Default::default()
+        };
+        let root = tmp.path().join("PCSX2");
+        assert!(matches!(
+            e.apply(&pcsx2_copy(&root), &patch),
+            Err(Error::Locked(_))
+        ));
+        assert!(matches!(e.revert(), Err(Error::Locked(_))));
+        assert!(matches!(h.revert_all(), Err(Error::Locked(_))));
+        assert!(matches!(
+            e.prepare(&pcsx2_copy(&root), None, &[]),
+            Err(Error::Locked(_))
+        ));
+        drop(held);
+        assert!(e.apply(&pcsx2_copy(&root), &patch).is_ok());
+    }
+
+    #[test]
+    fn a_knob_whose_file_cannot_be_written_says_it_failed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = open(&tmp.path().join("prefix"), false);
+        let e = h.emulator("pcsx2").unwrap();
+        let root = tmp.path().join("PCSX2");
+        // A directory where the settings file should be: it can be neither read nor replaced.
+        std::fs::create_dir_all(root.join("inis/PCSX2.ini")).unwrap();
+        let patch = Patch {
+            video: Some(Video {
+                fullscreen: Some(true),
+                ..Default::default()
+            }),
+            region: Some(Region::Europe),
+            ..Default::default()
+        };
+        let done = e.apply(&pcsx2_copy(&root), &patch).unwrap();
+        assert!(done.failed());
+        let full = done
+            .knobs
+            .iter()
+            .find(|k| k.knob == "video.fullscreen")
+            .unwrap();
+        assert_eq!(full.support, Support::Failed);
+        assert!(full.note.as_deref().unwrap().contains("PCSX2.ini"));
+        // Region was never going to be written, so it stays unsupported.
+        let region = done.knobs.iter().find(|k| k.knob == "region").unwrap();
+        assert_eq!(region.support, Support::Unsupported);
     }
 }

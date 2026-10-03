@@ -61,7 +61,7 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
     };
 
     let mut failures = Vec::new();
-    let applied = emu.apply(&install, &s.patch);
+    let applied = emu.apply(&install, &s.patch).map_err(|e| e.to_string())?;
     for st in applied
         .steps
         .iter()
@@ -199,7 +199,7 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
     }
 
     // G
-    let again = emu.apply(&install, &s.patch);
+    let again = emu.apply(&install, &s.patch).map_err(|e| e.to_string())?;
     if again
         .steps
         .iter()
@@ -216,7 +216,7 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
     }
 
     // F
-    for st in emu.revert() {
+    for st in emu.revert().map_err(|e| e.to_string())? {
         if st.outcome == StepOutcome::Failed {
             failures.push(format!(
                 "F: revert of {} failed: {}",
@@ -232,7 +232,7 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
             describe(&before, &reverted)
         ));
     }
-    if !emu.revert().is_empty() {
+    if !emu.revert().map_err(|e| e.to_string())?.is_empty() {
         failures.push("F: a snapshot is still outstanding after revert".into());
     }
 

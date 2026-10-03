@@ -27,6 +27,9 @@ pub enum Error {
     Catalog { entry: String, why: String },
     #[error("{0} is busy: another hermir holds the prefix lock")]
     Locked(PathBuf),
+    /// What was asked cannot be done as asked: a seat given twice, a newline in a value.
+    #[error("{0}")]
+    Invalid(String),
     #[error("{op} {path}: {source}")]
     Io {
         op: &'static str,
@@ -37,12 +40,15 @@ pub enum Error {
 }
 
 impl Error {
-    /// The CLI exit code: 0 ok · 1 I/O · 2 catalog or policy · 3 network · 4 verification ·
-    /// 5 extract or place · 6 unsupported on this OS · 8 locked.
+    /// The CLI exit code: 0 ok · 1 I/O · 2 catalog, policy or an impossible request · 3 network ·
+    /// 4 verification · 5 extract or place · 6 unsupported on this OS · 8 locked.
     pub fn exit_code(&self) -> i32 {
         match self {
             Error::Io { .. } => 1,
-            Error::NotInCatalog(_) | Error::Policy { .. } | Error::Catalog { .. } => 2,
+            Error::NotInCatalog(_)
+            | Error::Policy { .. }
+            | Error::Catalog { .. }
+            | Error::Invalid(_) => 2,
             Error::Network { .. } => 3,
             Error::Verify { .. } | Error::Unverified { .. } => 4,
             Error::Place { .. } => 5,

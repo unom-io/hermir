@@ -162,6 +162,7 @@ fn support_mark(s: Support) -> &'static str {
         Support::Applied => "+",
         Support::Partial => "~",
         Support::Unsupported => "-",
+        Support::Failed => "!",
     }
 }
 
@@ -623,12 +624,10 @@ fn run(cli: Cli) -> hermir::Result<()> {
             let done: Vec<_> = copies
                 .iter()
                 .map(|i| {
-                    (
-                        i.exe.to_string(),
-                        e.prepare(i, platform.as_deref(), &firmware),
-                    )
+                    e.prepare(i, platform.as_deref(), &firmware)
+                        .map(|p| (i.exe.to_string(), p))
                 })
-                .collect();
+                .collect::<hermir::Result<_>>()?;
             let rows: Vec<serde_json::Value> = done
                 .iter()
                 .map(|(exe, p)| serde_json::json!({ "exe": exe, "steps": p.steps }))
@@ -667,7 +666,7 @@ fn run(cli: Cli) -> hermir::Result<()> {
         } => {
             let e = h.emulator(&emulator)?;
             let done: Vec<(String, Vec<hermir::PrepareStep>)> = if revert {
-                vec![("revert".to_string(), e.revert_players())]
+                vec![("revert".to_string(), e.revert()?)]
             } else {
                 let players = if pad.is_empty() {
                     vec![hermir::Player {
@@ -679,8 +678,11 @@ fn run(cli: Cli) -> hermir::Result<()> {
                 };
                 e.copies()?
                     .iter()
-                    .map(|i| (i.exe.to_string(), e.apply_players(i, &players).steps))
-                    .collect()
+                    .map(|i| {
+                        e.apply_players(i, &players)
+                            .map(|p| (i.exe.to_string(), p.steps))
+                    })
+                    .collect::<hermir::Result<_>>()?
             };
             let rows: Vec<serde_json::Value> = done
                 .iter()
@@ -748,8 +750,8 @@ fn run(cli: Cli) -> hermir::Result<()> {
             }
             let done: Vec<(String, hermir::Applied)> = copies
                 .iter()
-                .map(|i| (i.exe.to_string(), e.apply(i, &patch)))
-                .collect();
+                .map(|i| e.apply(i, &patch).map(|a| (i.exe.to_string(), a)))
+                .collect::<hermir::Result<_>>()?;
             let rows: Vec<serde_json::Value> = done
                 .iter()
                 .map(|(exe, a)| {
@@ -788,10 +790,10 @@ fn run(cli: Cli) -> hermir::Result<()> {
             cmd: ConfigCmd::Revert { emulator, all },
         } => {
             let done: Vec<(String, Vec<hermir::PrepareStep>)> = if all {
-                h.revert_all()
+                h.revert_all()?
             } else {
                 let id = emulator.ok_or_else(|| hermir::Error::NotInCatalog("<none>".into()))?;
-                vec![(id.clone(), h.emulator(&id)?.revert())]
+                vec![(id.clone(), h.emulator(&id)?.revert()?)]
             };
             let rows: Vec<serde_json::Value> = done
                 .iter()

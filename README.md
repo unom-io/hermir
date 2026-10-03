@@ -124,12 +124,12 @@ for i in h.installs()? {               // managed + detected, one per exe
     println!("{} {:?} {}", i.emulator, i.kind, i.exe);
 }
 let copy = pcsx2.best()?.unwrap();
-let done = pcsx2.apply(&copy, &Patch {   // Applied { knobs: [{ knob, support, note }], steps }
+let done = pcsx2.apply(&copy, &Patch {   // Ok(Applied { knobs: [{ knob, support, note }], steps })
     video: Some(Video { fullscreen: Some(true), scale: Some(3), ..Default::default() }),
     region: Some(Region::Europe),
     ..Default::default()
-});
-pcsx2.revert();                          // the player's files back, byte for byte
+})?;
+pcsx2.revert()?;                         // the player's files back, byte for byte
 ```
 
 Every type is serde and JSON Schema, so the CLI's `--json` is the same contract as the library.

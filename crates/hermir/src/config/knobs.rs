@@ -20,8 +20,9 @@ pub(crate) fn neutral_values(knob: &str) -> &'static [&'static str] {
     }
 }
 
-/// One `KnobChange` per knob the patch carries, and the edits behind the applied ones.
-pub(crate) fn plan(entry: &Entry, cx: &Cx, patch: &Patch) -> (Vec<KnobChange>, Vec<Edit>) {
+/// One `KnobChange` per knob the patch carries, each with the edits behind it (none when it
+/// is unsupported).
+pub(crate) fn plan(entry: &Entry, cx: &Cx, patch: &Patch) -> Vec<(KnobChange, Vec<Edit>)> {
     let mut wanted: Vec<(&str, Neutral)> = Vec::new();
     if let Some(v) = &patch.video {
         if let Some(f) = v.fullscreen {
@@ -40,8 +41,7 @@ pub(crate) fn plan(entry: &Entry, cx: &Cx, patch: &Patch) -> (Vec<KnobChange>, V
     if let Some(r) = patch.region {
         wanted.push(("region", Neutral::Choice(r.as_str())));
     }
-    let mut changes = Vec::new();
-    let mut edits = Vec::new();
+    let mut out = Vec::new();
     for (name, neutral) in wanted {
         let binding = entry.config.as_ref().and_then(|c| c.knobs.get(name));
         let planned = match binding {
@@ -49,9 +49,8 @@ pub(crate) fn plan(entry: &Entry, cx: &Cx, patch: &Patch) -> (Vec<KnobChange>, V
             Some(Knob::Unsupported { unsupported }) => Err(unsupported.clone()),
             Some(Knob::Bound(b)) => render(entry, cx, name, b, neutral),
         };
-        changes.push(match planned {
-            Ok((more, file, note)) => {
-                edits.extend(more);
+        out.push(match planned {
+            Ok((edits, file, note)) => (
                 KnobChange {
                     knob: name.into(),
                     support: if note.is_some() {
@@ -61,17 +60,21 @@ pub(crate) fn plan(entry: &Entry, cx: &Cx, patch: &Patch) -> (Vec<KnobChange>, V
                     },
                     note,
                     file: Some(file),
-                }
-            }
-            Err(note) => KnobChange {
-                knob: name.into(),
-                support: Support::Unsupported,
-                note: Some(note),
-                file: None,
-            },
+                },
+                edits,
+            ),
+            Err(note) => (
+                KnobChange {
+                    knob: name.into(),
+                    support: Support::Unsupported,
+                    note: Some(note),
+                    file: None,
+                },
+                Vec::new(),
+            ),
         });
     }
-    (changes, edits)
+    out
 }
 
 type Rendered = Result<(Vec<Edit>, std::path::PathBuf, Option<String>), String>;

@@ -408,6 +408,38 @@ pub struct Patch {
 }
 
 impl Patch {
+    /// What makes the patch impossible to write, before anything is: a seat that is not at
+    /// least 1 or appears twice, and a control character (a newline above all) in a pad's name
+    /// or in a native key, section or value, where it would end the line and start another.
+    pub fn validate(&self) -> Result<(), String> {
+        fn text(what: &str, s: &str) -> Result<(), String> {
+            match s.chars().find(|c| c.is_control()) {
+                Some(c) => Err(format!("{what} {s:?} holds the control character {c:?}")),
+                None => Ok(()),
+            }
+        }
+        let mut seats = std::collections::BTreeSet::new();
+        for p in self.players.iter().flatten() {
+            if p.seat == 0 {
+                return Err("seats count from 1".into());
+            }
+            if !seats.insert(p.seat) {
+                return Err(format!("seat {} is given twice", p.seat));
+            }
+            text("the pad name", &p.pad.name)?;
+        }
+        for n in &self.native {
+            if n.key.trim().is_empty() {
+                return Err(format!("a native key of {} has no name", n.file));
+            }
+            text("the native file", &n.file)?;
+            text("the native section", &n.section)?;
+            text("the native key", &n.key)?;
+            text("the native value", &n.value)?;
+        }
+        Ok(())
+    }
+
     pub fn is_empty(&self) -> bool {
         self.players.is_none()
             && self.video.as_ref().is_none_or(Video::is_empty)
@@ -584,6 +616,8 @@ pub enum Support {
     Partial,
     /// Not written; the note says why.
     Unsupported,
+    /// Meant to be written, and the write failed; the note says why.
+    Failed,
 }
 
 /// Firmware the emulator reads from a folder under its config root, or installs itself.

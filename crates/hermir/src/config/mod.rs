@@ -96,37 +96,58 @@ pub fn apply(entry: &Entry, os: Os, install: &Install, patch: &Patch, snapshots:
     };
     let files = entry.config.as_ref().map_or(&NO_FILES, |c| &c.files);
     let cx = Cx { os, root, files };
-    let (mut knobs, mut edits) = knobs::plan(entry, &cx, patch);
+    let mut planned = knobs::plan(entry, &cx, patch);
     if let Some(players) = &patch.players {
-        let (change, more) = adapters::plan(entry, &cx, players);
-        knobs.push(change);
-        edits.extend(more);
+        planned.push(adapters::plan(entry, &cx, players));
     }
     for n in &patch.native {
         let knob = format!("native:{}:{}", n.file, n.key);
-        match cx.file(&n.file) {
-            Ok((path, f)) => {
-                edits.extend(Edit::set(&path, f, &n.section, &n.key, &n.value));
-                knobs.push(KnobChange {
+        planned.push(match cx.file(&n.file) {
+            Ok((path, f)) => (
+                KnobChange {
                     knob,
                     support: Support::Applied,
                     note: None,
-                    file: Some(path),
-                });
-            }
-            Err(why) => knobs.push(KnobChange {
-                knob,
-                support: Support::Unsupported,
-                note: Some(why),
-                file: None,
-            }),
-        }
+                    file: Some(path.clone()),
+                },
+                Edit::set(&path, f, &n.section, &n.key, &n.value),
+            ),
+            Err(why) => (
+                KnobChange {
+                    knob,
+                    support: Support::Unsupported,
+                    note: Some(why),
+                    file: None,
+                },
+                Vec::new(),
+            ),
+        });
     }
+    let edits: Vec<Edit> = planned
+        .iter()
+        .flat_map(|(_, e)| e.iter().cloned())
+        .collect();
     let steps = if edits.is_empty() {
         Vec::new()
     } else {
         txn::apply_edits(snapshots, &entry.id, &edits)
     };
+    // A knob is what became of its files: one whose write failed says so, with the reason.
+    let knobs = planned
+        .into_iter()
+        .map(|(mut change, edits)| {
+            if let Some(failed) = steps.iter().find(|s| {
+                s.outcome == StepOutcome::Failed && edits.iter().any(|e| e.file() == s.target)
+            }) {
+                change.support = Support::Failed;
+                change.note = Some(match &failed.note {
+                    Some(why) => format!("{}: {why}", failed.target.display()),
+                    None => format!("{} could not be written", failed.target.display()),
+                });
+            }
+            change
+        })
+        .collect();
     Applied {
         emulator: entry.id.clone(),
         knobs,
