@@ -8,6 +8,10 @@
 //! a fixture under `fixtures/` (see `fixtures/README.md`). By default it runs in the capture image
 //! (`ci/capture/Dockerfile`, built on first use, run `--privileged`); `--host` runs the same script
 //! on this machine, which needs `flatpak`, `xvfb-run` and `dbus-run-session`.
+//!
+//! The image keeps its Flatpak installation in the volume `hermir-flatpak`, so runtimes are
+//! fetched once; `HERMIR_CAPTURE_VOLUME` names another volume or a host path, and
+//! `HERMIR_CAPTURE_DOCKER_ARGS` adds `docker run` arguments (`--network host` behind a proxy).
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 

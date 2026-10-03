@@ -278,11 +278,13 @@ fn run_capture(
                 return Err("docker build of ci/capture failed".into());
             }
         }
-        // Extra `docker run` arguments, e.g. `--network host` behind a proxy.
+        // Extra `docker run` arguments, e.g. `--network host` behind a proxy; and the Flatpak
+        // installation, a volume by default, or a host path that already holds one.
         let extra = std::env::var("HERMIR_CAPTURE_DOCKER_ARGS").unwrap_or_default();
+        let volume = std::env::var("HERMIR_CAPTURE_VOLUME").unwrap_or_else(|_| VOLUME.into());
         Command::new("docker")
             .args(["run", "--rm", "--privileged", "-v"])
-            .arg(format!("{VOLUME}:/fp"))
+            .arg(format!("{volume}:/fp"))
             .arg("-v")
             .arg(format!("{}:/out", out.display()))
             .arg("-e")
