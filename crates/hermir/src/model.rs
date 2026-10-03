@@ -716,8 +716,8 @@ pub enum Channel {
     Url {
         url: String,
         version: String,
-        /// Hex sha256 of the file when the project publishes one; otherwise hermir records the
-        /// digest it saw and says so.
+        /// Hex sha256 of the file, bumped with `version` in the same reviewed PR. Validation
+        /// rejects a `url` channel without one.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         sha256: Option<String>,
         exe: String,

@@ -9,7 +9,7 @@ use crate::channel::extract::is_safe_relative;
 use crate::config::adapters;
 use crate::error::{Error, Result};
 use crate::model::{
-    Config, Entry, FirstRun, Format, KNOBS, Knob, Os, Platform, PlayersSupport, Scale,
+    Channel, Config, Entry, FirstRun, Format, KNOBS, Knob, Os, Platform, PlayersSupport, Scale,
 };
 
 /// `(id, json)` for every file under `catalog/emulators/`. A test checks the directory listing
@@ -215,6 +215,23 @@ impl Catalog {
             if let Some(cfg) = &e.config {
                 validate_config(&e.id, cfg)?;
             }
+            // A `url` channel pins the file's checksum beside its version.
+            for os in [Os::Linux, Os::Windows, Os::Macos] {
+                if let Some(Channel::Url { sha256, .. }) = e.channels.get(os) {
+                    match sha256 {
+                        Some(h) if h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit()) => {}
+                        Some(h) => {
+                            return Err(bad(
+                                &e.id,
+                                format!("{os}: sha256 {h} is not 64 hex digits"),
+                            ));
+                        }
+                        None => {
+                            return Err(bad(&e.id, format!("{os}: a url channel pins its sha256")));
+                        }
+                    }
+                }
+            }
             if e.no_install.is_some() && has_channel {
                 return Err(bad(
                     &e.id,
@@ -411,6 +428,25 @@ mod tests {
             assert!(e.channels.get(Os::Linux).is_none() && e.channels.get(Os::Windows).is_none());
             assert!(e.no_install.is_some());
         }
+    }
+
+    #[test]
+    fn a_url_channel_pins_its_sha256() {
+        let mut c = Catalog::embedded().unwrap();
+        let e = c.entries.iter_mut().find(|e| e.id == "dolphin").unwrap();
+        let Some(Channel::Url { sha256, .. }) = e.channels.windows.as_mut() else {
+            panic!("dolphin's windows channel is a url");
+        };
+        *sha256 = None;
+        let err = c.validate().unwrap_err().to_string();
+        assert!(err.contains("pins its sha256"), "{err}");
+
+        let e = c.entries.iter_mut().find(|e| e.id == "dolphin").unwrap();
+        let Some(Channel::Url { sha256, .. }) = e.channels.windows.as_mut() else {
+            unreachable!()
+        };
+        *sha256 = Some("abc".into());
+        assert!(c.validate().is_err());
     }
 
     #[test]

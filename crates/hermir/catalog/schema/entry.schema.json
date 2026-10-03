@@ -223,7 +223,7 @@
               ]
             },
             "sha256": {
-              "description": "Hex sha256 of the file when the project publishes one; otherwise hermir records the\ndigest it saw and says so.",
+              "description": "Hex sha256 of the file, bumped with `version` in the same reviewed PR. Validation\nrejects a `url` channel without one.",
               "type": [
                 "string",
                 "null"
