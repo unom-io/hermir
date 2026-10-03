@@ -1,0 +1,25 @@
+{
+  "emulator": "dosbox-staging",
+  "version": "0.83.0",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "io.github.dosbox-staging",
+    "commit": "5ec575335373d061cd43dcf9c11d9c5c53513dfae7d3473c4c100e9b04a28055"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "dosbox-staging.conf"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": false,
+  "created": [
+    "config/dosbox/dosbox-staging.conf",
+    "config/dosbox/shell_history.txt"
+  ]
+}

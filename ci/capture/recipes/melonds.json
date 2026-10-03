@@ -1,0 +1,4 @@
+{
+  "notes": "melonDS 1.1 writes no melonDS.toml on a first start, not even when asked to quit cleanly (it exits 1 then); its fixture has to come from `cargo xtask capture --interactive`, settings changed once in its UI.",
+  "close_after": 15
+}

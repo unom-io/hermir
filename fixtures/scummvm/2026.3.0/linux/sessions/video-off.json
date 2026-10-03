@@ -1,0 +1,16 @@
+{
+  "patch": {
+    "video": {
+      "fullscreen": false,
+      "scale": 1,
+      "vsync": false,
+      "aspect": "auto"
+    }
+  },
+  "expect": {
+    "video.aspect": "partial",
+    "video.fullscreen": "applied",
+    "video.scale": "unsupported",
+    "video.vsync": "applied"
+  }
+}

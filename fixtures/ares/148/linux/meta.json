@@ -1,0 +1,24 @@
+{
+  "emulator": "ares",
+  "version": "148",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "dev.ares.ares",
+    "commit": "5b6ccf0aef391c237a34e41cf14da438446aa454371408e3c0d418f818132a77"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "settings.bml"
+  },
+  "oracle": {
+    "main": "bml"
+  },
+  "full_writer": false,
+  "created": [
+    "data/ares/settings.bml"
+  ]
+}

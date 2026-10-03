@@ -1,0 +1,33 @@
+{
+  "emulator": "rpcs3",
+  "version": "0.0.43-20159-a7cbd467",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "net.rpcs3.RPCS3",
+    "commit": "cd5b634abaf24cd9fe6ffa2ef886469493682a61b681caa784d61562148c8e50"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "config.yml"
+  },
+  "missing": [
+    "input"
+  ],
+  "oracle": {
+    "input": "yaml",
+    "main": "yaml"
+  },
+  "full_writer": false,
+  "created": [
+    "config/rpcs3/GuiConfigs/CurrentSettings.ini",
+    "config/rpcs3/config.yml",
+    "config/rpcs3/dev_hdd0/home/00000001/localusername",
+    "config/rpcs3/games.yml",
+    "config/rpcs3/games/Disc Games Can Be Put Here For Automatic Detection.txt",
+    "config/rpcs3/uuid"
+  ]
+}

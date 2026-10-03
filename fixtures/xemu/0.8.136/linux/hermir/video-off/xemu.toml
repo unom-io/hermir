@@ -1,0 +1,13 @@
+[sys.files]
+eeprom_path = 'masked'
+
+
+[display.window]
+fullscreen_on_startup = false
+vsync = false
+
+[display.quality]
+surface_scale = 1
+
+[display.ui]
+aspect_ratio = "auto"

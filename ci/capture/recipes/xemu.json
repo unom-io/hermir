@@ -1,0 +1,4 @@
+{
+  "notes": "xemu writes only what differs from its defaults, plus the absolute path of its EEPROM, which names the capture's temporary home.",
+  "masks": [{ "file": "main", "section": "sys.files", "key": "eeprom_path" }]
+}

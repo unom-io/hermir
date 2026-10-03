@@ -1,0 +1,24 @@
+{
+  "emulator": "supermodel",
+  "version": "0.3a-20260528-git-77d28ee",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "com.supermodel3.Supermodel",
+    "commit": "2670c3350bab4174f7a054a051e4474baedc51ab8f2a44c1712e897abf04b84d"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "Config/Supermodel.ini"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": false,
+  "created": [
+    "config/supermodel/Config/Supermodel.ini"
+  ]
+}

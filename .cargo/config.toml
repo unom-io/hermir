@@ -1,0 +1,3 @@
+[alias]
+# Developer tasks that are not part of the shipped CLI: `cargo xtask capture pcsx2`.
+xtask = "run -q -p xtask --"

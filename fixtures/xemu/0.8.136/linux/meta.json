@@ -1,0 +1,32 @@
+{
+  "emulator": "xemu",
+  "version": "0.8.136",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "app.xemu.xemu",
+    "commit": "2f8b8889edcf69fb2ba2a8691371a7bb49febeba360e9c87555379c50ba946e9"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "xemu.toml"
+  },
+  "oracle": {
+    "main": "toml"
+  },
+  "masks": [
+    {
+      "file": "main",
+      "section": "sys.files",
+      "key": "eeprom_path"
+    }
+  ],
+  "full_writer": false,
+  "created": [
+    "data/xemu/xemu/eeprom.bin",
+    "data/xemu/xemu/xemu.toml"
+  ]
+}

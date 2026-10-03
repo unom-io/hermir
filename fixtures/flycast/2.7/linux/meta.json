@@ -1,0 +1,24 @@
+{
+  "emulator": "flycast",
+  "version": "2.7",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "org.flycast.Flycast",
+    "commit": "86ec4d845a66ff07cdba8e003d8549e93cd7a814b519766e1f744e530c5d3e5b"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "emu.cfg"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": false,
+  "created": [
+    "config/flycast/emu.cfg"
+  ]
+}

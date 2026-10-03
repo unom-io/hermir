@@ -1,0 +1,24 @@
+{
+  "emulator": "scummvm",
+  "version": "2026.3.0",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "org.scummvm.ScummVM",
+    "commit": "6d302a35477722825777671f5254291770876d1393fe27fdf3b90144293250e7"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "scummvm.ini"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": false,
+  "created": [
+    "config/scummvm/scummvm.ini"
+  ]
+}

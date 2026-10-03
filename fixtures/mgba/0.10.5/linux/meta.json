@@ -1,0 +1,26 @@
+{
+  "emulator": "mgba",
+  "version": "0.10.5",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "io.mgba.mGBA",
+    "commit": "ecd55fb2045e460b166d8a62f55c700c167b1a0e4dce33ca98da5a6993bb2f72"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "config.ini"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": false,
+  "created": [
+    "config/mgba/config.ini",
+    "config/mgba/library.sqlite3",
+    "config/mgba/nointro.sqlite3"
+  ]
+}

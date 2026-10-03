@@ -1,0 +1,4 @@
+{
+  "notes": "Cemu writes settings.xml only when it quits cleanly; its getting-started dialog is closed the same way.",
+  "close_after": 15
+}

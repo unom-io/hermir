@@ -25,4 +25,4 @@ jobs:
       # Builds each crate from its .crate tarball, as crates.io will: a file the build reads
       # from outside the crate fails here, not at publish.
       - if: matrix.os == 'ubuntu-latest'
-        run: cargo package --workspace
+        run: cargo package -p hermir -p hermir-cli

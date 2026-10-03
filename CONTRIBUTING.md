@@ -12,7 +12,8 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo run -q -p hermir-cli -- catalog validate crates/hermir/catalog
-cargo package --workspace          # Linux only: builds each crate as crates.io will
+cargo package -p hermir -p hermir-cli   # Linux only: builds each published crate as crates.io will
+cargo test -p hermir-golden          # the golden fixtures alone (part of the workspace tests)
 ```
 
 The toolchain is pinned in `rust-toolchain.toml`. Commits follow
