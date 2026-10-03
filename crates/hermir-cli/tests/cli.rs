@@ -108,3 +108,43 @@ fn the_catalog_validates_and_reverting_nothing_is_fine() {
     assert_eq!(code, 0);
     assert_eq!(doc[0]["emulator"], "pcsx2");
 }
+
+#[test]
+#[cfg(not(feature = "enumerate"))]
+fn without_sdl_listing_pads_says_how_to_name_them_instead() {
+    let tmp = tempfile::tempdir().unwrap();
+    let (code, doc) = json(tmp.path(), &["pads"]);
+    assert_eq!(code, 2);
+    assert!(doc["error"].as_str().unwrap().contains("--pad VID:PID"));
+    assert_eq!(
+        json(tmp.path(), &["players", "pcsx2", "--pad", "auto"]).0,
+        2
+    );
+}
+
+/// SDL's own signal handlers would turn SIGTERM into an event nobody reads.
+#[test]
+#[cfg(all(unix, feature = "enumerate"))]
+fn watching_pads_ends_on_sigterm() {
+    let tmp = tempfile::tempdir().unwrap();
+    let mut child = std::process::Command::new(assert_cmd::cargo::cargo_bin("hermir"))
+        .env("HOME", tmp.path())
+        .args(["--json", "pads", "--watch"])
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    let killed = std::process::Command::new("kill")
+        .arg(child.id().to_string())
+        .status()
+        .unwrap();
+    assert!(killed.success());
+    for _ in 0..50 {
+        if child.try_wait().unwrap().is_some() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    child.kill().unwrap();
+    panic!("hermir pads --watch kept running after SIGTERM");
+}

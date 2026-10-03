@@ -19,8 +19,10 @@ pub fn apply(h: &Hermir, a: &ApplyArgs) -> Result<Outcome> {
         vsync: a.vsync,
         aspect: a.aspect,
     };
+    let seats = parse::seats(&a.pads)?;
     let patch = Patch {
-        players: parse::players(&a.pads)?,
+        players: seats.players,
+        connected: seats.connected,
         video: (!video.is_empty()).then_some(video),
         region: a.region,
         native: a
@@ -42,7 +44,8 @@ pub fn players(h: &Hermir, emulator: &str, revert: bool, pads: &PadArgs) -> Resu
     if revert {
         return self::revert(h, Some(emulator.to_string()), false, false);
     }
-    let players = parse::players(pads)?.unwrap_or_else(|| {
+    let seats = parse::seats(pads)?;
+    let players = seats.players.unwrap_or_else(|| {
         vec![hermir::Player {
             seat: 1,
             pad: hermir::PadRef::xbox360(0),
@@ -50,6 +53,7 @@ pub fn players(h: &Hermir, emulator: &str, revert: bool, pads: &PadArgs) -> Resu
     });
     let patch = Patch {
         players: Some(players),
+        connected: seats.connected,
         ..Default::default()
     };
     apply_patch(h, emulator, &patch, None)

@@ -1,29 +1,75 @@
 //! The arguments clap leaves as text: pads and native keys.
 use std::io::Read;
+use std::path::Path;
 
 use hermir::{Error, Native, PadRef, Player, Result};
 
 use crate::cli::PadArgs;
 
-/// The players `--pad` or `--players` name; `None` when neither is given.
-pub fn players(args: &PadArgs) -> Result<Option<Vec<Player>>> {
+/// Who sits where, and every pad connected when that is known.
+#[derive(Debug, Default)]
+pub struct Seats {
+    /// `None` when no pad is named.
+    pub players: Option<Vec<Player>>,
+    pub connected: Option<Vec<PadRef>>,
+}
+
+/// The seats `--pad`, `--players` and `--connected` name.
+pub fn seats(args: &PadArgs) -> Result<Seats> {
+    if args.players.as_deref().zip(args.connected.as_deref())
+        == Some((Path::new("-"), Path::new("-")))
+    {
+        return Err(Error::Invalid(
+            "--players and --connected cannot both be read from stdin".into(),
+        ));
+    }
+    let connected = args
+        .connected
+        .as_deref()
+        .map(|path| {
+            serde_json::from_str::<Vec<PadRef>>(&read("--connected", path)?).map_err(|e| {
+                Error::Invalid(format!(
+                    "--connected: not a list of pads (what `hermir pads --json` prints): {e}"
+                ))
+            })
+        })
+        .transpose()?;
     if let Some(path) = &args.players {
-        let text = if path.as_os_str() == "-" {
-            let mut s = String::new();
-            std::io::stdin()
-                .read_to_string(&mut s)
-                .map_err(|e| Error::Invalid(format!("--players -: {e}")))?;
-            s
-        } else {
-            std::fs::read_to_string(path)
-                .map_err(|e| Error::Invalid(format!("--players {}: {e}", path.display())))?
-        };
-        let players = serde_json::from_str(&text)
+        let players = serde_json::from_str(&read("--players", path)?)
             .map_err(|e| Error::Invalid(format!("--players: not a list of players: {e}")))?;
-        return Ok(Some(players));
+        return Ok(Seats {
+            players: Some(players),
+            connected,
+        });
+    }
+    if args.pad.iter().any(|p| p == "auto") {
+        if args.pad.len() > 1 || connected.is_some() {
+            return Err(Error::Invalid(
+                "--pad auto seats every pad connected: no other --pad, and no --connected".into(),
+            ));
+        }
+        let all = crate::cmd::enumerate()?;
+        if all.is_empty() {
+            return Err(Error::Invalid("--pad auto: no pads are connected".into()));
+        }
+        let players = all
+            .iter()
+            .zip(1u8..)
+            .map(|(pad, seat)| Player {
+                seat,
+                pad: pad.clone(),
+            })
+            .collect();
+        return Ok(Seats {
+            players: Some(players),
+            connected: Some(all),
+        });
     }
     if args.pad.is_empty() {
-        return Ok(None);
+        return Ok(Seats {
+            players: None,
+            connected,
+        });
     }
     let mut out = Vec::new();
     for (spec, (seat, index)) in args.pad.iter().zip((1u8..).zip(0u32..)) {
@@ -32,7 +78,24 @@ pub fn players(args: &PadArgs) -> Result<Option<Vec<Player>>> {
             pad: pad(spec, index)?,
         });
     }
-    Ok(Some(out))
+    Ok(Seats {
+        players: Some(out),
+        connected,
+    })
+}
+
+/// A file's text, or stdin's for `-`.
+fn read(flag: &str, path: &Path) -> Result<String> {
+    if path.as_os_str() == "-" {
+        let mut s = String::new();
+        std::io::stdin()
+            .read_to_string(&mut s)
+            .map_err(|e| Error::Invalid(format!("{flag} -: {e}")))?;
+        Ok(s)
+    } else {
+        std::fs::read_to_string(path)
+            .map_err(|e| Error::Invalid(format!("{flag} {}: {e}", path.display())))
+    }
 }
 
 /// `VID:PID[:NAME][@INDEX]` → a pad, at `index` unless the spec says another.
@@ -140,19 +203,42 @@ mod tests {
         let args = PadArgs {
             pad: vec!["045e:028e".into(), "045e:028e@0".into()],
             players: None,
+            connected: None,
         };
-        let p = players(&args).unwrap().unwrap();
+        let p = seats(&args).unwrap().players.unwrap();
         assert_eq!(
             p.iter().map(|p| (p.seat, p.pad.index)).collect::<Vec<_>>(),
             [(1, 0), (2, 0)]
         );
-        assert!(
-            players(&PadArgs {
-                pad: vec![],
-                players: None
-            })
-            .unwrap()
-            .is_none()
-        );
+        assert!(seats(&PadArgs::default()).unwrap().players.is_none());
+    }
+
+    #[test]
+    fn connected_pads_are_read_as_pads_and_auto_stands_alone() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file = tmp.path().join("pads.json");
+        let pads = vec![PadRef::xbox360(0), PadRef::xbox360(1)];
+        std::fs::write(&file, serde_json::to_string(&pads).unwrap()).unwrap();
+        let s = seats(&PadArgs {
+            pad: vec!["045e:028e@1".into()],
+            players: None,
+            connected: Some(file.clone()),
+        })
+        .unwrap();
+        assert_eq!(s.connected, Some(pads));
+        assert_eq!(s.players.unwrap()[0].pad.index, 1);
+        std::fs::write(&file, "[{\"seat\": 1}]").unwrap();
+        let err = seats(&PadArgs {
+            connected: Some(file),
+            ..PadArgs::default()
+        })
+        .unwrap_err();
+        assert!(err.to_string().contains("not a list of pads"), "{err}");
+        let err = seats(&PadArgs {
+            pad: vec!["auto".into(), "045e:028e".into()],
+            ..PadArgs::default()
+        })
+        .unwrap_err();
+        assert_eq!(err.exit_code(), 2);
     }
 }

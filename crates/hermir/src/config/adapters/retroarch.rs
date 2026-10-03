@@ -2,10 +2,11 @@
 //! with the same binds its own profile for this pad would carry, so a missing autoconfig
 //! changes nothing. On Windows through XInput, whose pads its built-in profiles bind; only
 //! the driver and each player's slot are written.
-use super::{Bindings, Cx, Plan, beyond, set};
-use crate::model::{Os, Player};
+use super::{Bindings, Cx, Plan, Seating, beyond, set};
+use crate::model::Os;
 
-pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
+pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
+    let players = &s.seats[..];
     let q = |s: &str| format!("\"{s}\"");
     let mut edits = Vec::new();
     if cx.os == Os::Windows {

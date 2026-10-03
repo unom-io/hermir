@@ -25,6 +25,10 @@
 //! of the catalog on this machine: install it, prepare it, `apply` a session's players and
 //! settings to it and `revert` them. Every type is serde and JSON Schema, so the CLI's
 //! `--json` is the same contract as the library.
+//!
+//! Features: `enumerate` adds `pads::enumerate`, the pads connected now as SDL 3 sees them,
+//! through the system's SDL; `enumerate-static` builds SDL from source and links it in (CMake
+//! and a C compiler). Without them a consumer names its pads itself ([`PadRef`]).
 #![warn(missing_docs)]
 
 mod catalog;
@@ -34,6 +38,8 @@ mod detect;
 mod error;
 mod launch;
 mod model;
+#[cfg(feature = "enumerate")]
+pub mod pads;
 mod players;
 mod prepare;
 pub mod progress;

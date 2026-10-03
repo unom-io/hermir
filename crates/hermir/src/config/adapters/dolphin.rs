@@ -1,13 +1,15 @@
 //! Dolphin: a GameCube pad on the sticks and face buttons, a Wii Remote with Nunchuk, pointer
 //! on the right stick and B on the right trigger, per seat. On Linux through its evdev
-//! backend, which names a pad's controls by position (`Button 0`, `Axis 1-`); on Windows
+//! backend, which names a device `evdev/<id>/<kernel name>`, the id counting same-named
+//! devices from 0, and a pad's controls by position (`Button 0`, `Axis 1-`); on Windows
 //! through XInput, which names them (`Button A`, `Left Y+`).
-use super::{Bindings, Cx, Plan, beyond, set};
-use crate::model::{Os, Player};
+use super::{Bindings, Cx, Plan, Seating, beyond, join, layout_note, set};
+use crate::model::Os;
 
 type Binds = &'static [(&'static str, &'static str)];
 
-pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
+pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
+    let players = &s.seats[..];
     let mut edits = Vec::new();
     for p in players.iter().filter(|p| p.seat <= 4) {
         let gc = format!("GCPad{}", p.seat);
@@ -19,7 +21,11 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
                 WII_XINPUT,
             ),
             _ => (
-                format!("evdev/{}/{}", p.pad.index, p.pad.name),
+                format!(
+                    "evdev/{}/{}",
+                    s.ordinal(&p.pad, |q| q.name.clone()),
+                    p.pad.name
+                ),
                 GC_EVDEV,
                 WII_EVDEV,
             ),
@@ -37,7 +43,14 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
     }
     Ok(Bindings {
         edits,
-        note: beyond(players, 4, "Dolphin"),
+        note: if cx.os == Os::Windows {
+            beyond(players, 4, "Dolphin")
+        } else {
+            join(
+                join(beyond(players, 4, "Dolphin"), s.guessed("Dolphin", "name")),
+                layout_note("Dolphin's evdev backend", s, 4),
+            )
+        },
     })
 }
 

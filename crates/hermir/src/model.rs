@@ -448,6 +448,16 @@ pub struct PadRef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// The evdev node, on Linux, when the consumer knows it.
     pub evdev: Option<PathBuf>,
+    /// SDL's GUID for the pad, 32 hex digits, when the consumer read it from SDL (the
+    /// `enumerate` feature does): used as given instead of being computed from the USB
+    /// identity, which is a guess for a pad SDL drives through HIDAPI and on Windows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guid: Option<String>,
+    /// SDL's name for the pad as a game controller (`Xbox 360 Controller`, `DualSense Wireless
+    /// Controller`), when the consumer read it from SDL. Without it SDL's name is known for the
+    /// Xbox pads only, and the kernel's stands in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gamepad_name: Option<String>,
 }
 
 fn usb() -> u16 {
@@ -479,17 +489,37 @@ pub struct Patch {
     /// Keys the model does not cover, written as given.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub native: Vec<Native>,
+    /// Every pad connected, seated or not, each at its `index` in SDL's order, when the
+    /// consumer knows them. RPCS3, Dolphin on Linux, Eden, Azahar and Cemu number a pad among
+    /// the pads of its name or GUID, so the pads nobody sits at count too. Without it the
+    /// seated pads are taken as all of them, and `players` says so where that may be wrong.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connected: Option<Vec<PadRef>>,
 }
 
 impl Patch {
     /// What makes the patch impossible to write, before anything is: a seat that is not at
-    /// least 1 or appears twice, and a control character (a newline above all) in a pad's name
-    /// or in a native key, section or value, where it would end the line and start another.
+    /// least 1 or appears twice, a control character (a newline above all) in a pad's name or
+    /// in a native key, section or value, where it would end the line and start another, a
+    /// GUID that is not 32 hex digits, and a `connected` list that repeats an index or leaves
+    /// out a seated pad.
     pub fn validate(&self) -> Result<(), String> {
         fn text(what: &str, s: &str) -> Result<(), String> {
             match s.chars().find(|c| c.is_control()) {
                 Some(c) => Err(format!("{what} {s:?} holds the control character {c:?}")),
                 None => Ok(()),
+            }
+        }
+        fn pad(p: &PadRef) -> Result<(), String> {
+            text("the pad name", &p.name)?;
+            if let Some(n) = &p.gamepad_name {
+                text("the pad's SDL name", n)?;
+            }
+            match &p.guid {
+                Some(g) if g.len() != 32 || !g.chars().all(|c| c.is_ascii_hexdigit()) => {
+                    Err(format!("the GUID {g:?} of {} is not 32 hex digits", p.name))
+                }
+                _ => Ok(()),
             }
         }
         let mut seats = std::collections::BTreeSet::new();
@@ -500,7 +530,27 @@ impl Patch {
             if !seats.insert(p.seat) {
                 return Err(format!("seat {} is given twice", p.seat));
             }
-            text("the pad name", &p.pad.name)?;
+            pad(&p.pad)?;
+        }
+        if let Some(connected) = &self.connected {
+            let mut indices = std::collections::BTreeSet::new();
+            for p in connected {
+                pad(p)?;
+                if !indices.insert(p.index) {
+                    return Err(format!("two connected pads are at index {}", p.index));
+                }
+            }
+            if let Some(p) = self
+                .players
+                .iter()
+                .flatten()
+                .find(|p| !indices.contains(&p.pad.index))
+            {
+                return Err(format!(
+                    "seat {}'s pad is at index {}, and no connected pad is",
+                    p.seat, p.pad.index
+                ));
+            }
         }
         for n in &self.native {
             if n.key.trim().is_empty() {

@@ -1,11 +1,12 @@
 //! Cemu loads `controllerProfiles/controller<n>.xml` for player n+1: one SDL controller,
-//! keyed `<index>_<guid>`, on a GamePad for player 1 and Pro Controllers after. Mapping ids
-//! are Cemu's Wii U buttons; button ids are SDL's, plus Cemu's axis halves (38–49).
-use super::{Bindings, Cx, Edit, Plan, beyond, guid_note, join};
+//! keyed `<n>_<guid>`, n counting game controllers of the same GUID from 0 (its SDL provider's
+//! `guid_counter`), on a GamePad for player 1 and Pro Controllers after. Mapping ids are
+//! Cemu's Wii U buttons; button ids are SDL's, plus Cemu's axis halves (38–49).
+use super::{Bindings, Cx, Edit, Plan, Seating, beyond, guid_note, join};
 use crate::config::xml;
-use crate::model::Player;
 
-pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
+pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
+    let players = &s.seats[..];
     let edits = players
         .iter()
         .filter(|p| p.seat <= 8)
@@ -55,7 +56,7 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
                 .collect();
             let content = format!(
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<emulated_controller>\n\t<type>{kind}</type>\n\t<controller>\n\t\t<api>SDLController</api>\n\t\t<uuid>{}_{}</uuid>\n\t\t<display_name>{}</display_name>\n\t\t<rumble>0</rumble>\n\t\t<axis>\n\t\t\t<deadzone>0.25</deadzone>\n\t\t\t<range>1</range>\n\t\t</axis>\n\t\t<rotation>\n\t\t\t<deadzone>0.25</deadzone>\n\t\t\t<range>1</range>\n\t\t</rotation>\n\t\t<trigger>\n\t\t\t<deadzone>0.25</deadzone>\n\t\t\t<range>1</range>\n\t\t</trigger>\n\t\t<mappings>\n{entries}\t\t</mappings>\n\t</controller>\n</emulated_controller>\n",
-                p.pad.index,
+                s.ordinal(&p.pad, |q| q.sdl_guid(true)),
                 p.pad.sdl_guid(true),
                 xml::escape(&p.pad.sdl_name())
             );
@@ -69,6 +70,9 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
         .collect();
     Ok(Bindings {
         edits,
-        note: join(beyond(players, 8, "Cemu"), guid_note(cx.os)),
+        note: join(
+            join(beyond(players, 8, "Cemu"), guid_note(cx.os, s)),
+            s.guessed("Cemu", "GUID"),
+        ),
     })
 }

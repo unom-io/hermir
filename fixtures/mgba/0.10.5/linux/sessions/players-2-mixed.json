@@ -1,0 +1,54 @@
+{
+  "patch": {
+    "players": [
+      {
+        "seat": 1,
+        "pad": {
+          "name": "Microsoft X-Box 360 pad",
+          "bus": 3,
+          "vendor": 1118,
+          "product": 654,
+          "version": 272,
+          "index": 1
+        }
+      },
+      {
+        "seat": 2,
+        "pad": {
+          "name": "Sony Interactive Entertainment DualSense Wireless Controller",
+          "bus": 3,
+          "vendor": 1356,
+          "product": 3302,
+          "version": 33041,
+          "index": 0,
+          "guid": "030057564c050000e60c000000016800",
+          "gamepad_name": "DualSense Wireless Controller"
+        }
+      }
+    ],
+    "connected": [
+      {
+        "name": "Sony Interactive Entertainment DualSense Wireless Controller",
+        "bus": 3,
+        "vendor": 1356,
+        "product": 3302,
+        "version": 33041,
+        "index": 0,
+        "guid": "030057564c050000e60c000000016800",
+        "gamepad_name": "DualSense Wireless Controller"
+      },
+      {
+        "name": "Microsoft X-Box 360 pad",
+        "bus": 3,
+        "vendor": 1118,
+        "product": 654,
+        "version": 272,
+        "index": 1
+      }
+    ]
+  },
+  "expect": {
+    "players": "partial"
+  },
+  "may_touch": []
+}

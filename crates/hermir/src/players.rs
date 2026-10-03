@@ -15,12 +15,23 @@ impl PadRef {
             version: 0x0110,
             index,
             evdev: None,
+            guid: None,
+            gamepad_name: None,
         }
     }
 
     /// SDL's joystick GUID, as its config strings spell it: bus, a CRC of the name, vendor,
     /// product, version, little-endian words. Eden zeroes the CRC; everyone else keeps it.
+    /// The GUID SDL reported, when the pad carries it, is used as it is.
     pub fn sdl_guid(&self, name_crc: bool) -> String {
+        if let Some(g) = &self.guid {
+            let g = g.to_ascii_lowercase();
+            return if name_crc || g.len() != 32 {
+                g
+            } else {
+                format!("{}0000{}", &g[..4], &g[8..])
+            };
+        }
         let crc = if name_crc {
             crc16(self.name.as_bytes())
         } else {
@@ -41,8 +52,19 @@ impl PadRef {
         .collect()
     }
 
-    /// What SDL calls the pad: its own name for the Xbox pads it knows, else the kernel's.
+    /// Whether the pad's raw buttons and axes are numbered as the Xbox 360 pad's (`xpad` on
+    /// Linux): a Microsoft pad, or one the kernel names as an X-Box pad. The emulators that
+    /// bind raw numbers are written for that layout.
+    pub(crate) fn xbox_layout(&self) -> bool {
+        self.vendor == 0x045e || self.name.contains("X-Box") || self.name.contains("Xbox")
+    }
+
+    /// What SDL calls the pad: the name SDL reported, when the pad carries it; else SDL's own
+    /// name for the Xbox pads it knows, else the kernel's.
     pub fn sdl_name(&self) -> String {
+        if let Some(n) = &self.gamepad_name {
+            return n.clone();
+        }
         match (self.vendor, self.product) {
             (0x045e, 0x028e) => "Xbox 360 Controller".into(),
             (0x045e, 0x02ea) => "Xbox One S Controller".into(),
@@ -76,5 +98,19 @@ mod tests {
         assert_eq!(pad.sdl_guid(true), "030081b85e0400008e02000010010000");
         assert_eq!(pad.sdl_guid(false), "030000005e0400008e02000010010000");
         assert_eq!(pad.sdl_name(), "Xbox 360 Controller");
+    }
+
+    #[test]
+    fn a_guid_sdl_reported_is_taken_as_it_is_and_eden_still_gets_its_crc_zeroed() {
+        // A DualSense through SDL's HIDAPI driver: the 'h' in byte 14 is nothing the USB
+        // identity says.
+        let pad = PadRef {
+            guid: Some("0300F8D24C050000E60C000000016800".into()),
+            gamepad_name: Some("DualSense Wireless Controller".into()),
+            ..PadRef::xbox360(1)
+        };
+        assert_eq!(pad.sdl_guid(true), "0300f8d24c050000e60c000000016800");
+        assert_eq!(pad.sdl_guid(false), "030000004c050000e60c000000016800");
+        assert_eq!(pad.sdl_name(), "DualSense Wireless Controller");
     }
 }

@@ -78,7 +78,7 @@ pub enum Cmd {
     /// with `--revert` the player's settings back. No pad means one Xbox 360 pad in seat 1.
     Players {
         emulator: String,
-        #[arg(long, conflicts_with_all = ["pad", "players"])]
+        #[arg(long, conflicts_with_all = ["pad", "players", "connected"])]
         revert: bool,
         #[command(flatten)]
         pads: PadArgs,
@@ -117,6 +117,15 @@ pub enum Cmd {
         /// Keep the throwaway folder, to look at what the emulator wrote.
         #[arg(long)]
         keep: bool,
+    },
+    /// The pads connected now, in SDL's order: what `--pad auto` seats, and what `--connected`
+    /// takes (`--json` prints that list). Needs a hermir built with the `enumerate` feature;
+    /// the release binaries are.
+    Pads {
+        /// Print the list again whenever a pad comes or goes, until interrupted (under
+        /// `--json`, one document per line).
+        #[arg(long)]
+        watch: bool,
     },
 }
 
@@ -207,17 +216,23 @@ pub struct ApplyArgs {
 }
 
 /// Who plays where: pads in seat order, or the library's own `Player` list as JSON.
-#[derive(Args)]
+#[derive(Args, Default)]
 pub struct PadArgs {
     /// A pad, seat by seat: `VID:PID[:NAME][@INDEX]`, hex ids. NAME is the device name the
     /// kernel reports (needed for any pad but the wired Xbox 360 one); INDEX its position
-    /// among the pads, by default the order given here.
-    #[arg(long, value_name = "VID:PID[:NAME][@INDEX]")]
+    /// among the pads, by default the order given here. `auto`: every pad connected, seated
+    /// in SDL's order (`hermir pads`).
+    #[arg(long, value_name = "VID:PID[:NAME][@INDEX]|auto")]
     pub pad: Vec<String>,
     /// Players as JSON, `[{ "seat": 1, "pad": { "name", "vendor", "product", "version",
     /// "index" } }]`, from a file or `-` for stdin.
     #[arg(long, value_name = "FILE", conflicts_with = "pad")]
     pub players: Option<PathBuf>,
+    /// Every pad connected, seated or not, as `hermir pads --json` prints them, from a file or
+    /// `-` for stdin: RPCS3, Dolphin, Eden, Azahar and Cemu number a pad among the pads of its
+    /// name or GUID, so the ones nobody sits at count too. `--pad auto` needs none.
+    #[arg(long, value_name = "FILE")]
+    pub connected: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]

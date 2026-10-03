@@ -1,9 +1,9 @@
 //! melonDS keys a raw SDL joystick by index: a button is its number, a hat direction is
 //! `0x100 | hat << 4 | direction` (up 1, right 2, down 4, left 8). One DS, one player.
-use super::{Bindings, Cx, Plan, beyond, set};
-use crate::model::Player;
+use super::{Bindings, Cx, Plan, Seating, beyond, join, layout_note, set};
 
-pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
+pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
+    let players = &s.seats[..];
     let Some(p) = players.iter().find(|p| p.seat == 1) else {
         return Ok(Bindings {
             edits: Vec::new(),
@@ -36,6 +36,6 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
     }
     Ok(Bindings {
         edits,
-        note: beyond(players, 1, "a DS"),
+        note: join(beyond(players, 1, "a DS"), layout_note("melonDS", s, 1)),
     })
 }

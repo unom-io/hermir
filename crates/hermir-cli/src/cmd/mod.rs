@@ -11,7 +11,10 @@ mod config;
 mod install;
 mod launch;
 mod machine;
+mod pads;
 mod profile;
+
+pub use pads::enumerate;
 
 pub struct Outcome {
     /// What `--json` prints: exactly one document.
@@ -71,6 +74,7 @@ pub fn run(cli: Cli) -> Result<Outcome> {
         Cmd::Catalog {
             cmd: CatalogCmd::Validate { dir },
         } => return catalog::validate(dir),
+        Cmd::Pads { watch } => return pads::pads(cli.json, *watch),
         _ => {}
     }
     let h = Hermir::open(Options {
@@ -86,6 +90,7 @@ pub fn run(cli: Cli) -> Result<Outcome> {
             CatalogCmd::Resolve { emulator, all } => catalog::resolve(&h, emulator, all),
             CatalogCmd::Schema | CatalogCmd::Validate { .. } => unreachable!("handled above"),
         },
+        Cmd::Pads { .. } => unreachable!("handled above"),
         Cmd::Status { emulator, check } => machine::status(&h, emulator, check),
         Cmd::Detect => Ok(machine::detect(&h)),
         Cmd::Where { emulator } => machine::where_(&h, &emulator),

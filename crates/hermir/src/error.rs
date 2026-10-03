@@ -77,6 +77,9 @@ pub enum Error {
     /// There is no copy of the emulator on this machine to act on.
     #[error("{0} is not on this machine")]
     NotInstalled(String),
+    /// SDL could not list the pads (the `enumerate` feature), in its words.
+    #[error("listing the pads: {0}")]
+    Pads(String),
     /// A file or folder could not be read or written.
     #[error("{op} {path}: {source}")]
     Io {
@@ -91,13 +94,13 @@ pub enum Error {
 }
 
 impl Error {
-    /// The CLI exit code: 0 ok · 1 I/O · 2 catalog, policy or an impossible request · 3 network ·
+    /// The CLI exit code: 0 ok · 1 I/O, or SDL could not list the pads · 2 catalog, policy or an impossible request · 3 network ·
     /// 4 verification · 5 extract or place · 6 unsupported on this OS · 7 a config file could
     /// not be written (a failed step of `apply`, `revert` or `prepare`) · 8 locked · 9 not on
     /// this machine.
     pub fn exit_code(&self) -> i32 {
         match self {
-            Error::Io { .. } => 1,
+            Error::Io { .. } | Error::Pads(_) => 1,
             Error::NotInCatalog(_)
             | Error::Policy { .. }
             | Error::Catalog { .. }

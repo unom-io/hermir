@@ -178,6 +178,13 @@ pub fn standard_sessions() -> Vec<(&'static str, Session)> {
         serde_json::json!({ "name": "Microsoft X-Box 360 pad", "vendor": 0x045e, "product": 0x028e,
                             "version": 0x0110, "index": index })
     };
+    // Through SDL's HIDAPI driver, as SDL lists it: a GUID nothing in the USB identity gives.
+    let dualsense = |index: u32| {
+        serde_json::json!({ "name": "Sony Interactive Entertainment DualSense Wireless Controller",
+                            "vendor": 0x054c, "product": 0x0ce6, "version": 0x8111,
+                            "index": index, "guid": "030057564c050000e60c000000016800",
+                            "gamepad_name": "DualSense Wireless Controller" })
+    };
     vec![
         (
             "video-all",
@@ -203,6 +210,16 @@ pub fn standard_sessions() -> Vec<(&'static str, Session)> {
             s(
                 serde_json::json!({ "players": [ { "seat": 1, "pad": xbox(0) },
                                                { "seat": 2, "pad": xbox(1) } ] }),
+            ),
+        ),
+        // The seats in another order than SDL's: the Xbox pad, second in SDL's list, is
+        // player 1, and the DualSense before it player 2.
+        (
+            "players-2-mixed",
+            s(
+                serde_json::json!({ "players": [ { "seat": 1, "pad": xbox(1) },
+                                               { "seat": 2, "pad": dualsense(0) } ],
+                                    "connected": [ dualsense(0), xbox(1) ] }),
             ),
         ),
     ]

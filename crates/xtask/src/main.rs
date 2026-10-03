@@ -4,6 +4,7 @@
 //! cargo xtask capture <emulator>… | --all [--host] [--settle <s>] [--force]
 //! cargo xtask capture <emulator> --interactive --session <name>
 //! cargo xtask drift <emulator>… | --all [--host]
+//! cargo xtask sessions
 //! ```
 //!
 //! `capture` starts each emulator once, headless, with a fresh home, and turns what it wrote into
@@ -14,6 +15,10 @@
 //! The image keeps its Flatpak installation in the volume `hermir-flatpak`, so runtimes are
 //! fetched once; `HERMIR_CAPTURE_VOLUME` names another volume or a host path, and
 //! `HERMIR_CAPTURE_DOCKER_ARGS` adds `docker run` arguments (`--network host` behind a proxy).
+//!
+//! `sessions` adds the standard sessions a fixture lacks (one added to
+//! `hermir_golden::fixture::standard_sessions`) to every fixture; `HERMIR_BLESS=1 cargo test -p
+//! hermir-golden` then records what hermir writes for them.
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -26,6 +31,7 @@ fn main() -> ExitCode {
     let result = match args.first().map(String::as_str) {
         Some("capture") => capture::main(&args[1..]),
         Some("drift") => drift::main(&args[1..]),
+        Some("sessions") => sessions(),
         _ => Err(USAGE.to_string()),
     };
     match result {
@@ -40,7 +46,18 @@ fn main() -> ExitCode {
 const USAGE: &str =
     "usage: cargo xtask capture <emulator>… | --all [--host] [--settle <s>] [--force]
        cargo xtask capture <emulator> --interactive --session <name>
-       cargo xtask drift <emulator>… | --all [--host]";
+       cargo xtask drift <emulator>… | --all [--host]
+       cargo xtask sessions";
+
+/// The standard sessions every fixture lacks, added.
+fn sessions() -> Result<(), String> {
+    let fixtures = hermir_golden::fixture::discover(&root().join("fixtures"))?;
+    for fx in &fixtures {
+        capture::add_standard(&fx.dir.join("sessions"))?;
+    }
+    println!("{} fixture(s) have every standard session", fixtures.len());
+    Ok(())
+}
 
 /// The workspace root.
 pub fn root() -> PathBuf {

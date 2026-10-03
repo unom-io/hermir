@@ -1,7 +1,9 @@
 # `cargo deny check`: what the published crates pull in. Only permissive licences, so a host
 # that gates licences (punktfunk) takes hermir as it is; dev-dependencies and the crates that
-# are never published (xtask, hermir-golden) ship nothing and are not checked.
+# are never published (xtask, hermir-golden) ship nothing and are not checked. Optional ones
+# are (SDL for `enumerate`): the release binaries ship them.
 [graph]
+all-features = true
 exclude-dev = true
 exclude-unpublished = true
 

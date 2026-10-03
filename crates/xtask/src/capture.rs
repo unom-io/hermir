@@ -502,12 +502,13 @@ pub(crate) fn unbound_keys(entry: &Entry, meta: &Meta, before: &Tree) -> Vec<Str
     out
 }
 
-/// New fixtures get the sessions of another version of the same emulator and OS, or the
-/// standard ones.
+/// New fixtures get the sessions of another version of the same emulator and OS, and every
+/// standard one that version did not have; existing fixtures get the standard sessions added
+/// since they were made.
 pub(crate) fn seed_sessions(dir: &Path) -> Result<(), String> {
     let sessions = dir.join("sessions");
     if sessions.is_dir() {
-        return Ok(());
+        return add_standard(&sessions);
     }
     std::fs::create_dir_all(&sessions).map_err(|e| e.to_string())?;
     let os = dir.file_name().expect("an os dir");
@@ -532,11 +533,19 @@ pub(crate) fn seed_sessions(dir: &Path) -> Result<(), String> {
             let json = serde_json::to_string_pretty(&s).map_err(|e| e.to_string())? + "\n";
             std::fs::write(sessions.join(e.file_name()), json).map_err(|e| e.to_string())?;
         }
-        return Ok(());
     }
+    add_standard(&sessions)
+}
+
+/// Writes each standard session `sessions` lacks; `HERMIR_BLESS=1` fills in what it expects.
+pub(crate) fn add_standard(sessions: &Path) -> Result<(), String> {
     for (name, s) in standard_sessions() {
+        let path = sessions.join(format!("{name}.json"));
+        if path.exists() {
+            continue;
+        }
         let json = serde_json::to_string_pretty(&s).map_err(|e| e.to_string())? + "\n";
-        std::fs::write(sessions.join(format!("{name}.json")), json).map_err(|e| e.to_string())?;
+        std::fs::write(path, json).map_err(|e| e.to_string())?;
     }
     Ok(())
 }

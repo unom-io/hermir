@@ -113,7 +113,12 @@ pub fn apply(
     let cx = cx(entry, os, root, profile);
     let mut planned = knobs::plan(entry, &cx, patch);
     if let Some(players) = &patch.players {
-        planned.push(adapters::plan(entry, &cx, players));
+        planned.push(adapters::plan(
+            entry,
+            &cx,
+            players,
+            patch.connected.as_deref(),
+        ));
     }
     for n in &patch.native {
         let knob = format!("native:{}:{}", n.file, n.key);
@@ -633,6 +638,171 @@ mod tests {
                 .all(|s| s.outcome == StepOutcome::Applied)
         );
         assert!(!tmp.path().join("melonds/melonDS.toml").exists());
+    }
+
+    /// A DualSense at SDL index 0 and an Xbox pad at 1, the Xbox pad seated alone.
+    fn behind_a_dualsense() -> (Vec<Player>, Vec<PadRef>) {
+        let dualsense = PadRef {
+            name: "Sony Interactive Entertainment DualSense Wireless Controller".into(),
+            vendor: 0x054c,
+            product: 0x0ce6,
+            version: 0x8111,
+            guid: Some("0300f8d24c050000e60c000000016800".into()),
+            gamepad_name: Some("DualSense Wireless Controller".into()),
+            ..PadRef::xbox360(0)
+        };
+        let xbox = PadRef::xbox360(1);
+        (
+            vec![Player {
+                seat: 1,
+                pad: xbox.clone(),
+            }],
+            vec![dualsense, xbox],
+        )
+    }
+
+    #[test]
+    fn a_pad_is_numbered_among_the_pads_of_its_name_or_guid_not_by_its_index() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let snaps = tmp.path().join("snaps");
+        let (seated, connected) = behind_a_dualsense();
+        let patch = Patch {
+            players: Some(seated.clone()),
+            connected: Some(connected.clone()),
+            ..Default::default()
+        };
+        let az_cfg = tmp.path().join("azahar/qt-config.ini");
+        std::fs::create_dir_all(az_cfg.parent().unwrap()).unwrap();
+        std::fs::write(&az_cfg, "[Controls]\nprofile=0\n").unwrap();
+        for id in ["rpcs3", "dolphin", "eden", "azahar", "cemu", "duckstation"] {
+            let root = tmp.path().join(id);
+            let p = run(&c, id, Os::Linux, &root, &patch, &snaps);
+            assert_eq!(knob(&p, "players").support, Support::Applied, "{id}: {p:?}");
+        }
+        // The review's case: the Xbox pad is the first of its name, whatever comes before it.
+        let yml = read(&tmp.path().join("rpcs3/input_configs/global/Default.yml"));
+        assert!(
+            yml.contains("Player 1 Input:\n  Handler: SDL\n  Device: \"Xbox 360 Controller 1\"\n"),
+            "{yml}"
+        );
+        let gc = read(&tmp.path().join("dolphin/GCPadNew.ini"));
+        assert!(gc.contains("[GCPad1]\nDevice = evdev/0/Microsoft X-Box 360 pad\n"));
+        let eden = read(&tmp.path().join("eden/qt-config.ini"));
+        assert!(
+            eden.contains("guid:030000005e0400008e02000010010000,port:0,button:1"),
+            "{eden}"
+        );
+        assert!(read(&az_cfg).contains("guid:030081b85e0400008e02000010010000,port:0"));
+        let cemu = read(&tmp.path().join("cemu/controllerProfiles/controller0.xml"));
+        assert!(cemu.contains("<uuid>0_030081b85e0400008e02000010010000</uuid>"));
+        // The emulators that take SDL's index still take it.
+        let ds = read(&tmp.path().join("duckstation/settings.ini"));
+        assert!(
+            ds.contains("[Pad1]\nType = AnalogController\nUp = SDL-1/DPadUp\n"),
+            "{ds}"
+        );
+
+        // Seating the DualSense uses what SDL said about it, GUID and name.
+        let patch = Patch {
+            players: Some(vec![Player {
+                seat: 1,
+                pad: PadRef {
+                    name: "anything".into(),
+                    ..PadRef::xbox360(0)
+                },
+            }]),
+            connected: Some(connected),
+            ..Default::default()
+        };
+        let root = tmp.path().join("rpcs3-ds");
+        run(&c, "rpcs3", Os::Linux, &root, &patch, &snaps);
+        let yml = read(&root.join("input_configs/global/Default.yml"));
+        assert!(
+            yml.contains("Device: \"DualSense Wireless Controller 1\"\n"),
+            "{yml}"
+        );
+        let root = tmp.path().join("cemu-ds");
+        run(&c, "cemu", Os::Windows, &root, &patch, &snaps);
+        let xml = read(&root.join("controllerProfiles/controller0.xml"));
+        assert!(xml.contains("<uuid>0_0300f8d24c050000e60c000000016800</uuid>"));
+        let p = run(&c, "cemu", Os::Windows, &root, &patch, &snaps);
+        assert_eq!(
+            knob(&p, "players").support,
+            Support::Applied,
+            "a GUID read from SDL is no guess, on Windows either"
+        );
+    }
+
+    #[test]
+    fn without_the_connected_pads_a_gap_below_a_seated_pad_is_a_guess_and_says_so() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let snaps = tmp.path().join("snaps");
+        let (seated, _) = behind_a_dualsense();
+        for id in ["rpcs3", "dolphin", "eden", "cemu"] {
+            let root = tmp.path().join(id);
+            let p = run(&c, id, Os::Linux, &root, &players(seated.clone()), &snaps);
+            let k = knob(&p, "players");
+            assert_eq!(k.support, Support::Partial, "{id}");
+            assert!(
+                k.note.as_deref().unwrap().contains("not seated"),
+                "{id}: {k:?}"
+            );
+        }
+        // Index-keyed emulators have nothing to guess.
+        let root = tmp.path().join("pcsx2");
+        let p = run(&c, "pcsx2", Os::Linux, &root, &players(seated), &snaps);
+        assert_eq!(knob(&p, "players").support, Support::Applied);
+        // Pads 0 and 1 both seated: nothing below them is unknown.
+        let two = vec![
+            Player {
+                seat: 1,
+                pad: PadRef::xbox360(1),
+            },
+            Player {
+                seat: 2,
+                pad: PadRef::xbox360(0),
+            },
+        ];
+        let root = tmp.path().join("rpcs3-two");
+        let p = run(&c, "rpcs3", Os::Linux, &root, &players(two), &snaps);
+        assert_eq!(knob(&p, "players").support, Support::Applied);
+        let yml = read(&root.join("input_configs/global/Default.yml"));
+        assert!(
+            yml.contains("Player 1 Input:\n  Handler: SDL\n  Device: \"Xbox 360 Controller 2\"\n")
+        );
+    }
+
+    #[test]
+    fn a_connected_list_must_hold_every_seated_pad_once() {
+        let (seated, mut connected) = behind_a_dualsense();
+        let ok = Patch {
+            players: Some(seated.clone()),
+            connected: Some(connected.clone()),
+            ..Default::default()
+        };
+        assert!(ok.validate().is_ok());
+        connected.truncate(1);
+        let missing = Patch {
+            connected: Some(connected.clone()),
+            ..ok.clone()
+        };
+        assert!(missing.validate().unwrap_err().contains("index 1"));
+        connected.push(PadRef::xbox360(0));
+        let twice = Patch {
+            connected: Some(connected),
+            ..ok.clone()
+        };
+        assert!(twice.validate().unwrap_err().contains("index 0"));
+        let mut bad = seated;
+        bad[0].pad.guid = Some("not a guid".into());
+        let bad = Patch {
+            players: Some(bad),
+            connected: None,
+            ..ok
+        };
+        assert!(bad.validate().unwrap_err().contains("32 hex digits"));
     }
 
     #[test]

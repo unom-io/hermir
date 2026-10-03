@@ -2,10 +2,10 @@
 //! Y, LB, RB, Back, Start, LS, RS and the axes are named. Start on Start and coin on Back,
 //! the cabinet's buttons on the face buttons, pedals on the triggers, wheel on the stick.
 //! Two players.
-use super::{Bindings, Cx, Plan, beyond, set};
-use crate::model::Player;
+use super::{Bindings, Cx, Plan, Seating, beyond, set};
 
-pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
+pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
+    let players = &s.seats[..];
     let mut edits = set(cx, "main", "Global", "InputSystem", "sdlgamepad")?;
     let q = |v: String| format!("\"{v}\"");
     for p in players.iter().filter(|p| p.seat <= 2) {
