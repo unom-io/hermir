@@ -39,7 +39,7 @@
     }
   },
   "roots": {
-    "flatpak": "~/.var/app/com.supermodel3.Supermodel/.supermodel",
+    "flatpak": "~/.var/app/com.supermodel3.Supermodel/config/supermodel",
     "native": "~/.supermodel",
     "portable": "<app>",
     "windows": "<app>"

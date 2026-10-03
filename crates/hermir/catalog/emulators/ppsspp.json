@@ -89,13 +89,24 @@
       },
       "video.aspect": {
         "file": "main",
-        "section": "Graphics",
+        "section": "DisplayLayout.Landscape",
         "key": "DisplayStretch",
         "values": {
           "auto": "False",
           "16:9": "False",
           "stretch": "True"
         },
+        "also": [
+          {
+            "section": "DisplayLayout.Portrait",
+            "key": "DisplayStretch",
+            "values": {
+              "auto": "False",
+              "16:9": "False",
+              "stretch": "True"
+            }
+          }
+        ],
         "note": "the PSP is 16:9; stretch fills the window"
       },
       "region": {
