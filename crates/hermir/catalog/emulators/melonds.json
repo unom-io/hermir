@@ -31,6 +31,9 @@
       "flatpak": "net.kuribo64.melonDS"
     },
     "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\melonds\\current\\melonDS.exe"
+      ],
       "portable_marker": "portable"
     }
   },
@@ -69,7 +72,7 @@
     },
     "knobs": {
       "video.fullscreen": {
-        "unsupported": "a launch flag (-f); melonDS keeps no start-fullscreen setting"
+        "via": "launch"
       },
       "video.scale": {
         "file": "main",
@@ -108,6 +111,22 @@
     "players": {
       "adapter": "melonds"
     }
+  },
+  "saves": {
+    "nds": [
+      {
+        "kind": "save",
+        "path": "{game}",
+        "per_game": true,
+        "note": "beside each game (<game>.sav) unless a save folder is set in its path settings"
+      },
+      {
+        "kind": "state",
+        "path": "{game}",
+        "per_game": true,
+        "note": "beside each game (<game>.ml1 and on)"
+      }
+    ]
   },
   "notes": "Saves and savestates go beside the ROM by default, which fails on a read-only library: prepare points both into the config root unless the user chose a folder.",
   "first_run": {

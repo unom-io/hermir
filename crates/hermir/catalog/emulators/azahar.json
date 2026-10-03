@@ -107,5 +107,20 @@
     "players": {
       "adapter": "azahar"
     }
+  },
+  "saves": {
+    "3ds": [
+      {
+        "kind": "save",
+        "path": "{data}/sdmc/Nintendo 3DS",
+        "per_game": true,
+        "note": "each title's data under the console's ids: <id0>/<id1>/title/<high>/<low>/data"
+      },
+      {
+        "kind": "state",
+        "path": "{data}/states",
+        "per_game": true
+      }
+    ]
   }
 }

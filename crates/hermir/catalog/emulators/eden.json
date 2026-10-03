@@ -12,11 +12,18 @@
         "eden"
       ],
       "flatpak": "dev.eden_emu.eden"
+    },
+    "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\eden\\current\\eden.exe"
+      ],
+      "portable_marker": "user"
     }
   },
   "roots": {
     "flatpak": "~/.var/app/dev.eden_emu.eden/data/eden",
     "native": "~/.local/share/eden",
+    "portable": "<app>/user",
     "windows": "%APPDATA%\\eden"
   },
   "launch": {
@@ -99,6 +106,16 @@
     "players": {
       "adapter": "eden"
     }
+  },
+  "saves": {
+    "switch": [
+      {
+        "kind": "save",
+        "path": "nand/user/save",
+        "per_game": true,
+        "note": "per user and title id: 0000000000000000/<user>/<title>"
+      }
+    ]
   },
   "notes": "The root is Eden's data folder, where keys and system firmware live; its settings are under ~/.config/eden. System firmware comes as a zip of NCAs and is unpacked only while none is installed.",
   "firmware": {

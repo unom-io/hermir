@@ -23,6 +23,17 @@ serde.workspace = true
 serde_json.workspace = true
 clap = { version = "4", features = ["derive", "env"] }
 
+[features]
+# `hermir pads` and `--pad auto`, through the system's SDL 3.
+enumerate = ["hermir/enumerate"]
+# The same with SDL 3 built from source and linked in (the release binaries): needs CMake and
+# a C compiler.
+enumerate-static = ["enumerate", "hermir/enumerate-static"]
+
+[dev-dependencies]
+assert_cmd = "2"
+tempfile = "3"
+
 # `cargo binstall hermir-cli` fetches the release binary instead of building.
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/hermir-v{ version }-{ target }{ archive-suffix }"

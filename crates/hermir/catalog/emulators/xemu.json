@@ -43,6 +43,51 @@
       "{file}"
     ]
   },
+  "firmware": {
+    "dir": "firmware",
+    "keys": [
+      {
+        "ini": "xemu.toml",
+        "section": "sys.files",
+        "key": "bootrom_path",
+        "any_of": [
+          "mcpx*.bin"
+        ],
+        "value": "'{path}'",
+        "note": "the MCPX boot ROM (mcpx_1.0.bin), dumped from an Xbox"
+      },
+      {
+        "ini": "xemu.toml",
+        "section": "sys.files",
+        "key": "flashrom_path",
+        "any_of": [
+          "*.bin"
+        ],
+        "value": "'{path}'",
+        "note": "a flash BIOS (Complex_4627.bin and the like), dumped from an Xbox"
+      },
+      {
+        "ini": "xemu.toml",
+        "section": "sys.files",
+        "key": "hdd_path",
+        "any_of": [
+          "*.qcow2"
+        ],
+        "value": "'{path}'",
+        "note": "a hard-disk image (xbox_hdd.qcow2)"
+      }
+    ],
+    "platforms": {
+      "xbox": {
+        "any_of": [
+          "mcpx*.bin",
+          "*.bin",
+          "*.qcow2"
+        ],
+        "note": "the MCPX boot ROM, a flash BIOS and a hard-disk image"
+      }
+    }
+  },
   "config": {
     "files": {
       "main": {
@@ -98,5 +143,18 @@
       "adapter": "xemu"
     }
   },
-  "notes": "Needs an MCPX ROM, a BIOS and an HDD image the user provides."
+  "saves": {
+    "xbox": [
+      {
+        "kind": "save",
+        "setting": {
+          "file": "main",
+          "section": "sys.files",
+          "key": "hdd_path"
+        },
+        "note": "inside the Xbox hard-disk image the player chose; none until one is set"
+      }
+    ]
+  },
+  "notes": "Needs an MCPX boot ROM, a flash BIOS and a hard-disk image the player provides: `prepare --firmware` copies them into firmware/ and points xemu.toml's [sys.files] keys at them."
 }

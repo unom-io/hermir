@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/hermir", "crates/hermir-cli"]
+members = ["crates/hermir", "crates/hermir-cli", "crates/hermir-golden", "crates/xtask"]
 
 [workspace.package]
 version = "0.1.0"

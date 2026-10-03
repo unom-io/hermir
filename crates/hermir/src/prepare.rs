@@ -7,8 +7,10 @@ use std::path::{Path, PathBuf};
 
 use crate::channel::flatpak::Runner;
 pub use crate::config::ini::{get as ini_get, set as ini_set};
+use crate::config::write_atomic;
 use crate::model::{
-    Entry, Exe, FirmwareInstall, FirstRun, Install, Os, PrepareStep, Prepared, StepOutcome,
+    Entry, Exe, FirmwareInstall, FirmwareKey, FirstRun, Install, Os, PrepareStep, Prepared,
+    StepOutcome,
 };
 
 /// Answers `install`'s first-run questions for `os`, then places `firmware` for `platform`:
@@ -52,11 +54,15 @@ pub fn prepare(
             } else {
                 root.join(dir)
             };
-            for file in firmware.iter().filter(|f| !archive(f)) {
-                steps.push(place(file, &dir));
-            }
-            if !need.optional && !any_match(&dir, &need.any_of) {
-                steps.push(missing(&dir, need.note.as_deref()));
+            if fw.keys.is_empty() {
+                for file in firmware.iter().filter(|f| !archive(f)) {
+                    steps.push(place(file, &dir));
+                }
+                if !need.optional && !any_match(&dir, &need.any_of) {
+                    steps.push(missing(&dir, need.note.as_deref()));
+                }
+            } else {
+                steps.extend(keys(root, &dir, &fw.keys, firmware));
             }
         }
         if let Some(u) = &fw.unpack
@@ -141,8 +147,9 @@ fn first_run(root: &Path, install: &Install, answer: &FirstRun) -> PrepareStep {
             }
             let value = &value.replace("{root}", &root.to_string_lossy());
             match ini_set(&text, section, key, value) {
-                None => step("first_run", &path, StepOutcome::Present, None),
-                Some(next) => match write_atomic(&path, next.as_bytes()) {
+                Err(why) => step("first_run", &path, StepOutcome::Failed, Some(why)),
+                Ok(None) => step("first_run", &path, StepOutcome::Present, None),
+                Ok(Some(next)) => match write_atomic(&path, next.as_bytes()) {
                     Ok(()) => step(
                         "first_run",
                         &path,
@@ -211,6 +218,84 @@ fn place(file: &Path, dir: &Path) -> PrepareStep {
         Ok(()) => step("firmware", &dest, StepOutcome::Applied, None),
         Err(e) => step("firmware", &dest, StepOutcome::Failed, Some(e.to_string())),
     }
+}
+
+/// Each key's file copied into `dir` and the key pointed at it, in order, each file taken by
+/// one key at most. A key that already names a file that is there is the player's choice, and
+/// stays.
+fn keys(root: &Path, dir: &Path, keys: &[FirmwareKey], firmware: &[PathBuf]) -> Vec<PrepareStep> {
+    let mut steps = Vec::new();
+    let mut taken: Vec<&PathBuf> = Vec::new();
+    for k in keys {
+        let path = root.join(&k.ini);
+        let text = match std::fs::read_to_string(&path) {
+            Ok(t) => t,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => {
+                steps.push(step(
+                    "firmware_key",
+                    &path,
+                    StepOutcome::Failed,
+                    Some(e.to_string()),
+                ));
+                continue;
+            }
+        };
+        let named = ini_get(&text, &k.section, &k.key)
+            .map(|v| v.trim().trim_matches(['\'', '"']).to_string())
+            .filter(|v| !v.is_empty() && Path::new(v).is_file());
+        if let Some(at) = named {
+            steps.push(step(
+                "firmware_key",
+                Path::new(&at),
+                StepOutcome::Present,
+                Some(format!("[{}] {}", k.section, k.key)),
+            ));
+            continue;
+        }
+        let Some(file) = firmware
+            .iter()
+            .find(|f| !taken.contains(f) && name_matches(f, &k.any_of))
+        else {
+            if !k.optional {
+                steps.push(step(
+                    "firmware_key",
+                    &path,
+                    StepOutcome::Failed,
+                    Some(format!("missing: {}", k.note.as_deref().unwrap_or(&k.key))),
+                ));
+            }
+            continue;
+        };
+        taken.push(file);
+        let placed = place(file, dir);
+        if placed.outcome == StepOutcome::Failed {
+            steps.push(placed);
+            continue;
+        }
+        let value = k.value.replace("{path}", &placed.target.to_string_lossy());
+        let written = match ini_set(&text, &k.section, &k.key, &value) {
+            Err(why) => step("firmware_key", &path, StepOutcome::Failed, Some(why)),
+            Ok(None) => step("firmware_key", &path, StepOutcome::Present, None),
+            Ok(Some(next)) => match write_atomic(&path, next.as_bytes()) {
+                Ok(()) => step(
+                    "firmware_key",
+                    &path,
+                    StepOutcome::Applied,
+                    Some(format!("[{}] {} = {value}", k.section, k.key)),
+                ),
+                Err(e) => step(
+                    "firmware_key",
+                    &path,
+                    StepOutcome::Failed,
+                    Some(e.to_string()),
+                ),
+            },
+        };
+        steps.push(placed);
+        steps.push(written);
+    }
+    steps
 }
 
 fn missing(dir: &Path, note: Option<&str>) -> PrepareStep {
@@ -359,15 +444,6 @@ pub fn glob(pattern: &str, name: &str) -> bool {
     true
 }
 
-pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-    let tmp = path.with_extension("hermir-part");
-    std::fs::write(&tmp, bytes)?;
-    std::fs::rename(&tmp, path)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -392,6 +468,91 @@ mod tests {
             version: None,
             config_root: Some(root.to_path_buf()),
         }
+    }
+
+    #[test]
+    fn xemu_gets_each_file_where_its_settings_point() {
+        let c = Catalog::embedded().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let src = tempfile::tempdir().unwrap();
+        let file = |n: &str| {
+            let p = src.path().join(n);
+            std::fs::write(&p, n).unwrap();
+            p
+        };
+        // In any order: the boot ROM is told from the BIOS by its name.
+        let given = [
+            file("xbox_hdd.qcow2"),
+            file("Complex_4627.bin"),
+            file("mcpx_1.0.bin"),
+        ];
+        let copy = install_at("xemu", root.path(), Exe::FlatpakRun("app.xemu.xemu".into()));
+        let run = || {
+            prepare(
+                c.get("xemu").unwrap(),
+                Os::Linux,
+                &copy,
+                Some("xbox"),
+                &given,
+                &FakeRunner::default(),
+            )
+        };
+        let p = run();
+        assert!(
+            p.steps.iter().all(|s| s.outcome == StepOutcome::Applied),
+            "{p:?}"
+        );
+        let toml = std::fs::read_to_string(root.path().join("xemu.toml")).unwrap();
+        let at = |n: &str| root.path().join("firmware").join(n);
+        for (key, n) in [
+            ("bootrom_path", "mcpx_1.0.bin"),
+            ("flashrom_path", "Complex_4627.bin"),
+            ("hdd_path", "xbox_hdd.qcow2"),
+        ] {
+            assert!(
+                toml.contains(&format!("{key} = '{}'\n", at(n).display())),
+                "{toml}"
+            );
+            assert!(at(n).is_file());
+        }
+        // Again: everything is there.
+        let p = run();
+        assert!(
+            p.steps.iter().all(|s| s.outcome == StepOutcome::Present),
+            "{p:?}"
+        );
+        // A disk the player chose stays theirs.
+        let theirs = file("mine.qcow2");
+        let text = toml.replace(
+            &format!("hdd_path = '{}'", at("xbox_hdd.qcow2").display()),
+            &format!("hdd_path = '{}'", theirs.display()),
+        );
+        std::fs::write(root.path().join("xemu.toml"), text).unwrap();
+        run();
+        let toml = std::fs::read_to_string(root.path().join("xemu.toml")).unwrap();
+        assert!(toml.contains(&format!("hdd_path = '{}'", theirs.display())));
+        // Nothing given, nothing set: each missing file is named.
+        let empty = tempfile::tempdir().unwrap();
+        let bare = install_at(
+            "xemu",
+            empty.path(),
+            Exe::FlatpakRun("app.xemu.xemu".into()),
+        );
+        let p = prepare(
+            c.get("xemu").unwrap(),
+            Os::Linux,
+            &bare,
+            Some("xbox"),
+            &[],
+            &FakeRunner::default(),
+        );
+        let missing: Vec<_> = p
+            .steps
+            .iter()
+            .filter(|s| s.outcome == StepOutcome::Failed)
+            .collect();
+        assert_eq!(missing.len(), 3, "{p:?}");
+        assert!(missing[0].note.as_deref().unwrap().contains("MCPX"));
     }
 
     #[test]
@@ -610,7 +771,7 @@ mod tests {
             std::slice::from_ref(&pup),
             &runner,
         );
-        let ran = runner.calls.borrow();
+        let ran = runner.calls.lock().unwrap();
         let call = ran
             .iter()
             .find(|c| c.iter().any(|a| a == "--installfw"))

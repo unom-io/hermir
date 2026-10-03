@@ -22,26 +22,131 @@ mod rpcs3;
 mod supermodel;
 mod xemu;
 
-use super::{Cx, Edit};
-use crate::model::{Entry, KnobChange, Os, Player, PlayersSupport, Support};
+use std::collections::BTreeSet;
 
-/// The adapters that exist, as `config.players.adapter` names them.
-pub const ADAPTERS: &[&str] = &[
-    "azahar",
-    "cemu",
-    "dolphin",
-    "duckstation",
-    "eden",
-    "melonds",
-    "pcsx2",
-    "retroarch",
-    "rpcs3",
-    "supermodel",
-    "xemu",
+use super::{Cx, Edit};
+use crate::model::{Entry, KnobChange, Os, PadRef, Player, PlayersSupport, Support};
+
+/// One emulator's player bindings, by the name `config.players.adapter` gives it. The table
+/// below is the only list: an entry naming an adapter that is not in it fails validation.
+pub(crate) struct Adapter {
+    pub name: &'static str,
+    /// The edits that put the seated pads into this copy's bindings, seat by seat.
+    pub players: fn(&Cx, &Seating) -> Plan,
+}
+
+/// Who sits where, and every pad they are counted among.
+pub(crate) struct Seating<'a> {
+    /// The seats, each pad as `connected` describes it when it does (its GUID and SDL name
+    /// read from SDL), else as the consumer seated it.
+    pub seats: Vec<Player>,
+    connected: Option<&'a [PadRef]>,
+}
+
+impl<'a> Seating<'a> {
+    pub fn new(players: &[Player], connected: Option<&'a [PadRef]>) -> Seating<'a> {
+        let seats = players
+            .iter()
+            .map(|p| Player {
+                seat: p.seat,
+                pad: connected
+                    .and_then(|all| all.iter().find(|c| c.index == p.pad.index))
+                    .cloned()
+                    .unwrap_or_else(|| p.pad.clone()),
+            })
+            .collect();
+        Seating { seats, connected }
+    }
+
+    /// `pad`'s number among the pads `key` gives the same value, from 0, counting the pads
+    /// before it in SDL's order: RPCS3's `<name> N`, Dolphin's evdev id, Eden's and Azahar's
+    /// `port`, Cemu's `<n>_<guid>`. Every pad connected counts when the consumer gave them,
+    /// else the seated ones.
+    pub fn ordinal<K: PartialEq>(&self, pad: &PadRef, key: impl Fn(&PadRef) -> K) -> u32 {
+        let k = key(pad);
+        let before = |p: &&PadRef| p.index < pad.index && key(p) == k;
+        let n = match self.connected {
+            Some(all) => all.iter().filter(before).count(),
+            None => {
+                let mut seen = BTreeSet::new();
+                self.seats
+                    .iter()
+                    .map(|s| &s.pad)
+                    .filter(|p| seen.insert(p.index))
+                    .filter(before)
+                    .count()
+            }
+        };
+        u32::try_from(n).unwrap_or(u32::MAX)
+    }
+
+    /// The caveat for an emulator that numbers pads by `by` when [`Seating::ordinal`] had to
+    /// guess: the connected pads were not given, and some index below a seated pad's is no
+    /// seated pad, so a pad nobody sits at may come first.
+    pub fn guessed(&self, emulator: &str, by: &str) -> Option<String> {
+        if self.connected.is_some() {
+            return None;
+        }
+        let seated: BTreeSet<u32> = self.seats.iter().map(|s| s.pad.index).collect();
+        let last = *seated.iter().next_back()?;
+        (u32::try_from(seated.len()).ok() != last.checked_add(1)).then(|| {
+            format!(
+                "{emulator} numbers a pad among the pads of its {by}, and the pads connected \
+                 but not seated were not given, so the seated ones are taken as all of them"
+            )
+        })
+    }
+}
+
+pub(crate) const ADAPTERS: &[Adapter] = &[
+    Adapter {
+        name: "azahar",
+        players: azahar::players,
+    },
+    Adapter {
+        name: "cemu",
+        players: cemu::players,
+    },
+    Adapter {
+        name: "dolphin",
+        players: dolphin::players,
+    },
+    Adapter {
+        name: "duckstation",
+        players: duckstation::players,
+    },
+    Adapter {
+        name: "eden",
+        players: eden::players,
+    },
+    Adapter {
+        name: "melonds",
+        players: melonds::players,
+    },
+    Adapter {
+        name: "pcsx2",
+        players: pcsx2::players,
+    },
+    Adapter {
+        name: "retroarch",
+        players: retroarch::players,
+    },
+    Adapter {
+        name: "rpcs3",
+        players: rpcs3::players,
+    },
+    Adapter {
+        name: "supermodel",
+        players: supermodel::players,
+    },
+    Adapter {
+        name: "xemu",
+        players: xemu::players,
+    },
 ];
 
 pub fn exists(adapter: &str) -> bool {
-    ADAPTERS.contains(&adapter)
+    ADAPTERS.iter().any(|a| a.name == adapter)
 }
 
 /// What an adapter plans: the edits, and a caveat when the result is only partly what was
@@ -54,8 +159,14 @@ pub(crate) struct Bindings {
 /// `Err` is why nothing can be written, in a phrase a UI shows.
 pub(crate) type Plan = Result<Bindings, String>;
 
-/// Plans `players` for `entry` on this copy: a `KnobChange` named `players` and the edits.
-pub(crate) fn plan(entry: &Entry, cx: &Cx, players: &[Player]) -> (KnobChange, Vec<Edit>) {
+/// Plans `players` for `entry` on this copy, counted among `connected` when given: a
+/// `KnobChange` named `players` and the edits.
+pub(crate) fn plan(
+    entry: &Entry,
+    cx: &Cx,
+    players: &[Player],
+    connected: Option<&[PadRef]>,
+) -> (KnobChange, Vec<Edit>) {
     let change = |support: Support, note: Option<String>, file| KnobChange {
         knob: "players".into(),
         support,
@@ -90,19 +201,9 @@ pub(crate) fn plan(entry: &Entry, cx: &Cx, players: &[Player]) -> (KnobChange, V
         }
         PlayersSupport::Adapter { adapter } => adapter.as_str(),
     };
-    let planned = match adapter {
-        "azahar" => azahar::players(cx, players),
-        "cemu" => cemu::players(cx, players),
-        "dolphin" => dolphin::players(cx, players),
-        "duckstation" => duckstation::players(cx, players),
-        "eden" => eden::players(cx, players),
-        "melonds" => melonds::players(cx, players),
-        "pcsx2" => pcsx2::players(cx, players),
-        "retroarch" => retroarch::players(cx, players),
-        "rpcs3" => rpcs3::players(cx, players),
-        "supermodel" => supermodel::players(cx, players),
-        "xemu" => xemu::players(cx, players),
-        other => Err(format!("no adapter named {other}")),
+    let planned = match ADAPTERS.iter().find(|a| a.name == adapter) {
+        Some(a) => (a.players)(cx, &Seating::new(players, connected)),
+        None => Err(format!("no adapter named {adapter}")),
     };
     match planned {
         Ok(b) => {
@@ -140,12 +241,32 @@ fn beyond(players: &[Player], ports: u8, name: &str) -> Option<String> {
 }
 
 /// The caveat for emulators that key a pad by SDL's GUID, which on Windows depends on the
-/// driver the pad comes through (XInput, HIDAPI, DirectInput), not on its USB identity alone.
-fn guid_note(os: Os) -> Option<String> {
-    (os == Os::Windows).then(|| {
+/// driver the pad comes through (XInput, HIDAPI, DirectInput), not on its USB identity alone:
+/// on Windows, for a seated pad whose GUID was not read from SDL.
+fn guid_note(os: Os, s: &Seating) -> Option<String> {
+    (os == Os::Windows && s.seats.iter().any(|p| p.pad.guid.is_none())).then(|| {
         "on Windows SDL derives a pad's GUID from the driver it comes through; the USB-derived \
          GUID is a best effort"
             .into()
+    })
+}
+
+/// The caveat for an emulator that binds a pad's raw button and axis numbers, laid out as the
+/// Xbox 360 pad's: a seated pad that is not one may number them otherwise (a DualSense SDL
+/// drives through HIDAPI does). Seats past `ports` are left out anyway.
+fn layout_note(emulator: &str, s: &Seating, ports: u8) -> Option<String> {
+    let other: Vec<String> = s
+        .seats
+        .iter()
+        .filter(|p| p.seat <= ports && !p.pad.xbox_layout())
+        .map(|p| p.seat.to_string())
+        .collect();
+    (!other.is_empty()).then(|| {
+        format!(
+            "{emulator} binds raw button numbers, laid out as the Xbox 360 pad's; the pad in \
+             seat {} may number them otherwise",
+            other.join(", ")
+        )
     })
 }
 
@@ -174,9 +295,9 @@ mod tests {
                 _ => None,
             })
             .collect();
-        for a in ADAPTERS {
+        for a in ADAPTERS.iter().map(|a| a.name) {
             assert_eq!(
-                named.iter().filter(|n| n == &a).count(),
+                named.iter().filter(|n| **n == a).count(),
                 1,
                 "adapter {a} must be named by one catalog entry"
             );

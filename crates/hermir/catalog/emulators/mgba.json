@@ -100,5 +100,31 @@
     "players": {
       "automatic": "mGBA maps SDL pads itself, in the order they appear"
     }
+  },
+  "saves": {
+    "*": [
+      {
+        "kind": "save",
+        "path": "{game}",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "ports.qt",
+          "key": "savegamePath"
+        },
+        "note": "beside each game (<game>.sav) unless a save folder is set"
+      },
+      {
+        "kind": "state",
+        "path": "{game}",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "ports.qt",
+          "key": "savestatePath"
+        },
+        "note": "beside each game (<game>.ss1 and on) unless a state folder is set"
+      }
+    ]
   }
 }

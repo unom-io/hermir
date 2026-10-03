@@ -1,0 +1,10 @@
+{
+  "patch": {
+    "audio": {
+      "latency_ms": 64
+    }
+  },
+  "expect": {
+    "audio.latency_ms": "partial"
+  }
+}

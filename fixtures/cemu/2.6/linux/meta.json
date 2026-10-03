@@ -1,0 +1,30 @@
+{
+  "emulator": "cemu",
+  "version": "2.6",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "info.cemu.Cemu",
+    "commit": "cbadbabac58e89f72a9dbd18b93ed19dbadf678f44412ffc8edb98e630ddec1f"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "settings.xml"
+  },
+  "oracle": {
+    "main": "xml"
+  },
+  "full_writer": false,
+  "created": [
+    "config/Cemu/settings.xml",
+    "data/Cemu/mlc01/sys/title/0005001b/1005c000/content/country.txt",
+    "data/Cemu/mlc01/sys/title/0005001b/1005c000/content/language.txt",
+    "data/Cemu/mlc01/usr/save/system/act/80000001/account.dat",
+    "data/Cemu/mlc01/usr/save/system/act/persisid.dat",
+    "data/Cemu/mlc01/usr/save/system/pdm/80000001/PlayDiary.dat",
+    "data/recently-used.xbel"
+  ]
+}

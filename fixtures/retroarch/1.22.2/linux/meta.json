@@ -1,0 +1,28 @@
+{
+  "emulator": "retroarch",
+  "version": "1.22.2",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "org.libretro.RetroArch",
+    "commit": "9c51e2bcb6f7f29ecb327ee057b273c5b59efc22d35026e90aef601bc0052752"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "retroarch.cfg"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": false,
+  "created": [
+    "config/retroarch/playlists/builtin/content_history.lpl",
+    "config/retroarch/playlists/builtin/content_image_history.lpl",
+    "config/retroarch/playlists/builtin/content_music_history.lpl",
+    "config/retroarch/playlists/builtin/content_video_history.lpl",
+    "config/retroarch/retroarch.cfg"
+  ]
+}

@@ -15,18 +15,21 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::model::{
-    Applied, ConfigFile, Entry, Install, KNOBS, Knob, KnobChange, Os, Patch, PlayersSupport,
-    PrepareStep, StepOutcome, Support,
+    Applied, ConfigFile, Entry, Install, KNOBS, Knob, KnobChange, KnobValue, Os, Patch,
+    PlayersSupport, PrepareStep, StepOutcome, Support,
 };
 pub(crate) use knobs::neutral_values;
-pub(crate) use txn::Edit;
+pub(crate) use txn::{Edit, write_atomic};
 pub use txn::{outstanding, revert};
 
-/// One copy, as the planners see it: the OS, the config root, the catalog's named files.
+/// One copy, as the planners see it: the OS, the config root, the catalog's named files, and
+/// the files a profile keeps elsewhere.
 pub(crate) struct Cx<'a> {
     pub os: Os,
     pub root: &'a Path,
     pub files: &'a BTreeMap<String, ConfigFile>,
+    /// Catalog file name → where a profile keeps it instead.
+    pub moved: BTreeMap<String, PathBuf>,
 }
 
 static NO_FILES: BTreeMap<String, ConfigFile> = BTreeMap::new();
@@ -38,6 +41,9 @@ impl Cx<'_> {
             .files
             .get(name)
             .ok_or_else(|| format!("the catalog names no `{name}` file"))?;
+        if let Some(at) = self.moved.get(name) {
+            return Ok((at.clone(), f));
+        }
         let rel = f
             .path
             .get(self.os)
@@ -54,6 +60,22 @@ pub(crate) fn resolve(root: &Path, rel: &str) -> PathBuf {
     {
         Some(rest) => settings_dir(root).join(rest),
         None => root.join(rel),
+    }
+}
+
+/// The data directory that goes with a config root, `settings_dir` the other way round:
+/// `~/.local/share/<x>` for `~/.config/<x>`, a Flatpak's `…/data/<x>` for its `…/config/<x>`,
+/// and the root itself when it is not a config root (Windows, portable copies).
+pub fn data_dir(root: &Path) -> PathBuf {
+    let Some(name) = root.file_name() else {
+        return root.to_path_buf();
+    };
+    let parent = root.parent();
+    let named = |n: &str| parent.and_then(Path::file_name).is_some_and(|d| d == n);
+    match parent.and_then(Path::parent) {
+        Some(base) if named("config") => base.join("data").join(name),
+        Some(home) if named(".config") => home.join(".local").join("share").join(name),
+        _ => root.to_path_buf(),
     }
 }
 
@@ -81,10 +103,20 @@ pub fn settings_dir(root: &Path) -> PathBuf {
 
 /// Writes `patch` into `install`'s files, every file snapshotted under `snapshots/<id>/` before
 /// its first edit (see [`revert`]). One `KnobChange` per knob asked for, one step per file.
-pub fn apply(entry: &Entry, os: Os, install: &Install, patch: &Patch, snapshots: &Path) -> Applied {
+/// Writes `patch` into this copy, or into its profile at `profile` (a folder) where the
+/// entry has profiles: see [`Cx::moved`].
+pub fn apply(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    profile: Option<&Path>,
+    patch: &Patch,
+    snapshots: &Path,
+) -> Applied {
     let Some(root) = install.config_root.as_deref() else {
         return Applied {
             emulator: entry.id.clone(),
+            note: None,
             knobs: Vec::new(),
             steps: vec![PrepareStep {
                 kind: "config".into(),
@@ -94,44 +126,175 @@ pub fn apply(entry: &Entry, os: Os, install: &Install, patch: &Patch, snapshots:
             }],
         };
     };
-    let files = entry.config.as_ref().map_or(&NO_FILES, |c| &c.files);
-    let cx = Cx { os, root, files };
-    let (mut knobs, mut edits) = knobs::plan(entry, &cx, patch);
+    let cx = cx(entry, os, root, profile);
+    let mut planned = knobs::plan(entry, &cx, patch);
     if let Some(players) = &patch.players {
-        let (change, more) = adapters::plan(entry, &cx, players);
-        knobs.push(change);
-        edits.extend(more);
+        planned.push(adapters::plan(
+            entry,
+            &cx,
+            players,
+            patch.connected.as_deref(),
+        ));
     }
     for n in &patch.native {
         let knob = format!("native:{}:{}", n.file, n.key);
-        match cx.file(&n.file) {
-            Ok((path, f)) => {
-                edits.extend(Edit::set(&path, f, &n.section, &n.key, &n.value));
-                knobs.push(KnobChange {
+        planned.push(match cx.file(&n.file) {
+            Ok((path, f)) => (
+                KnobChange {
                     knob,
                     support: Support::Applied,
                     note: None,
-                    file: Some(path),
-                });
-            }
-            Err(why) => knobs.push(KnobChange {
-                knob,
-                support: Support::Unsupported,
-                note: Some(why),
-                file: None,
-            }),
-        }
+                    file: Some(path.clone()),
+                },
+                Edit::set(&path, f, &n.section, &n.key, &n.value),
+            ),
+            Err(why) => (
+                KnobChange {
+                    knob,
+                    support: Support::Unsupported,
+                    note: Some(why),
+                    file: None,
+                },
+                Vec::new(),
+            ),
+        });
     }
+    let edits: Vec<Edit> = planned
+        .iter()
+        .flat_map(|(_, e)| e.iter().cloned())
+        .collect();
     let steps = if edits.is_empty() {
         Vec::new()
     } else {
         txn::apply_edits(snapshots, &entry.id, &edits)
     };
+    // A knob is what became of its files: one whose write failed says so, with the reason.
+    let knobs = planned
+        .into_iter()
+        .map(|(mut change, edits)| {
+            if let Some(failed) = steps.iter().find(|s| {
+                s.outcome == StepOutcome::Failed && edits.iter().any(|e| e.file() == s.target)
+            }) {
+                change.support = Support::Failed;
+                change.note = Some(match &failed.note {
+                    Some(why) => format!("{}: {why}", failed.target.display()),
+                    None => format!("{} could not be written", failed.target.display()),
+                });
+            }
+            change
+        })
+        .collect();
     Applied {
         emulator: entry.id.clone(),
+        note: None,
         knobs,
         steps,
     }
+}
+
+/// The planners' view of a copy, its profile's files moved where the profile keeps them.
+fn cx<'a>(entry: &'a Entry, os: Os, root: &'a Path, profile: Option<&Path>) -> Cx<'a> {
+    let files = entry.config.as_ref().map_or(&NO_FILES, |c| &c.files);
+    let moved = match (profile, &entry.profile) {
+        (Some(dir), Some(p)) => p
+            .files
+            .iter()
+            .map(|(name, rel)| (name.clone(), dir.join(rel)))
+            .collect(),
+        _ => BTreeMap::new(),
+    };
+    Cx {
+        os,
+        root,
+        files,
+        moved,
+    }
+}
+
+/// Makes the profile at `dir`: each file it keeps, copied from the player's own (or left to the
+/// emulator's defaults when `fresh` or when the player has none). A file the profile already
+/// has stays. One step per file.
+pub fn seed_profile(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    dir: &Path,
+    fresh: bool,
+) -> Result<Vec<PrepareStep>, String> {
+    let p = entry
+        .profile
+        .as_ref()
+        .ok_or_else(|| format!("{} has no profiles", entry.id))?;
+    let root = install
+        .config_root
+        .as_deref()
+        .ok_or("the catalog does not know where this copy keeps its config")?;
+    let own = cx(entry, os, root, None);
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let mut steps = Vec::new();
+    for (name, rel) in &p.files {
+        let to = dir.join(rel);
+        let step = |outcome, note: Option<String>| PrepareStep {
+            kind: "profile".into(),
+            target: to.clone(),
+            outcome,
+            note,
+        };
+        if to.exists() {
+            steps.push(step(StepOutcome::Present, None));
+            continue;
+        }
+        let (from, _) = own.file(name)?;
+        if fresh || !from.is_file() {
+            steps.push(step(
+                StepOutcome::Skipped,
+                Some("the emulator writes its defaults here on its first start".into()),
+            ));
+            continue;
+        }
+        let copied = std::fs::read(&from).and_then(|bytes| write_atomic(&to, &bytes));
+        steps.push(match copied {
+            Ok(()) => step(
+                StepOutcome::Applied,
+                Some(format!("from {}", from.display())),
+            ),
+            Err(e) => step(StepOutcome::Failed, Some(e.to_string())),
+        });
+    }
+    Ok(steps)
+}
+
+/// What this copy's files hold for each knob, back in the neutral spelling: what `apply`
+/// would write, read the other way. `Err` when the catalog does not know where it keeps them.
+pub fn get(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    profile: Option<&Path>,
+) -> Result<Vec<KnobValue>, String> {
+    let root = install
+        .config_root
+        .as_deref()
+        .ok_or("the catalog does not know where this copy keeps its config")?;
+    Ok(knobs::read(entry, &cx(entry, os, root, profile)))
+}
+
+/// What `key` in `section` of the catalog's `file` holds in this copy, as the file spells it.
+pub fn get_native(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    file: &str,
+    section: &str,
+    key: &str,
+) -> Result<Option<String>, String> {
+    let root = install
+        .config_root
+        .as_deref()
+        .ok_or("the catalog does not know where this copy keeps its config")?;
+    let cx = cx(entry, os, root, None);
+    let (path, f) = cx.file(file)?;
+    txn::read(&path, f, section, key)
 }
 
 /// What `apply` can do for this emulator, knob by knob, from the catalog and the adapters:
@@ -143,9 +306,16 @@ pub fn support(entry: &Entry) -> Vec<KnobChange> {
         .iter()
         .map(|&name| {
             let (support, note) = match cfg.and_then(|c| c.knobs.get(name)) {
+                None | Some(Knob::Unsupported { .. }) if name == "audio.device" => (
+                    Support::Partial,
+                    Some(format!("on Linux only; {}", knobs::PULSE_SINK)),
+                ),
                 None => (Support::Unsupported, not_described()),
                 Some(Knob::Unsupported { unsupported }) => {
                     (Support::Unsupported, Some(unsupported.clone()))
+                }
+                Some(Knob::Launch { note, .. }) => {
+                    (Support::Applied, Some(knobs::on_launch(note.as_deref())))
                 }
                 Some(Knob::Bound(b)) => {
                     let mut notes: Vec<String> = b.note.iter().cloned().collect();
@@ -165,6 +335,9 @@ pub fn support(entry: &Entry) -> Vec<KnobChange> {
                         if (min, max) != (1, 8) {
                             notes.push(format!("{min}×–{max}×"));
                         }
+                    }
+                    if let Some([lo, hi]) = b.range {
+                        notes.push(format!("{lo}–{hi} ms"));
                     }
                     if notes.is_empty() {
                         (Support::Applied, None)
@@ -251,7 +424,14 @@ mod tests {
     }
 
     fn run(c: &Catalog, id: &str, os: Os, root: &Path, patch: &Patch, snaps: &Path) -> Applied {
-        apply(c.get(id).unwrap(), os, &install(id, root), patch, snaps)
+        apply(
+            c.get(id).unwrap(),
+            os,
+            &install(id, root),
+            None,
+            patch,
+            snaps,
+        )
     }
 
     fn knob<'a>(a: &'a Applied, name: &str) -> &'a KnobChange {
@@ -322,7 +502,7 @@ mod tests {
                 .iter()
                 .all(|s| s.outcome == StepOutcome::Present)
         );
-        let r = revert(&snaps, "eden");
+        let r = revert(&snaps, "eden", false);
         assert_eq!(r.len(), 1);
         assert_eq!(read(&cfg), seed);
         assert!(outstanding(&snaps).is_empty());
@@ -369,7 +549,7 @@ mod tests {
         );
         assert!(!a.failed());
         assert!(
-            revert(&snaps, "pcsx2")
+            revert(&snaps, "pcsx2", false)
                 .iter()
                 .all(|s| s.outcome == StepOutcome::Applied)
         );
@@ -476,11 +656,280 @@ mod tests {
         );
         // A file that was not there before revert goes away with it.
         assert!(
-            revert(&snaps, "melonds")
+            revert(&snaps, "melonds", false)
                 .iter()
                 .all(|s| s.outcome == StepOutcome::Applied)
         );
         assert!(!tmp.path().join("melonds/melonDS.toml").exists());
+    }
+
+    fn audio(device: Option<&str>, latency_ms: Option<u32>) -> Patch {
+        Patch {
+            audio: Some(crate::model::Audio {
+                device: device.map(String::from),
+                latency_ms,
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn audio_goes_where_each_emulator_keeps_it_and_reads_back() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let snaps = tmp.path().join("snaps");
+        let sink = "alsa_output.pci-0000_00_1f.3.analog-stereo";
+        let patch = audio(Some(sink), Some(40));
+        let root = tmp.path().join("pcsx2");
+        let p = run(&c, "pcsx2", Os::Linux, &root, &patch, &snaps);
+        assert_eq!(knob(&p, "audio.device").support, Support::Applied);
+        assert_eq!(knob(&p, "audio.latency_ms").support, Support::Applied);
+        let ini = read(&root.join("inis/PCSX2.ini"));
+        assert!(ini.contains(&format!("DeviceName = {sink}\n")), "{ini}");
+        assert!(
+            ini.contains("OutputLatencyMS = 40\nOutputLatencyMinimal = false\n"),
+            "{ini}"
+        );
+        let got = get(
+            c.get("pcsx2").unwrap(),
+            Os::Linux,
+            &install("pcsx2", &root),
+            None,
+        )
+        .unwrap();
+        let value = |k: &str| got.iter().find(|v| v.knob == k).unwrap().value.clone();
+        assert_eq!(value("audio.device").as_deref(), Some(sink));
+        assert_eq!(value("audio.latency_ms").as_deref(), Some("40"));
+        // `default` is the emulator's own spelling of it.
+        run(
+            &c,
+            "pcsx2",
+            Os::Linux,
+            &root,
+            &audio(Some("default"), None),
+            &snaps,
+        );
+        assert!(read(&root.join("inis/PCSX2.ini")).contains("DeviceName = \n"));
+        let got = get(
+            c.get("pcsx2").unwrap(),
+            Os::Linux,
+            &install("pcsx2", &root),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            got.iter()
+                .find(|v| v.knob == "audio.device")
+                .unwrap()
+                .value
+                .as_deref(),
+            Some("default")
+        );
+
+        // RetroArch quotes; RPCS3 has a range.
+        let root = tmp.path().join("retroarch");
+        run(&c, "retroarch", Os::Linux, &root, &patch, &snaps);
+        let cfg = read(&root.join("retroarch.cfg"));
+        assert!(
+            cfg.contains(&format!("audio_device = \"{sink}\"\n")),
+            "{cfg}"
+        );
+        assert!(cfg.contains("audio_latency = \"40\"\n"), "{cfg}");
+        let root = tmp.path().join("rpcs3");
+        let p = run(
+            &c,
+            "rpcs3",
+            Os::Linux,
+            &root,
+            &audio(None, Some(1000)),
+            &snaps,
+        );
+        let k = knob(&p, "audio.latency_ms");
+        assert_eq!(k.support, Support::Unsupported);
+        assert!(k.note.as_deref().unwrap().contains("4–250"), "{k:?}");
+
+        // No device setting: on Linux the launch carries it; elsewhere nothing does.
+        let root = tmp.path().join("dolphin");
+        let p = run(&c, "dolphin", Os::Linux, &root, &patch, &snaps);
+        let k = knob(&p, "audio.device");
+        assert_eq!(k.support, Support::Partial);
+        assert!(k.note.as_deref().unwrap().contains("PULSE_SINK"));
+        assert_eq!(knob(&p, "audio.latency_ms").support, Support::Unsupported);
+        let p = run(&c, "dolphin", Os::Windows, &root, &patch, &snaps);
+        assert_eq!(knob(&p, "audio.device").support, Support::Unsupported);
+    }
+
+    #[test]
+    fn an_audio_device_that_would_break_the_line_or_the_quotes_is_refused() {
+        for bad in ["", "a\nb", "say \"hi\"", "C:\\x"] {
+            assert!(audio(Some(bad), None).validate().is_err(), "{bad:?}");
+        }
+        assert!(audio(Some("default"), Some(64)).validate().is_ok());
+    }
+
+    /// A DualSense at SDL index 0 and an Xbox pad at 1, the Xbox pad seated alone.
+    fn behind_a_dualsense() -> (Vec<Player>, Vec<PadRef>) {
+        let dualsense = PadRef {
+            name: "Sony Interactive Entertainment DualSense Wireless Controller".into(),
+            vendor: 0x054c,
+            product: 0x0ce6,
+            version: 0x8111,
+            guid: Some("0300f8d24c050000e60c000000016800".into()),
+            gamepad_name: Some("DualSense Wireless Controller".into()),
+            ..PadRef::xbox360(0)
+        };
+        let xbox = PadRef::xbox360(1);
+        (
+            vec![Player {
+                seat: 1,
+                pad: xbox.clone(),
+            }],
+            vec![dualsense, xbox],
+        )
+    }
+
+    #[test]
+    fn a_pad_is_numbered_among_the_pads_of_its_name_or_guid_not_by_its_index() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let snaps = tmp.path().join("snaps");
+        let (seated, connected) = behind_a_dualsense();
+        let patch = Patch {
+            players: Some(seated.clone()),
+            connected: Some(connected.clone()),
+            ..Default::default()
+        };
+        let az_cfg = tmp.path().join("azahar/qt-config.ini");
+        std::fs::create_dir_all(az_cfg.parent().unwrap()).unwrap();
+        std::fs::write(&az_cfg, "[Controls]\nprofile=0\n").unwrap();
+        for id in ["rpcs3", "dolphin", "eden", "azahar", "cemu", "duckstation"] {
+            let root = tmp.path().join(id);
+            let p = run(&c, id, Os::Linux, &root, &patch, &snaps);
+            assert_eq!(knob(&p, "players").support, Support::Applied, "{id}: {p:?}");
+        }
+        // The review's case: the Xbox pad is the first of its name, whatever comes before it.
+        let yml = read(&tmp.path().join("rpcs3/input_configs/global/Default.yml"));
+        assert!(
+            yml.contains("Player 1 Input:\n  Handler: SDL\n  Device: \"Xbox 360 Controller 1\"\n"),
+            "{yml}"
+        );
+        let gc = read(&tmp.path().join("dolphin/GCPadNew.ini"));
+        assert!(gc.contains("[GCPad1]\nDevice = evdev/0/Microsoft X-Box 360 pad\n"));
+        let eden = read(&tmp.path().join("eden/qt-config.ini"));
+        assert!(
+            eden.contains("guid:030000005e0400008e02000010010000,port:0,button:1"),
+            "{eden}"
+        );
+        assert!(read(&az_cfg).contains("guid:030081b85e0400008e02000010010000,port:0"));
+        let cemu = read(&tmp.path().join("cemu/controllerProfiles/controller0.xml"));
+        assert!(cemu.contains("<uuid>0_030081b85e0400008e02000010010000</uuid>"));
+        // The emulators that take SDL's index still take it.
+        let ds = read(&tmp.path().join("duckstation/settings.ini"));
+        assert!(
+            ds.contains("[Pad1]\nType = AnalogController\nUp = SDL-1/DPadUp\n"),
+            "{ds}"
+        );
+
+        // Seating the DualSense uses what SDL said about it, GUID and name.
+        let patch = Patch {
+            players: Some(vec![Player {
+                seat: 1,
+                pad: PadRef {
+                    name: "anything".into(),
+                    ..PadRef::xbox360(0)
+                },
+            }]),
+            connected: Some(connected),
+            ..Default::default()
+        };
+        let root = tmp.path().join("rpcs3-ds");
+        run(&c, "rpcs3", Os::Linux, &root, &patch, &snaps);
+        let yml = read(&root.join("input_configs/global/Default.yml"));
+        assert!(
+            yml.contains("Device: \"DualSense Wireless Controller 1\"\n"),
+            "{yml}"
+        );
+        let root = tmp.path().join("cemu-ds");
+        run(&c, "cemu", Os::Windows, &root, &patch, &snaps);
+        let xml = read(&root.join("controllerProfiles/controller0.xml"));
+        assert!(xml.contains("<uuid>0_0300f8d24c050000e60c000000016800</uuid>"));
+        let p = run(&c, "cemu", Os::Windows, &root, &patch, &snaps);
+        assert_eq!(
+            knob(&p, "players").support,
+            Support::Applied,
+            "a GUID read from SDL is no guess, on Windows either"
+        );
+    }
+
+    #[test]
+    fn without_the_connected_pads_a_gap_below_a_seated_pad_is_a_guess_and_says_so() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let snaps = tmp.path().join("snaps");
+        let (seated, _) = behind_a_dualsense();
+        for id in ["rpcs3", "dolphin", "eden", "cemu"] {
+            let root = tmp.path().join(id);
+            let p = run(&c, id, Os::Linux, &root, &players(seated.clone()), &snaps);
+            let k = knob(&p, "players");
+            assert_eq!(k.support, Support::Partial, "{id}");
+            assert!(
+                k.note.as_deref().unwrap().contains("not seated"),
+                "{id}: {k:?}"
+            );
+        }
+        // Index-keyed emulators have nothing to guess.
+        let root = tmp.path().join("pcsx2");
+        let p = run(&c, "pcsx2", Os::Linux, &root, &players(seated), &snaps);
+        assert_eq!(knob(&p, "players").support, Support::Applied);
+        // Pads 0 and 1 both seated: nothing below them is unknown.
+        let two = vec![
+            Player {
+                seat: 1,
+                pad: PadRef::xbox360(1),
+            },
+            Player {
+                seat: 2,
+                pad: PadRef::xbox360(0),
+            },
+        ];
+        let root = tmp.path().join("rpcs3-two");
+        let p = run(&c, "rpcs3", Os::Linux, &root, &players(two), &snaps);
+        assert_eq!(knob(&p, "players").support, Support::Applied);
+        let yml = read(&root.join("input_configs/global/Default.yml"));
+        assert!(
+            yml.contains("Player 1 Input:\n  Handler: SDL\n  Device: \"Xbox 360 Controller 2\"\n")
+        );
+    }
+
+    #[test]
+    fn a_connected_list_must_hold_every_seated_pad_once() {
+        let (seated, mut connected) = behind_a_dualsense();
+        let ok = Patch {
+            players: Some(seated.clone()),
+            connected: Some(connected.clone()),
+            ..Default::default()
+        };
+        assert!(ok.validate().is_ok());
+        connected.truncate(1);
+        let missing = Patch {
+            connected: Some(connected.clone()),
+            ..ok.clone()
+        };
+        assert!(missing.validate().unwrap_err().contains("index 1"));
+        connected.push(PadRef::xbox360(0));
+        let twice = Patch {
+            connected: Some(connected),
+            ..ok.clone()
+        };
+        assert!(twice.validate().unwrap_err().contains("index 0"));
+        let mut bad = seated;
+        bad[0].pad.guid = Some("not a guid".into());
+        let bad = Patch {
+            players: Some(bad),
+            connected: None,
+            ..ok
+        };
+        assert!(bad.validate().unwrap_err().contains("32 hex digits"));
     }
 
     #[test]
@@ -605,9 +1054,14 @@ mod tests {
 
         let cemu = tmp.path().join("cemu");
         let a = run(&c, "cemu", Os::Linux, &cemu, &everything(), &snaps);
-        for k in ["video.fullscreen", "video.scale", "region"] {
+        for k in ["video.scale", "region"] {
             assert_eq!(knob(&a, k).support, Support::Unsupported, "{k}");
         }
+        // Cemu keeps no start-fullscreen setting: its `-f` goes on the launch command.
+        let full = knob(&a, "video.fullscreen");
+        assert_eq!(full.support, Support::Applied);
+        assert!(full.note.as_deref().unwrap().starts_with("on launch"));
+        assert_eq!(full.file, None);
         assert_eq!(
             read(&cemu.join("settings.xml")),
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<content>\n\t<Graphic>\n\t\t<VSync>1</VSync>\n\t\t<FullscreenScaling>0</FullscreenScaling>\n\t</Graphic>\n</content>\n"
@@ -704,7 +1158,7 @@ mod tests {
         assert!(k.note.as_deref().unwrap().contains("OpenGL"));
         assert!(read(&melon.join("melonDS.toml")).contains("[3D.GL]\nScaleFactor = 2\n"));
         assert!(read(&melon.join("melonDS.toml")).contains("[3D]\nRenderer = 1\n"));
-        assert_eq!(knob(&a, "video.fullscreen").support, Support::Unsupported);
+        assert_eq!(knob(&a, "video.fullscreen").support, Support::Applied);
 
         let duck = tmp.path().join("duckstation");
         run(&c, "duckstation", Os::Linux, &duck, &everything(), &snaps);
@@ -805,6 +1259,7 @@ mod tests {
             c.get("pcsx2").unwrap(),
             Os::Linux,
             &no_root,
+            None,
             &everything(),
             &snaps,
         );

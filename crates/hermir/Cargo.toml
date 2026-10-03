@@ -19,11 +19,37 @@ serde_json.workspace = true
 schemars.workspace = true
 thiserror.workspace = true
 sha2 = "0.11"
-ureq = "3"
+ureq = { version = "3", features = ["platform-verifier"] }
 zip = { version = "8", default-features = false, features = ["deflate", "zstd", "lzma"] }
 sevenz-rust2 = { version = "0.23", default-features = false, features = ["ppmd", "util"] }
 tar = "0.4"
 flate2 = "1"
+# `enumerate`: pads as SDL sees them. SDL is zlib-licensed.
+sdl3 = { version = "0.20", default-features = false, optional = true }
+sdl3-sys = { version = "0.7", optional = true }
+
+[features]
+# `pads::enumerate`, through the system's SDL 3 (distribution packages).
+enumerate = ["dep:sdl3", "dep:sdl3-sys"]
+# The same with SDL 3 built from source and linked in, joysticks only (release binaries): needs
+# CMake and a C compiler.
+enumerate-static = [
+    "enumerate",
+    "sdl3/build-from-source-static",
+    "sdl3-sys/sdl-unix-console-build",
+    "sdl3-sys/no-sdl-audio",
+    "sdl3-sys/no-sdl-video",
+    "sdl3-sys/no-sdl-gpu",
+    "sdl3-sys/no-sdl-render",
+    "sdl3-sys/no-sdl-camera",
+    "sdl3-sys/no-sdl-dialog",
+    "sdl3-sys/no-sdl-tray",
+    "sdl3-sys/no-sdl-haptic",
+    "sdl3-sys/no-sdl-power",
+]
 
 [dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3"
+# The writer, to build hostile 7z archives in tests.
+sevenz-rust2 = { version = "0.23", default-features = false, features = ["compress"] }

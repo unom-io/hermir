@@ -1,0 +1,21 @@
+{
+  "patch": {
+    "players": [
+      {
+        "seat": 1,
+        "pad": {
+          "name": "Microsoft X-Box 360 pad",
+          "bus": 3,
+          "vendor": 1118,
+          "product": 654,
+          "version": 272,
+          "index": 0
+        }
+      }
+    ]
+  },
+  "expect": {
+    "players": "partial"
+  },
+  "may_touch": []
+}

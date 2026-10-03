@@ -1,0 +1,54 @@
+Player 1 Input:
+  Handler: SDL
+  Device: "Xbox 360 Controller 1"
+  Config:
+    Left Stick Left: LS X-
+    Left Stick Down: LS Y-
+    Left Stick Right: LS X+
+    Left Stick Up: LS Y+
+    Right Stick Left: RS X-
+    Right Stick Down: RS Y-
+    Right Stick Right: RS X+
+    Right Stick Up: RS Y+
+    Start: Start
+    Select: Back
+    PS Button: Guide
+    Square: West
+    Cross: South
+    Circle: East
+    Triangle: North
+    Left: Left
+    Down: Down
+    Right: Right
+    Up: Up
+    R1: RB
+    R2: RT
+    R3: RS
+    L1: LB
+    L2: LT
+    L3: LS
+  Buddy Device: "Null"
+Player 2 Input:
+  Handler: Null
+  Device: "Null"
+  Buddy Device: "Null"
+Player 3 Input:
+  Handler: Null
+  Device: "Null"
+  Buddy Device: "Null"
+Player 4 Input:
+  Handler: Null
+  Device: "Null"
+  Buddy Device: "Null"
+Player 5 Input:
+  Handler: Null
+  Device: "Null"
+  Buddy Device: "Null"
+Player 6 Input:
+  Handler: Null
+  Device: "Null"
+  Buddy Device: "Null"
+Player 7 Input:
+  Handler: Null
+  Device: "Null"
+  Buddy Device: "Null"

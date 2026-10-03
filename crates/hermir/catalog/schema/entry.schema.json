@@ -5,6 +5,7 @@
       "description": "A key written alongside a knob. `value` is a literal, with `{value}` standing for the\nknob's own rendered value; `bool` and `values` spell the knob's neutral value for this key.",
       "properties": {
         "bool": {
+          "description": "The knob's true and false, as this key spells them.",
           "items": {
             "type": "string"
           },
@@ -23,6 +24,7 @@
           ]
         },
         "key": {
+          "description": "The key.",
           "type": "string"
         },
         "section": {
@@ -33,6 +35,7 @@
           ]
         },
         "value": {
+          "description": "A literal, `{value}` standing for the knob's rendered value.",
           "type": [
             "string",
             "null"
@@ -42,6 +45,7 @@
           "additionalProperties": {
             "type": "string"
           },
+          "description": "The knob's neutral values, as this key spells them.",
           "type": [
             "object",
             "null"
@@ -57,8 +61,10 @@
       "anyOf": [
         {
           "additionalProperties": false,
+          "description": "Exactly this asset name.",
           "properties": {
             "name": {
+              "description": "The name.",
               "type": "string"
             }
           },
@@ -69,14 +75,17 @@
         },
         {
           "additionalProperties": false,
+          "description": "Every `all` substring and none of `none`.",
           "properties": {
             "all": {
+              "description": "Substrings the name must hold.",
               "items": {
                 "type": "string"
               },
               "type": "array"
             },
             "none": {
+              "description": "Substrings it must not.",
               "items": {
                 "type": "string"
               },
@@ -93,7 +102,7 @@
     },
     "Binding": {
       "additionalProperties": false,
-      "description": "One knob bound to one key, with the spelling the emulator expects. Exactly one of `bool`,\n`values` and `scale` is present, by the knob's type: `bool` for `video.fullscreen` and\n`video.vsync`, `values` for `video.aspect` and `region`, `scale` for `video.scale`.",
+      "description": "One knob bound to one key, with the spelling the emulator expects, by the knob's type:\n`bool` for `video.fullscreen` and `video.vsync`, `values` for `video.aspect` and `region`,\n`scale` for `video.scale`, `text` for `audio.device` (with `values` for `default`) and\n`audio.latency_ms` (with a `range`).",
       "properties": {
         "also": {
           "description": "Keys written alongside every write of this knob (the renderer a scale needs, a second\naxis, a mode string beside a flag).",
@@ -119,12 +128,27 @@
           "type": "string"
         },
         "key": {
+          "description": "The key itself.",
           "type": "string"
         },
         "note": {
           "description": "A caveat that makes the knob partial: it is written, and this is what to know.",
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "range": {
+          "description": "`audio.latency_ms`: the milliseconds the emulator takes, lowest and highest.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
             "null"
           ]
         },
@@ -136,10 +160,19 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "How `video.scale`'s multiple is spelled."
         },
         "section": {
+          "description": "The section (INI), the key path above the key (YAML, XML), or the object under the root\n(JSON); empty for the top level.",
           "type": "string"
+        },
+        "text": {
+          "description": "`audio.device` and `audio.latency_ms`: the literal, `{value}` standing for the device's\nname or the milliseconds (`\"\\\"{value}\\\"\"` where the format quotes). `values` may spell\nthe device `default` otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "values": {
           "additionalProperties": {
@@ -162,9 +195,10 @@
       "anyOf": [
         {
           "additionalProperties": false,
-          "description": "`flatpak install --user flathub <id>`.",
+          "description": "`flatpak install --user flathub <id>`.\nThe Flathub app id.",
           "properties": {
             "flatpak": {
+              "description": "The Flathub app id.",
               "type": "string"
             }
           },
@@ -178,13 +212,15 @@
           "description": "The latest GitHub release of `owner/repo`, one asset of it, extracted into the prefix.",
           "properties": {
             "asset": {
-              "$ref": "#/$defs/AssetFilter"
+              "$ref": "#/$defs/AssetFilter",
+              "description": "Which asset of the latest release."
             },
             "exe": {
               "description": "Path of the executable inside the extracted tree.",
               "type": "string"
             },
             "github": {
+              "description": "`owner/repo`.",
               "type": "string"
             },
             "portable": {
@@ -195,7 +231,8 @@
                 {
                   "type": "null"
                 }
-              ]
+              ],
+              "description": "What makes the copy keep its files beside the exe."
             }
           },
           "required": [
@@ -210,6 +247,7 @@
           "description": "A fixed URL, for projects without GitHub releases. Bumped by catalog PRs.",
           "properties": {
             "exe": {
+              "description": "Path of the executable inside the extracted tree.",
               "type": "string"
             },
             "portable": {
@@ -220,19 +258,22 @@
                 {
                   "type": "null"
                 }
-              ]
+              ],
+              "description": "What makes the copy keep its files beside the exe."
             },
             "sha256": {
-              "description": "Hex sha256 of the file when the project publishes one; otherwise hermir records the\ndigest it saw and says so.",
+              "description": "Hex sha256 of the file, bumped with `version` in the same reviewed PR. Validation\nrejects a `url` channel without one.",
               "type": [
                 "string",
                 "null"
               ]
             },
             "url": {
+              "description": "The download.",
               "type": "string"
             },
             "version": {
+              "description": "The version it is, bumped with the URL.",
               "type": "string"
             }
           },
@@ -282,8 +323,13 @@
       "additionalProperties": false,
       "description": "One settings file of an emulator.",
       "properties": {
+        "case_insensitive": {
+          "description": "INI: the emulator matches section and key names whatever their case (Dolphin), so a\nfile that spells `[ui]` is edited there rather than given a second `[UI]`.",
+          "type": "boolean"
+        },
         "format": {
-          "$ref": "#/$defs/Format"
+          "$ref": "#/$defs/Format",
+          "description": "How the file is edited."
         },
         "path": {
           "$ref": "#/$defs/FilePath",
@@ -341,10 +387,12 @@
     "FilePath": {
       "anyOf": [
         {
+          "description": "One path on every OS.",
           "type": "string"
         },
         {
-          "$ref": "#/$defs/PerOs4"
+          "$ref": "#/$defs/PerOs4",
+          "description": "A path per OS."
         }
       ],
       "description": "A path for every OS, or one per OS."
@@ -370,6 +418,13 @@
             }
           ],
           "description": "The emulator's own installer, for firmware that is not loose files."
+        },
+        "keys": {
+          "description": "Firmware the emulator reads from paths its settings name, one key per file, rather than\nfrom a folder (xemu's MCPX boot ROM, flash BIOS and hard-disk image): each file is\ncopied into `dir` and its key pointed at it, unless the key names a file already there.",
+          "items": {
+            "$ref": "#/$defs/FirmwareKey"
+          },
+          "type": "array"
         },
         "platforms": {
           "additionalProperties": {
@@ -415,8 +470,57 @@
       ],
       "type": "object"
     },
+    "FirmwareKey": {
+      "additionalProperties": false,
+      "description": "One firmware file the emulator finds through a key of its settings.",
+      "properties": {
+        "any_of": {
+          "description": "File name patterns: the first file given that matches, and that no key before this\none took.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ini": {
+          "description": "The ini (or flat TOML) file, under the config root.",
+          "type": "string"
+        },
+        "key": {
+          "description": "The key.",
+          "type": "string"
+        },
+        "note": {
+          "description": "What the file is, in a phrase a UI shows.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "optional": {
+          "description": "The emulator also runs without it.",
+          "type": "boolean"
+        },
+        "section": {
+          "description": "The section.",
+          "type": "string"
+        },
+        "value": {
+          "description": "The value, `{path}` standing for the file's absolute path (`'{path}'` in TOML).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ini",
+        "section",
+        "key",
+        "any_of",
+        "value"
+      ],
+      "type": "object"
+    },
     "FirmwareNeed": {
       "additionalProperties": false,
+      "description": "What satisfies one platform's firmware need.",
       "properties": {
         "any_of": {
           "description": "File name patterns (`*.bin`, `scph*.bin`); one match is enough.",
@@ -476,15 +580,19 @@
           "description": "`key` in `[section]` of an ini (or flat TOML) file, set to `value` in place. The file and\nsection are created when missing; every other line stays as it was. `{root}` in `value`\nis the config root's absolute path.",
           "properties": {
             "ini": {
+              "description": "The file, under the config root.",
               "type": "string"
             },
             "key": {
+              "description": "The key.",
               "type": "string"
             },
             "section": {
+              "description": "The section.",
               "type": "string"
             },
             "value": {
+              "description": "The value, `{root}` standing for the config root's absolute path.",
               "type": "string"
             },
             "when_unset": {
@@ -502,12 +610,14 @@
         },
         {
           "additionalProperties": false,
-          "description": "A file written only when it does not exist yet: the emulator's own first-run check.",
+          "description": "A file written only when it does not exist yet: the emulator's own first-run check.\n`content` written to `seed` (under the config root) unless it exists.",
           "properties": {
             "content": {
+              "description": "What it holds.",
               "type": "string"
             },
             "seed": {
+              "description": "The file, under the config root.",
               "type": "string"
             }
           },
@@ -519,9 +629,10 @@
         },
         {
           "additionalProperties": false,
-          "description": "A folder under the config root that must exist before the emulator writes into it.",
+          "description": "A folder under the config root that must exist before the emulator writes into it.\nA folder made under the config root.",
           "properties": {
             "dir": {
+              "description": "The folder, under the config root.",
               "type": "string"
             }
           },
@@ -532,12 +643,14 @@
         },
         {
           "additionalProperties": false,
-          "description": "A file the emulator ships beside its exe, copied under the config root once (data an\nemulator refuses to start without). Only a copy hermir placed has an exe to copy from.",
+          "description": "A file the emulator ships beside its exe, copied under the config root once (data an\nemulator refuses to start without). Only a copy hermir placed has an exe to copy from.\n`copy` (beside the exe) copied to `to` (under the config root) unless it exists.",
           "properties": {
             "copy": {
+              "description": "The file, relative to the exe's folder.",
               "type": "string"
             },
             "to": {
+              "description": "Where it goes, under the config root.",
               "type": "string"
             }
           },
@@ -592,6 +705,7 @@
           "description": "The emulator has no such setting; the note is what a UI shows.",
           "properties": {
             "unsupported": {
+              "description": "Why, in a phrase a UI shows.",
               "type": "string"
             }
           },
@@ -601,21 +715,51 @@
           "type": "object"
         },
         {
-          "$ref": "#/$defs/Binding"
+          "additionalProperties": false,
+          "description": "The emulator takes the setting only as a launch flag: `video.fullscreen` through the\nlaunch template's `{fullscreen:…}`. `apply` reports it applied on launch; `launch`\nrenders it from the request's patch.",
+          "properties": {
+            "note": {
+              "description": "What to know, in a phrase a UI shows.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "via": {
+              "$ref": "#/$defs/Via",
+              "description": "Always `launch`."
+            }
+          },
+          "required": [
+            "via"
+          ],
+          "type": "object"
+        },
+        {
+          "$ref": "#/$defs/Binding",
+          "description": "Where the knob lands and how it is spelled."
         }
       ],
       "description": "Where a neutral knob lands in an emulator's files, or why it cannot."
     },
     "Launch": {
       "additionalProperties": false,
-      "description": "The argv template after the exe. `{file}` is the game, `{fullscreen:-f}` expands to `-f`\nwhen fullscreen is asked for. Rendered in P1; carried as data now.",
+      "description": "The argv template after the exe. Each argument is a literal or exactly one placeholder:\n`{file}` the game, `{fullscreen:<arg>}` `<arg>` when fullscreen is asked for (everything\nafter the first colon, colons included), `{platform}` the platform id, `{core}` the path of\nthe libretro core for the platform (RetroArch). Without a game only the `{fullscreen:…}`\narguments are kept, so the emulator opens on its own.",
       "properties": {
         "args": {
           "default": [],
+          "description": "Arguments after the exe.",
           "items": {
             "type": "string"
           },
           "type": "array"
+        },
+        "cores": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "RetroArch: platform id → the libretro core (`snes9x`) `{core}` loads for it, unless the\nrequest names another.",
+          "type": "object"
         }
       },
       "type": "object"
@@ -632,7 +776,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "The Linux value."
         },
         "macos": {
           "anyOf": [
@@ -642,7 +787,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "The macOS value."
         },
         "windows": {
           "anyOf": [
@@ -652,7 +798,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "The Windows value."
         }
       },
       "type": "object"
@@ -669,7 +816,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "The Linux value."
         },
         "macos": {
           "anyOf": [
@@ -679,7 +827,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "The macOS value."
         },
         "windows": {
           "anyOf": [
@@ -689,7 +838,8 @@
             {
               "type": "null"
             }
-          ]
+          ],
+          "description": "The Windows value."
         }
       },
       "type": "object"
@@ -699,6 +849,7 @@
       "description": "One slot per OS. A missing key is `None`: honest \"not offered here\".",
       "properties": {
         "linux": {
+          "description": "The Linux value.",
           "items": {
             "$ref": "#/$defs/FirstRun"
           },
@@ -708,6 +859,7 @@
           ]
         },
         "macos": {
+          "description": "The macOS value.",
           "items": {
             "$ref": "#/$defs/FirstRun"
           },
@@ -717,6 +869,7 @@
           ]
         },
         "windows": {
+          "description": "The Windows value.",
           "items": {
             "$ref": "#/$defs/FirstRun"
           },
@@ -733,18 +886,21 @@
       "description": "One slot per OS. A missing key is `None`: honest \"not offered here\".",
       "properties": {
         "linux": {
+          "description": "The Linux value.",
           "type": [
             "string",
             "null"
           ]
         },
         "macos": {
+          "description": "The macOS value.",
           "type": [
             "string",
             "null"
           ]
         },
         "windows": {
+          "description": "The Windows value.",
           "type": [
             "string",
             "null"
@@ -753,6 +909,32 @@
       },
       "type": "object"
     },
+    "PlatformSaves": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "description": "Not known yet: the note says why, in a phrase a UI shows.",
+          "properties": {
+            "unknown": {
+              "description": "Why.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "unknown"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The folders, in the order a UI lists them.",
+          "items": {
+            "$ref": "#/$defs/SaveDir"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "One platform's saves in the catalog: its folders, or why they are not known."
+    },
     "PlayersSupport": {
       "anyOf": [
         {
@@ -760,6 +942,7 @@
           "description": "A Rust adapter writes them: `crates/hermir/src/config/adapters/<adapter>.rs`.",
           "properties": {
             "adapter": {
+              "description": "The adapter's name in `config/adapters/`.",
               "type": "string"
             }
           },
@@ -773,6 +956,7 @@
           "description": "The emulator picks up SDL pads itself, in the order they appear; there is nothing to\nwrite. The note says so in the emulator's terms.",
           "properties": {
             "automatic": {
+              "description": "How the emulator picks pads, in a phrase a UI shows.",
               "type": "string"
             }
           },
@@ -783,8 +967,10 @@
         },
         {
           "additionalProperties": false,
+          "description": "Nothing to write: the note says why.",
           "properties": {
             "unsupported": {
+              "description": "Why, in a phrase a UI shows.",
               "type": "string"
             }
           },
@@ -800,8 +986,10 @@
       "anyOf": [
         {
           "additionalProperties": false,
+          "description": "A file beside the exe.",
           "properties": {
             "file": {
+              "description": "Its name.",
               "type": "string"
             }
           },
@@ -812,8 +1000,10 @@
         },
         {
           "additionalProperties": false,
+          "description": "A folder beside the exe.",
           "properties": {
             "dir": {
+              "description": "Its name.",
               "type": "string"
             }
           },
@@ -825,35 +1015,183 @@
       ],
       "description": "What makes the emulator keep its files beside the exe: a marker file or a directory."
     },
-    "Roots": {
+    "ProfileSupport": {
       "additionalProperties": false,
-      "description": "Config root per install kind.",
+      "description": "What a profile is for one emulator: the launch arguments that point it at the profile's\nfolder, and which of the catalog's files live in there.",
       "properties": {
-        "flatpak": {
-          "type": [
-            "string",
-            "null"
-          ]
+        "args": {
+          "description": "Launch arguments, before the template's; `{profile}` is the profile's folder.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
-        "native": {
-          "type": [
-            "string",
-            "null"
-          ]
+        "files": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Catalog file name → path under the profile's folder. A profile starts as a copy of the\nplayer's own files; a file not named here is patched where it is, snapshotted.",
+          "type": "object"
         },
-        "portable": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "windows": {
+        "note": {
+          "description": "What else a profile keeps or leaves, in a phrase a UI shows.",
           "type": [
             "string",
             "null"
           ]
         }
       },
+      "required": [
+        "args",
+        "files"
+      ],
+      "type": "object"
+    },
+    "Roots": {
+      "additionalProperties": false,
+      "description": "Config root per install kind.",
+      "properties": {
+        "flatpak": {
+          "description": "A Flatpak's config root, under `~/.var/app/<id>`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "native": {
+          "description": "A copy on `PATH` or at a known install path.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "portable": {
+          "description": "A copy with its portable marker: `<app>` is its folder.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "windows": {
+          "description": "Any copy on Windows, unless it is portable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "SaveDir": {
+      "additionalProperties": false,
+      "description": "One folder of saves, as the catalog describes it.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SaveKind",
+          "description": "What it holds."
+        },
+        "note": {
+          "description": "What to know about the layout inside, in a phrase a UI shows.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FilePath"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Relative to the config root; `{data}/` at the start is the data directory beside it\n(`~/.local/share/<x>` for `~/.config/<x>`, a Flatpak's `data/<x>` for its `config/<x>`,\nthe root itself elsewhere); `{game}` alone is beside each game file. Left out when only\n`setting` says where (a disk image the player picks)."
+        },
+        "pattern": {
+          "description": "The files in it that are saves, a glob (`*.ps2`); all of them when left out.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "per_game": {
+          "description": "One file or folder per game, rather than one every game shares (a memory card).",
+          "type": "boolean"
+        },
+        "setting": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SaveSetting"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The setting a player moves the folder with: read first, `path` when it is empty."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "SaveKind": {
+      "description": "What a save folder holds.",
+      "oneOf": [
+        {
+          "const": "save",
+          "description": "The games' own saves: battery RAM, a console's save data, a virtual drive's.",
+          "type": "string"
+        },
+        {
+          "const": "memcard",
+          "description": "Memory card images the games save to.",
+          "type": "string"
+        },
+        {
+          "const": "state",
+          "description": "Save states: the emulator's snapshots of a running game.",
+          "type": "string"
+        }
+      ]
+    },
+    "SaveSetting": {
+      "additionalProperties": false,
+      "description": "A key of one of the entry's config files that names a save folder.",
+      "properties": {
+        "file": {
+          "description": "The catalog's name for the file.",
+          "type": "string"
+        },
+        "key": {
+          "description": "The key.",
+          "type": "string"
+        },
+        "section": {
+          "default": "",
+          "description": "The section, `\"\"` for the top level.",
+          "type": "string"
+        },
+        "then": {
+          "description": "The folder under the one the key names (Cemu's `usr/save` under its `mlc_path`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unset": {
+          "description": "Values that mean \"the default folder\", besides an empty one (RetroArch's `default`).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "file",
+        "key"
+      ],
       "type": "object"
     },
     "Scale": {
@@ -867,6 +1205,7 @@
               "properties": {
                 "max": {
                   "default": 8,
+                  "description": "The largest.",
                   "format": "uint8",
                   "maximum": 255,
                   "minimum": 0,
@@ -874,6 +1213,7 @@
                 },
                 "min": {
                   "default": 1,
+                  "description": "The smallest multiple the emulator takes.",
                   "format": "uint8",
                   "maximum": 255,
                   "minimum": 0,
@@ -896,6 +1236,7 @@
               "properties": {
                 "max": {
                   "default": 8,
+                  "description": "The largest.",
                   "format": "uint8",
                   "maximum": 255,
                   "minimum": 0,
@@ -903,6 +1244,7 @@
                 },
                 "min": {
                   "default": 1,
+                  "description": "The smallest multiple, written as `min × 100`.",
                   "format": "uint8",
                   "maximum": 255,
                   "minimum": 0,
@@ -924,12 +1266,14 @@
             "lines": {
               "properties": {
                 "base": {
+                  "description": "The console's native lines.",
                   "format": "uint32",
                   "minimum": 0,
                   "type": "integer"
                 },
                 "max": {
                   "default": 8,
+                  "description": "The largest multiple.",
                   "format": "uint8",
                   "maximum": 255,
                   "minimum": 0,
@@ -962,6 +1306,16 @@
             "map"
           ],
           "type": "object"
+        }
+      ]
+    },
+    "Via": {
+      "description": "Where a knob that is not in a file goes.",
+      "oneOf": [
+        {
+          "const": "launch",
+          "description": "Into the launch command.",
+          "type": "string"
         }
       ]
     }
@@ -1012,13 +1366,15 @@
       "type": "string"
     },
     "launch": {
-      "$ref": "#/$defs/Launch"
+      "$ref": "#/$defs/Launch",
+      "description": "How to start it with a game."
     },
     "license": {
       "description": "SPDX expression of the emulator's own licence.",
       "type": "string"
     },
     "name": {
+      "description": "The emulator's name, as its project writes it.",
       "type": "string"
     },
     "no_install": {
@@ -1029,6 +1385,7 @@
       ]
     },
     "notes": {
+      "description": "What to know about it that fits no other field.",
       "type": [
         "string",
         "null"
@@ -1041,10 +1398,28 @@
       },
       "type": "array"
     },
+    "profile": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProfileSupport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "How a copy runs on settings of its own, the player's left alone: the emulator's flag\nfor another config file or folder. Absent where the emulator has none; a profile then\nis the in-place, snapshotted patch."
+    },
     "roots": {
       "$ref": "#/$defs/Roots",
       "default": {},
       "description": "Where the emulator keeps its config and data, per install kind. `<app>` is the exe's\ndirectory, `~` the home, `%VAR%` and `$VAR` environment variables."
+    },
+    "saves": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PlatformSaves"
+      },
+      "description": "Where the player's progress is, per platform id, or `*` for every platform the entry\nhas: each platform's folders, or why they are not known yet.",
+      "type": "object"
     }
   },
   "required": [

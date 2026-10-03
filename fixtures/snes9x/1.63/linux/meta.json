@@ -1,0 +1,24 @@
+{
+  "emulator": "snes9x",
+  "version": "1.63",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "com.snes9x.Snes9x",
+    "commit": "79ac5baaad32c5f7289f36277f2f643bb51085c4ecb41fe653679f885612b725"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "snes9x.conf"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": false,
+  "created": [
+    "config/snes9x/snes9x.conf"
+  ]
+}

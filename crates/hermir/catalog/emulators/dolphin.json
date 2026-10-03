@@ -13,6 +13,7 @@
     "windows": {
       "url": "https://dl.dolphin-emu.org/releases/2609/dolphin-2609-x64.7z",
       "version": "2609",
+      "sha256": "1aa25785b7d4cb76259754c5fbcdd8856857b8e7bb4e523c57a8ac56665fba75",
       "exe": "Dolphin.exe",
       "portable": {
         "file": "portable.txt"
@@ -53,28 +54,32 @@
           "linux": "Dolphin.ini",
           "windows": "Config/Dolphin.ini"
         },
-        "format": "ini"
+        "format": "ini",
+        "case_insensitive": true
       },
       "gfx": {
         "path": {
           "linux": "GFX.ini",
           "windows": "Config/GFX.ini"
         },
-        "format": "ini"
+        "format": "ini",
+        "case_insensitive": true
       },
       "gcpad": {
         "path": {
           "linux": "GCPadNew.ini",
           "windows": "Config/GCPadNew.ini"
         },
-        "format": "ini"
+        "format": "ini",
+        "case_insensitive": true
       },
       "wiimote": {
         "path": {
           "linux": "WiimoteNew.ini",
           "windows": "Config/WiimoteNew.ini"
         },
-        "format": "ini"
+        "format": "ini",
+        "case_insensitive": true
       }
     },
     "knobs": {
@@ -122,6 +127,54 @@
     "players": {
       "adapter": "dolphin"
     }
+  },
+  "profile": {
+    "args": [
+      "-u",
+      "{profile}"
+    ],
+    "files": {
+      "main": "Config/Dolphin.ini",
+      "gfx": "Config/GFX.ini",
+      "gcpad": "Config/GCPadNew.ini",
+      "wiimote": "Config/WiimoteNew.ini"
+    },
+    "note": "with -u Dolphin keeps everything in the profile, its Wii NAND and GameCube memory cards (the saves) included"
+  },
+  "saves": {
+    "ngc": [
+      {
+        "kind": "memcard",
+        "path": "{data}/GC",
+        "note": "a card file per region and slot (MemoryCardA.USA.raw), or a GCI folder per region and slot (USA/Card A), whichever the slot is set to"
+      },
+      {
+        "kind": "state",
+        "path": "{data}/StateSaves",
+        "pattern": "*.s??",
+        "per_game": true
+      }
+    ],
+    "wii": [
+      {
+        "kind": "save",
+        "path": "{data}/Wii/title",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "General",
+          "key": "NANDRootPath",
+          "then": "title"
+        },
+        "note": "each game's data under its title id: 00010000/<id>/data"
+      },
+      {
+        "kind": "state",
+        "path": "{data}/StateSaves",
+        "pattern": "*.s??",
+        "per_game": true
+      }
+    ]
   },
   "notes": "No GitHub releases; the URL is bumped by catalog PRs. `-u <dir>` selects a user directory for profiles.",
   "first_run": {

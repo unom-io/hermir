@@ -1,0 +1,2 @@
+# Fixtures are compared byte for byte: no line-ending conversion on any OS.
+fixtures/** -text

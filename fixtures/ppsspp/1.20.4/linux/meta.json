@@ -1,0 +1,25 @@
+{
+  "emulator": "ppsspp",
+  "version": "1.20.4",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "org.ppsspp.PPSSPP",
+    "commit": "193bbe95656ed696c8e5a5e42831ee8017d53514e9e0e0acaa3e1235e22089d3"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "PSP/SYSTEM/ppsspp.ini"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": false,
+  "created": [
+    "config/ppsspp/PSP/SYSTEM/controls.ini",
+    "config/ppsspp/PSP/SYSTEM/ppsspp.ini"
+  ]
+}

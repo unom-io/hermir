@@ -11,12 +11,16 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Os {
+    /// Linux: Flatpak first, release builds where the project ships them.
     Linux,
+    /// Windows: the project's own release builds.
     Windows,
+    /// macOS: in the schema, no channels yet.
     Macos,
 }
 
 impl Os {
+    /// The OS this build runs on.
     pub fn current() -> Os {
         if cfg!(target_os = "windows") {
             Os::Windows
@@ -27,6 +31,7 @@ impl Os {
         }
     }
 
+    /// `linux`, `windows` or `macos`, as the catalog and the CLI spell it.
     pub fn as_str(self) -> &'static str {
         match self {
             Os::Linux => "linux",
@@ -59,10 +64,13 @@ impl std::str::FromStr for Os {
 #[serde(deny_unknown_fields)]
 pub struct PerOs<T> {
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// The Linux value.
     pub linux: Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// The Windows value.
     pub windows: Option<T>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// The macOS value.
     pub macos: Option<T>,
 }
 
@@ -77,6 +85,7 @@ impl<T> Default for PerOs<T> {
 }
 
 impl<T> PerOs<T> {
+    /// The value for `os`, if any.
     pub fn get(&self, os: Os) -> Option<&T> {
         match os {
             Os::Linux => self.linux.as_ref(),
@@ -92,6 +101,7 @@ impl<T> PerOs<T> {
 pub struct Entry {
     /// Lowercase, `[a-z0-9-]`, equal to the file name.
     pub id: String,
+    /// The emulator's name, as its project writes it.
     pub name: String,
     /// Platform ids from `catalog/platforms.json`.
     pub platforms: Vec<String>,
@@ -110,6 +120,7 @@ pub struct Entry {
     /// directory, `~` the home, `%VAR%` and `$VAR` environment variables.
     #[serde(default)]
     pub roots: Roots,
+    /// How to start it with a game.
     pub launch: Launch,
     /// Where the emulator reads firmware, and what each platform needs there. The folder is
     /// created at install, so a consumer can be granted exactly that one.
@@ -123,8 +134,129 @@ pub struct Entry {
     /// how its player bindings are written. Absent while nothing is described yet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<Config>,
+    /// How a copy runs on settings of its own, the player's left alone: the emulator's flag
+    /// for another config file or folder. Absent where the emulator has none; a profile then
+    /// is the in-place, snapshotted patch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<ProfileSupport>,
+    /// Where the player's progress is, per platform id, or `*` for every platform the entry
+    /// has: each platform's folders, or why they are not known yet.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub saves: BTreeMap<String, PlatformSaves>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// What to know about it that fits no other field.
     pub notes: Option<String>,
+}
+
+/// One platform's saves in the catalog: its folders, or why they are not known.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
+pub enum PlatformSaves {
+    /// Not known yet: the note says why, in a phrase a UI shows.
+    Unknown {
+        /// Why.
+        unknown: String,
+    },
+    /// The folders, in the order a UI lists them.
+    Dirs(Vec<SaveDir>),
+}
+
+/// What a save folder holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum SaveKind {
+    /// The games' own saves: battery RAM, a console's save data, a virtual drive's.
+    Save,
+    /// Memory card images the games save to.
+    Memcard,
+    /// Save states: the emulator's snapshots of a running game.
+    State,
+}
+
+/// One folder of saves, as the catalog describes it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SaveDir {
+    /// What it holds.
+    pub kind: SaveKind,
+    /// Relative to the config root; `{data}/` at the start is the data directory beside it
+    /// (`~/.local/share/<x>` for `~/.config/<x>`, a Flatpak's `data/<x>` for its `config/<x>`,
+    /// the root itself elsewhere); `{game}` alone is beside each game file. Left out when only
+    /// `setting` says where (a disk image the player picks).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<FilePath>,
+    /// The files in it that are saves, a glob (`*.ps2`); all of them when left out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    /// One file or folder per game, rather than one every game shares (a memory card).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub per_game: bool,
+    /// The setting a player moves the folder with: read first, `path` when it is empty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setting: Option<SaveSetting>,
+    /// What to know about the layout inside, in a phrase a UI shows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// A key of one of the entry's config files that names a save folder.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SaveSetting {
+    /// The catalog's name for the file.
+    pub file: String,
+    /// The section, `""` for the top level.
+    #[serde(default)]
+    pub section: String,
+    /// The key.
+    pub key: String,
+    /// The folder under the one the key names (Cemu's `usr/save` under its `mlc_path`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub then: Option<String>,
+    /// Values that mean "the default folder", besides an empty one (RetroArch's `default`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unset: Vec<String>,
+}
+
+/// One platform's saves on a copy (`EmulatorHandle::saves`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Saves {
+    /// The platform id.
+    pub platform: String,
+    /// Each folder, resolved.
+    pub locations: Vec<SaveLocation>,
+    /// Why the catalog does not know, when it does not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unknown: Option<String>,
+}
+
+/// One folder of saves on a copy, resolved.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SaveLocation {
+    /// What it holds.
+    pub kind: SaveKind,
+    /// Where it is; `None` beside each game (`beside_game`), or when this copy's root is not
+    /// known, or nothing names it yet (`note` says).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+    /// The saves are beside each game file, wherever the games are.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub beside_game: bool,
+    /// The files in it that are saves, a glob; all of them when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    /// One file or folder per game.
+    pub per_game: bool,
+    /// The path is the one the emulator's settings name: the player moved it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub from_setting: bool,
+    /// The folder is there now; some appear only at the first save.
+    pub exists: bool,
+    /// What to know about the layout inside.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 /// What `apply` may write into a copy, as the catalog describes it: data, so an emulator with
@@ -152,6 +284,8 @@ pub const KNOBS: &[&str] = &[
     "video.vsync",
     "video.aspect",
     "region",
+    "audio.device",
+    "audio.latency_ms",
 ];
 
 /// One settings file of an emulator.
@@ -163,21 +297,29 @@ pub struct ConfigFile {
     /// for `~/.local/share/<x>`, a Flatpak's `config/<x>` for its `data/<x>`, the root itself
     /// elsewhere.
     pub path: FilePath,
+    /// How the file is edited.
     pub format: Format,
     /// XML: the document element the keys hang off (Cemu's `content`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub root: Option<String>,
+    /// INI: the emulator matches section and key names whatever their case (Dolphin), so a
+    /// file that spells `[ui]` is edited there rather than given a second `[UI]`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub case_insensitive: bool,
 }
 
 /// A path for every OS, or one per OS.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum FilePath {
+    /// One path on every OS.
     Same(String),
+    /// A path per OS.
     PerOs(PerOs<String>),
 }
 
 impl FilePath {
+    /// The path on `os`, if the file exists there.
     pub fn get(&self, os: Os) -> Option<&str> {
         match self {
             FilePath::Same(p) => Some(p),
@@ -201,6 +343,7 @@ impl FilePath {
 /// How a settings file is patched. Each is a line editor that leaves everything else alone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Format {
     /// `key = value` under `[section]`: ini, flat TOML, RetroArch's cfg. An empty section is
     /// the top of the file.
@@ -221,24 +364,49 @@ pub enum Format {
 /// Where a neutral knob lands in an emulator's files, or why it cannot.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum Knob {
     /// The emulator has no such setting; the note is what a UI shows.
     Unsupported {
+        /// Why, in a phrase a UI shows.
         unsupported: String,
     },
+    /// The emulator takes the setting only as a launch flag: `video.fullscreen` through the
+    /// launch template's `{fullscreen:…}`. `apply` reports it applied on launch; `launch`
+    /// renders it from the request's patch.
+    Launch {
+        /// Always `launch`.
+        via: Via,
+        /// What to know, in a phrase a UI shows.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
+    /// Where the knob lands and how it is spelled.
     Bound(Box<Binding>),
 }
 
-/// One knob bound to one key, with the spelling the emulator expects. Exactly one of `bool`,
-/// `values` and `scale` is present, by the knob's type: `bool` for `video.fullscreen` and
-/// `video.vsync`, `values` for `video.aspect` and `region`, `scale` for `video.scale`.
+/// Where a knob that is not in a file goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Via {
+    /// Into the launch command.
+    Launch,
+}
+
+/// One knob bound to one key, with the spelling the emulator expects, by the knob's type:
+/// `bool` for `video.fullscreen` and `video.vsync`, `values` for `video.aspect` and `region`,
+/// `scale` for `video.scale`, `text` for `audio.device` (with `values` for `default`) and
+/// `audio.latency_ms` (with a `range`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Binding {
     /// A name from `files`.
     pub file: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
+    /// The section (INI), the key path above the key (YAML, XML), or the object under the root
+    /// (JSON); empty for the top level.
     pub section: String,
+    /// The key itself.
     pub key: String,
     /// `[true, false]` as the emulator spells them (`True`/`False`, `1`/`0`, `yes`/`no`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -248,7 +416,16 @@ pub struct Binding {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub values: Option<BTreeMap<String, String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// How `video.scale`'s multiple is spelled.
     pub scale: Option<Scale>,
+    /// `audio.device` and `audio.latency_ms`: the literal, `{value}` standing for the device's
+    /// name or the milliseconds (`"\"{value}\""` where the format quotes). `values` may spell
+    /// the device `default` otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// `audio.latency_ms`: the milliseconds the emulator takes, lowest and highest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<[u32; 2]>,
     /// Keys written alongside every write of this knob (the renderer a scale needs, a second
     /// axis, a mode string beside a flag).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -269,37 +446,48 @@ pub struct Also {
     /// Another section; the knob's own by default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub section: Option<String>,
+    /// The key.
     pub key: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// A literal, `{value}` standing for the knob's rendered value.
     pub value: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The knob's true and false, as this key spells them.
     pub bool: Option<[String; 2]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The knob's neutral values, as this key spells them.
     pub values: Option<BTreeMap<String, String>>,
 }
 
 /// How `video.scale`, a multiplier `n` of the console's resolution, is spelled.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Scale {
     /// `n` itself, `min..=max`.
     Multiplier {
         #[serde(default = "one")]
+        /// The smallest multiple the emulator takes.
         min: u8,
         #[serde(default = "eight")]
+        /// The largest.
         max: u8,
     },
     /// `n × 100`, a percentage of the console's resolution (RPCS3).
     Percent {
         #[serde(default = "one")]
+        /// The smallest multiple, written as `min × 100`.
         min: u8,
         #[serde(default = "eight")]
+        /// The largest.
         max: u8,
     },
     /// `n × base`, vertical lines (Flycast's 480).
     Lines {
+        /// The console's native lines.
         base: u32,
         #[serde(default = "eight")]
+        /// The largest multiple.
         max: u8,
     },
     /// `n` (as a decimal string, JSON's key) → the emulator's own value; an `n` missing here
@@ -346,17 +534,22 @@ impl Scale {
 /// How an emulator's player bindings come to be.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum PlayersSupport {
     /// A Rust adapter writes them: `crates/hermir/src/config/adapters/<adapter>.rs`.
     Adapter {
+        /// The adapter's name in `config/adapters/`.
         adapter: String,
     },
     /// The emulator picks up SDL pads itself, in the order they appear; there is nothing to
     /// write. The note says so in the emulator's terms.
     Automatic {
+        /// How the emulator picks pads, in a phrase a UI shows.
         automatic: String,
     },
+    /// Nothing to write: the note says why.
     Unsupported {
+        /// Why, in a phrase a UI shows.
         unsupported: String,
     },
 }
@@ -369,14 +562,28 @@ pub struct PadRef {
     /// USB (3) unless the pad says otherwise; part of SDL's GUID.
     #[serde(default = "usb")]
     pub bus: u16,
+    /// USB vendor id.
     pub vendor: u16,
+    /// USB product id.
     pub product: u16,
     #[serde(default)]
+    /// The device's version, part of SDL's GUID (0x0110 for the wired Xbox 360 pad).
     pub version: u16,
     /// Position among the pads at launch, 0-based. SDL and evdev number devices that way.
     pub index: u32,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The evdev node, on Linux, when the consumer knows it.
     pub evdev: Option<PathBuf>,
+    /// SDL's GUID for the pad, 32 hex digits, when the consumer read it from SDL (the
+    /// `enumerate` feature does): used as given instead of being computed from the USB
+    /// identity, which is a guess for a pad SDL drives through HIDAPI and on Windows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guid: Option<String>,
+    /// SDL's name for the pad as a game controller (`Xbox 360 Controller`, `DualSense Wireless
+    /// Controller`), when the consumer read it from SDL. Without it SDL's name is known for the
+    /// Xbox pads only, and the kernel's stands in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gamepad_name: Option<String>,
 }
 
 fn usb() -> u16 {
@@ -386,7 +593,9 @@ fn usb() -> u16 {
 /// One seat: player `seat` (1-based) plays on `pad`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Player {
+    /// 1-based.
     pub seat: u8,
+    /// The pad in that seat.
     pub pad: PadRef,
 }
 
@@ -398,21 +607,160 @@ pub struct Patch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub players: Option<Vec<Player>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Fullscreen, internal resolution, vsync, aspect.
     pub video: Option<Video>,
     /// The console region the emulator should present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<Region>,
+    /// Where the sound goes, and how much of it is buffered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<Audio>,
     /// Keys the model does not cover, written as given.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub native: Vec<Native>,
+    /// Every pad connected, seated or not, each at its `index` in SDL's order, when the
+    /// consumer knows them. RPCS3, Dolphin on Linux, Eden, Azahar and Cemu number a pad among
+    /// the pads of its name or GUID, so the pads nobody sits at count too. Without it the
+    /// seated pads are taken as all of them, and `players` says so where that may be wrong.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connected: Option<Vec<PadRef>>,
 }
 
 impl Patch {
+    /// What makes the patch impossible to write, before anything is: a seat that is not at
+    /// least 1 or appears twice, a control character (a newline above all) in a pad's name or
+    /// in a native key, section or value, where it would end the line and start another, a
+    /// GUID that is not 32 hex digits, and a `connected` list that repeats an index or leaves
+    /// out a seated pad.
+    pub fn validate(&self) -> Result<(), String> {
+        fn text(what: &str, s: &str) -> Result<(), String> {
+            match s.chars().find(|c| c.is_control()) {
+                Some(c) => Err(format!("{what} {s:?} holds the control character {c:?}")),
+                None => Ok(()),
+            }
+        }
+        fn pad(p: &PadRef) -> Result<(), String> {
+            text("the pad name", &p.name)?;
+            if let Some(n) = &p.gamepad_name {
+                text("the pad's SDL name", n)?;
+            }
+            match &p.guid {
+                Some(g) if g.len() != 32 || !g.chars().all(|c| c.is_ascii_hexdigit()) => {
+                    Err(format!("the GUID {g:?} of {} is not 32 hex digits", p.name))
+                }
+                _ => Ok(()),
+            }
+        }
+        let mut seats = std::collections::BTreeSet::new();
+        for p in self.players.iter().flatten() {
+            if p.seat == 0 {
+                return Err("seats count from 1".into());
+            }
+            if !seats.insert(p.seat) {
+                return Err(format!("seat {} is given twice", p.seat));
+            }
+            pad(&p.pad)?;
+        }
+        if let Some(connected) = &self.connected {
+            let mut indices = std::collections::BTreeSet::new();
+            for p in connected {
+                pad(p)?;
+                if !indices.insert(p.index) {
+                    return Err(format!("two connected pads are at index {}", p.index));
+                }
+            }
+            if let Some(p) = self
+                .players
+                .iter()
+                .flatten()
+                .find(|p| !indices.contains(&p.pad.index))
+            {
+                return Err(format!(
+                    "seat {}'s pad is at index {}, and no connected pad is",
+                    p.seat, p.pad.index
+                ));
+            }
+        }
+        if let Some(d) = self.audio.as_ref().and_then(|a| a.device.as_deref()) {
+            text("the audio device", d)?;
+            if d.trim().is_empty() || d.contains(['"', '\\']) {
+                return Err(format!(
+                    "the audio device {d:?} is empty or holds a quote or a backslash"
+                ));
+            }
+        }
+        for n in &self.native {
+            if n.key.trim().is_empty() {
+                return Err(format!("a native key of {} has no name", n.file));
+            }
+            text("the native file", &n.file)?;
+            text("the native section", &n.section)?;
+            text("the native key", &n.key)?;
+            text("the native value", &n.value)?;
+        }
+        Ok(())
+    }
+
+    /// True when nothing would be written.
     pub fn is_empty(&self) -> bool {
         self.players.is_none()
             && self.video.as_ref().is_none_or(Video::is_empty)
             && self.region.is_none()
+            && self.audio.as_ref().is_none_or(Audio::is_empty)
             && self.native.is_empty()
+    }
+
+    /// Each knob of [`KNOBS`] the patch sets, with its neutral value as text (`true`, `3`,
+    /// `16:9`, a device's name): what `apply` reports on and `get` reads back.
+    pub fn knobs(&self) -> Vec<(&'static str, String)> {
+        let mut out = Vec::new();
+        if let Some(v) = &self.video {
+            if let Some(f) = v.fullscreen {
+                out.push(("video.fullscreen", f.to_string()));
+            }
+            if let Some(n) = v.scale {
+                out.push(("video.scale", n.to_string()));
+            }
+            if let Some(f) = v.vsync {
+                out.push(("video.vsync", f.to_string()));
+            }
+            if let Some(a) = v.aspect {
+                out.push(("video.aspect", a.as_str().to_string()));
+            }
+        }
+        if let Some(r) = self.region {
+            out.push(("region", r.as_str().to_string()));
+        }
+        if let Some(a) = &self.audio {
+            if let Some(d) = &a.device {
+                out.push(("audio.device", d.clone()));
+            }
+            if let Some(ms) = a.latency_ms {
+                out.push(("audio.latency_ms", ms.to_string()));
+            }
+        }
+        out
+    }
+}
+
+/// The sound side of a session.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Audio {
+    /// The output device, as the emulator's audio backend names it: on Linux a PulseAudio or
+    /// PipeWire sink's name (`alsa_output.pci-0000_00_1f.3.analog-stereo`), which is also what
+    /// `PULSE_SINK` takes; `default` for the system's default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device: Option<String>,
+    /// How much sound the emulator buffers ahead, in milliseconds: lower is more responsive,
+    /// higher survives a busy machine.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latency_ms: Option<u32>,
+}
+
+impl Audio {
+    /// True when no setting is given.
+    pub fn is_empty(&self) -> bool {
+        self.device.is_none() && self.latency_ms.is_none()
     }
 }
 
@@ -420,17 +768,21 @@ impl Patch {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct Video {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Start fullscreen.
     pub fullscreen: Option<bool>,
     /// Internal resolution as a multiple of the console's own, 1 for native.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scale: Option<u8>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Wait for the display's refresh.
     pub vsync: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The shape of the picture.
     pub aspect: Option<Aspect>,
 }
 
 impl Video {
+    /// True when no setting is given.
     pub fn is_empty(&self) -> bool {
         self.fullscreen.is_none()
             && self.scale.is_none()
@@ -441,13 +793,16 @@ impl Video {
 
 /// How the picture fills the window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 pub enum Aspect {
     /// The game's own.
     #[serde(rename = "auto")]
     Auto,
     #[serde(rename = "4:3")]
+    /// 4:3.
     FourThree,
     #[serde(rename = "16:9")]
+    /// 16:9.
     SixteenNine,
     /// Fill the window, whatever the shape.
     #[serde(rename = "stretch")]
@@ -483,6 +838,7 @@ impl std::str::FromStr for Aspect {
 
 /// The console region: what the emulated system reports to the game.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 pub enum Region {
     /// The emulator's own choice, usually the game's.
     #[serde(rename = "auto")]
@@ -530,7 +886,9 @@ pub struct Native {
     #[serde(default = "main", skip_serializing_if = "is_main")]
     pub file: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
+    /// The section, or the path above the key; empty for the top level.
     pub section: String,
+    /// The key.
     pub key: String,
     /// The literal, in the file's own spelling (quotes included where it wants them).
     pub value: String,
@@ -547,8 +905,15 @@ fn is_main(s: &str) -> bool {
 /// What `apply` did: one line per knob the patch carried, one step per file it touched.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Applied {
+    /// The catalog id of the emulator.
     pub emulator: String,
+    /// What to know about the whole: a profile asked of an emulator that has none was written
+    /// in place.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// One per knob the patch carried, and `players` when it had pads.
     pub knobs: Vec<KnobChange>,
+    /// One per file touched.
     pub steps: Vec<PrepareStep>,
 }
 
@@ -565,6 +930,7 @@ pub struct KnobChange {
     /// `video.fullscreen`, `video.scale`, `video.vsync`, `video.aspect`, `region`, `players`,
     /// or `native:<file>:<key>`.
     pub knob: String,
+    /// What became of it.
     pub support: Support,
     /// Why not, or what to know.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -574,9 +940,29 @@ pub struct KnobChange {
     pub file: Option<PathBuf>,
 }
 
+/// One knob as a copy has it now: what `get` reads.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct KnobValue {
+    /// `video.fullscreen`, `video.scale`, `video.vsync`, `video.aspect` or `region`.
+    pub knob: String,
+    /// The neutral value (`true`, `3`, `16:9`, `eu`), when the file holds one hermir can name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    /// What the file holds, as the emulator spells it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub literal: Option<String>,
+    /// The file the knob lives in.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<PathBuf>,
+    /// Why there is no value: not set, not described, unsupported.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
 /// Whether a knob reached the emulator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Support {
     /// Written, as asked.
     Applied,
@@ -584,6 +970,8 @@ pub enum Support {
     Partial,
     /// Not written; the note says why.
     Unsupported,
+    /// Meant to be written, and the write failed; the note says why.
+    Failed,
 }
 
 /// Firmware the emulator reads from a folder under its config root, or installs itself.
@@ -600,9 +988,37 @@ pub struct Firmware {
     /// Firmware that comes as an archive, unpacked into a folder of its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unpack: Option<FirmwareUnpack>,
+    /// Firmware the emulator reads from paths its settings name, one key per file, rather than
+    /// from a folder (xemu's MCPX boot ROM, flash BIOS and hard-disk image): each file is
+    /// copied into `dir` and its key pointed at it, unless the key names a file already there.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keys: Vec<FirmwareKey>,
     /// Per platform id: what satisfies it.
     #[serde(default)]
     pub platforms: BTreeMap<String, FirmwareNeed>,
+}
+
+/// One firmware file the emulator finds through a key of its settings.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FirmwareKey {
+    /// The ini (or flat TOML) file, under the config root.
+    pub ini: String,
+    /// The section.
+    pub section: String,
+    /// The key.
+    pub key: String,
+    /// File name patterns: the first file given that matches, and that no key before this
+    /// one took.
+    pub any_of: Vec<String>,
+    /// The value, `{path}` standing for the file's absolute path (`'{path}'` in TOML).
+    pub value: String,
+    /// What the file is, in a phrase a UI shows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// The emulator also runs without it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub optional: bool,
 }
 
 /// An archive of firmware files (a Switch system update as a `.zip` of NCAs), unpacked once.
@@ -632,48 +1048,76 @@ pub struct FirmwareInstall {
 /// One answer to a first-run question, as a file under the config root.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum FirstRun {
     /// `key` in `[section]` of an ini (or flat TOML) file, set to `value` in place. The file and
     /// section are created when missing; every other line stays as it was. `{root}` in `value`
     /// is the config root's absolute path.
     Ini {
+        /// The file, under the config root.
         ini: String,
+        /// The section.
         section: String,
+        /// The key.
         key: String,
+        /// The value, `{root}` standing for the config root's absolute path.
         value: String,
         /// Only when the key is missing or empty: a value the user chose is kept.
         #[serde(default, skip_serializing_if = "std::ops::Not::not")]
         when_unset: bool,
     },
     /// A file written only when it does not exist yet: the emulator's own first-run check.
-    Seed { seed: String, content: String },
+    /// `content` written to `seed` (under the config root) unless it exists.
+    Seed {
+        /// The file, under the config root.
+        seed: String,
+        /// What it holds.
+        content: String,
+    },
     /// A folder under the config root that must exist before the emulator writes into it.
-    Dir { dir: String },
+    /// A folder made under the config root.
+    Dir {
+        /// The folder, under the config root.
+        dir: String,
+    },
     /// A file the emulator ships beside its exe, copied under the config root once (data an
     /// emulator refuses to start without). Only a copy hermir placed has an exe to copy from.
-    Copy { copy: String, to: String },
+    /// `copy` (beside the exe) copied to `to` (under the config root) unless it exists.
+    Copy {
+        /// The file, relative to the exe's folder.
+        copy: String,
+        /// Where it goes, under the config root.
+        to: String,
+    },
 }
 
 /// What `prepare` did, step by step. A consumer shows this; it never guesses.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Prepared {
+    /// The catalog id of the emulator.
     pub emulator: String,
+    /// Every step, in order.
     pub steps: Vec<PrepareStep>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+/// One step of `prepare`, `apply` or `revert`, and how it went.
 pub struct PrepareStep {
     /// `first_run`, `firmware` or `firmware_install`.
     pub kind: String,
     /// The file the step is about.
     pub target: PathBuf,
+    /// How it went.
     pub outcome: StepOutcome,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Why, or what to know.
     pub note: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+/// How a step went.
 pub enum StepOutcome {
     /// Written or installed now.
     Applied,
@@ -681,11 +1125,16 @@ pub enum StepOutcome {
     Present,
     /// Nothing to do for this emulator; the note says why.
     Skipped,
+    /// Changed by someone else since hermir wrote it, so left as it is; the note says what to
+    /// do about it.
+    Conflict,
+    /// Tried, and it did not work; the note says why.
     Failed,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+/// What satisfies one platform's firmware need.
 pub struct FirmwareNeed {
     /// File name patterns (`*.bin`, `scph*.bin`); one match is enough.
     pub any_of: Vec<String>,
@@ -700,33 +1149,46 @@ pub struct FirmwareNeed {
 /// One way to obtain the emulator on one OS.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum Channel {
     /// `flatpak install --user flathub <id>`.
-    Flatpak { flatpak: String },
+    /// The Flathub app id.
+    Flatpak {
+        /// The Flathub app id.
+        flatpak: String,
+    },
     /// The latest GitHub release of `owner/repo`, one asset of it, extracted into the prefix.
     Github {
+        /// `owner/repo`.
         github: String,
+        /// Which asset of the latest release.
         asset: AssetFilter,
         /// Path of the executable inside the extracted tree.
         exe: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        /// What makes the copy keep its files beside the exe.
         portable: Option<Portable>,
     },
     /// A fixed URL, for projects without GitHub releases. Bumped by catalog PRs.
     Url {
+        /// The download.
         url: String,
+        /// The version it is, bumped with the URL.
         version: String,
-        /// Hex sha256 of the file when the project publishes one; otherwise hermir records the
-        /// digest it saw and says so.
+        /// Hex sha256 of the file, bumped with `version` in the same reviewed PR. Validation
+        /// rejects a `url` channel without one.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         sha256: Option<String>,
+        /// Path of the executable inside the extracted tree.
         exe: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        /// What makes the copy keep its files beside the exe.
         portable: Option<Portable>,
     },
 }
 
 impl Channel {
+    /// `flatpak`, `github` or `url`.
     pub fn kind(&self) -> &'static str {
         match self {
             Channel::Flatpak { .. } => "flatpak",
@@ -739,13 +1201,19 @@ impl Channel {
 /// Which release asset: a fixed name, or substrings that must all appear and none that may.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum AssetFilter {
+    /// Exactly this asset name.
     Name {
+        /// The name.
         name: String,
     },
+    /// Every `all` substring and none of `none`.
     Filter {
+        /// Substrings the name must hold.
         all: Vec<String>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        /// Substrings it must not.
         none: Vec<String>,
     },
 }
@@ -767,9 +1235,18 @@ impl AssetFilter {
 /// What makes the emulator keep its files beside the exe: a marker file or a directory.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum Portable {
-    File { file: String },
-    Dir { dir: String },
+    /// A file beside the exe.
+    File {
+        /// Its name.
+        file: String,
+    },
+    /// A folder beside the exe.
+    Dir {
+        /// Its name.
+        dir: String,
+    },
 }
 
 /// Detection rules for one OS. Every list is tried; every hit is an `Install`.
@@ -795,34 +1272,125 @@ pub struct Detect {
 #[serde(deny_unknown_fields)]
 pub struct Roots {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// A Flatpak's config root, under `~/.var/app/<id>`.
     pub flatpak: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// A copy on `PATH` or at a known install path.
     pub native: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// A copy with its portable marker: `<app>` is its folder.
     pub portable: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Any copy on Windows, unless it is portable.
     pub windows: Option<String>,
 }
 
-/// The argv template after the exe. `{file}` is the game, `{fullscreen:-f}` expands to `-f`
-/// when fullscreen is asked for. Rendered in P1; carried as data now.
+/// The argv template after the exe. Each argument is a literal or exactly one placeholder:
+/// `{file}` the game, `{fullscreen:<arg>}` `<arg>` when fullscreen is asked for (everything
+/// after the first colon, colons included), `{platform}` the platform id, `{core}` the path of
+/// the libretro core for the platform (RetroArch). Without a game only the `{fullscreen:…}`
+/// arguments are kept, so the emulator opens on its own.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Launch {
+    /// Arguments after the exe.
     #[serde(default)]
     pub args: Vec<String>,
+    /// RetroArch: platform id → the libretro core (`snes9x`) `{core}` loads for it, unless the
+    /// request names another.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub cores: BTreeMap<String, String>,
+}
+
+/// What a profile is for one emulator: the launch arguments that point it at the profile's
+/// folder, and which of the catalog's files live in there.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileSupport {
+    /// Launch arguments, before the template's; `{profile}` is the profile's folder.
+    pub args: Vec<String>,
+    /// Catalog file name → path under the profile's folder. A profile starts as a copy of the
+    /// player's own files; a file not named here is patched where it is, snapshotted.
+    pub files: BTreeMap<String, String>,
+    /// What else a profile keeps or leaves, in a phrase a UI shows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// What a consumer wants started: a game, on a platform, for a session.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct LaunchRequest {
+    /// The game. Without one, the emulator opens on its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<PathBuf>,
+    /// The platform id the game is for (`snes`); RetroArch's core follows from it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub platform: Option<String>,
+    /// Start fullscreen; the patch's `video.fullscreen` when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fullscreen: Option<bool>,
+    /// RetroArch: the libretro core (`mesen`) in place of the platform's default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub core: Option<String>,
+    /// Run on this profile's settings (made by `apply` to it, or created): the emulator's
+    /// flag for it goes on the command line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
+    /// The session's patch, for the knobs that travel on the command line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub patch: Option<Patch>,
+}
+
+/// A command to run, as hermir built it: the library never runs it. Every argument is one
+/// argument; nothing is ever joined into a shell string.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct LaunchSpec {
+    /// What runs: a program, or a Flatpak app the consumer starts as `flatpak run`.
+    pub exe: Exe,
+    /// Arguments after it.
+    pub args: Vec<String>,
+    /// Environment variables to set.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env: BTreeMap<String, String>,
+    /// The working directory, when it matters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<PathBuf>,
+    /// `flatpak run` options, before the app id: the game's folder granted to the sandbox.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sandbox: Vec<String>,
+}
+
+impl LaunchSpec {
+    /// The whole command line as `run` starts it: `flatpak run <sandbox…> <id> <args…>` for a
+    /// Flatpak, the program and its arguments otherwise.
+    pub fn argv(&self) -> Vec<String> {
+        match &self.exe {
+            Exe::FlatpakRun(id) => ["flatpak".to_string(), "run".to_string()]
+                .into_iter()
+                .chain(self.sandbox.iter().cloned())
+                .chain(std::iter::once(id.clone()))
+                .chain(self.args.iter().cloned())
+                .collect(),
+            Exe::Path(p) => std::iter::once(p.to_string_lossy().into_owned())
+                .chain(self.args.iter().cloned())
+                .collect(),
+        }
+    }
 }
 
 /// A platform (console) as `catalog/platforms.json` spells it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Platform {
+    /// Lowercase id: `ps2`, `snes`.
     pub id: String,
+    /// Its name.
     pub name: String,
     /// The same platform in other vocabularies, so a consumer maps once at its edge.
     #[serde(default)]
     pub aliases: BTreeMap<String, String>,
     #[serde(default)]
+    /// File extensions its games come in, without the dot.
     pub extensions: Vec<String>,
     /// Emulator ids in order of preference.
     #[serde(default)]
@@ -832,9 +1400,11 @@ pub struct Platform {
 /// How an emulator got onto this machine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum InstallKind {
     /// Ours, in the prefix.
     Managed,
+    /// A Flatpak, user or system installation.
     Flatpak,
     /// Found on `PATH` or at a known install path.
     Native,
@@ -845,8 +1415,11 @@ pub enum InstallKind {
 /// What runs: a file, or a Flatpak app the consumer turns into `flatpak run <id>`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Exe {
+    /// An executable.
     Path(PathBuf),
+    /// A Flatpak app id.
     FlatpakRun(String),
 }
 
@@ -862,30 +1435,82 @@ impl std::fmt::Display for Exe {
 /// An emulator that exists on this machine, however it got there.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Install {
+    /// The catalog id.
     pub emulator: String,
+    /// How it got here.
     pub kind: InstallKind,
+    /// What to run.
     pub exe: Exe,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Its version, when it says.
     pub version: Option<String>,
     /// Where the emulator reads its config, when the catalog knows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config_root: Option<PathBuf>,
 }
 
+/// What the bytes that arrived were checked against.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum Verified {
+    /// The sha256 GitHub publishes for the asset matched.
+    Published,
+    /// The sha256 the catalog pins matched.
+    Pinned,
+    /// `flatpak` checked it: Flathub signs what it serves.
+    Flatpak,
+    /// Nothing to check against: `sha256` is what arrived, no more.
+    #[default]
+    None,
+}
+
+impl Install {
+    /// A copy of `emulator` that hermir did not find itself: a host that knows where its
+    /// emulator lives, or a test. `config_root` is where it reads its settings.
+    pub fn new(
+        emulator: impl Into<String>,
+        kind: InstallKind,
+        exe: Exe,
+        config_root: Option<PathBuf>,
+    ) -> Install {
+        Install {
+            emulator: emulator.into(),
+            kind,
+            exe,
+            version: None,
+            config_root,
+        }
+    }
+}
+
 /// One row of `<prefix>/installed.json`: what hermir installed and from where.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Installed {
+    /// The catalog id.
     pub emulator: String,
+    /// `flatpak`, `github` or `url`.
     pub channel: String,
+    /// What to run.
     pub exe: Exe,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Its version, when the channel says.
     pub version: Option<String>,
-    /// The release as the channel identifies it (tag, or tag plus publish date for rolling
-    /// tags); an update is due when it changes.
+    /// The release as the channel identifies it (for GitHub, the tag plus the asset's upload
+    /// time, id and digest, so a rolling asset rebuilt in place is a new release); an update is
+    /// due when it changes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub release: Option<String>,
+    /// Hex sha256 of the archive that arrived; none for a Flatpak.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub digest: Option<String>,
+    pub sha256: Option<String>,
+    /// What `sha256` was checked against. A row from before this field reads as `none`.
+    #[serde(default)]
+    pub verified: Verified,
+    /// Shipped files the user had edited (or made at a shipped path), kept as they were; the
+    /// new ones are beside them as `<file>.new`. Relative to the copy's directory.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kept: Vec<String>,
     /// RFC 3339, UTC.
     pub installed_at: String,
 }
@@ -893,18 +1518,25 @@ pub struct Installed {
 /// Where a channel resolved to, before anything is downloaded.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Resolved {
+    /// The catalog id.
     pub emulator: String,
+    /// `flatpak`, `github` or `url`.
     pub channel: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The download, for an archive channel.
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Its file name.
     pub file_name: Option<String>,
+    /// Bytes, when the channel says; it sets the download's time budget and checks a resume.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The version, when the channel says.
     pub version: Option<String>,
+    /// What an update compares: it changes whenever the bytes behind `url` do.
     pub release: String,
-    /// Hex sha256 when the channel publishes one.
+    /// Hex sha256 the download must match: published by GitHub, or pinned by the catalog.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub digest: Option<String>,
 }
@@ -912,15 +1544,24 @@ pub struct Resolved {
 /// `status` for one emulator: catalog, managed row, detected copies, whether an update exists.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Status {
+    /// The catalog id.
     pub emulator: String,
+    /// Its name.
     pub name: String,
+    /// Whether this OS has a channel for it.
     pub offered: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The copy hermir installed.
     pub managed: Option<Installed>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// Copies the user installed.
     pub detected: Vec<Install>,
+    /// The release the channel offers now, when it is newer than the managed one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub update: Option<String>,
+    /// Why the channel could not be asked, when `status` was asked to check it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub update_error: Option<String>,
 }
 
 #[cfg(test)]

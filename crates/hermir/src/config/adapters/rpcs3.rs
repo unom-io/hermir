@@ -1,9 +1,12 @@
 //! RPCS3's global input config, whole: its SDL handler names a device `<SDL name> <n>` with n
-//! counting same-named pads from 1, and takes SDL's control names. Seven players.
-use super::{Bindings, Cx, Edit, Plan, beyond};
-use crate::model::Player;
+//! counting same-named pads from 1 in SDL's order, and takes SDL's control names. Seven
+//! players.
+use super::{Bindings, Cx, Edit, Plan, Seating, beyond, join};
+use crate::config::yaml;
+use crate::model::PadRef;
 
-pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
+pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
+    let players = &s.seats[..];
     let (path, _) = cx.file("input")?;
     let binds = [
         ("Left Stick Left", "LS X-"),
@@ -36,10 +39,10 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
     for seat in 1..=7u8 {
         match players.iter().find(|p| p.seat == seat) {
             Some(p) => {
+                let n = s.ordinal(&p.pad, PadRef::sdl_name) + 1;
+                let device = yaml::quote(&format!("{} {n}", p.pad.sdl_name()));
                 content.push_str(&format!(
-                    "Player {seat} Input:\n  Handler: SDL\n  Device: \"{} {}\"\n  Config:\n",
-                    p.pad.sdl_name(),
-                    p.pad.index + 1
+                    "Player {seat} Input:\n  Handler: SDL\n  Device: {device}\n  Config:\n"
                 ));
                 for (k, v) in binds {
                     content.push_str(&format!("    {k}: {v}\n"));
@@ -56,6 +59,6 @@ pub(super) fn players(cx: &Cx, players: &[Player]) -> Plan {
             file: path,
             content,
         }],
-        note: beyond(players, 7, "RPCS3"),
+        note: join(beyond(players, 7, "RPCS3"), s.guessed("RPCS3", "name")),
     })
 }

@@ -6,6 +6,13 @@
   ],
   "license": "GPL-2.0-or-later",
   "channels": {
+    "linux": {
+      "github": "Vita3K/Vita3K",
+      "asset": {
+        "name": "Vita3K-x86_64.AppImage"
+      },
+      "exe": "AppRun"
+    },
     "windows": {
       "github": "Vita3K/Vita3K",
       "asset": {
@@ -18,6 +25,11 @@
     "linux": {
       "path": [
         "Vita3K"
+      ]
+    },
+    "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\vita3k\\current\\Vita3K.exe"
       ]
     }
   },
@@ -32,6 +44,23 @@
       "-r",
       "{file}"
     ]
+  },
+  "firmware": {
+    "install": {
+      "args": [
+        "--firmware",
+        "{file}"
+      ],
+      "done": "vs0/vsh/shell/shell.self"
+    },
+    "platforms": {
+      "psvita": {
+        "any_of": [
+          "PSVUPDAT.PUP"
+        ],
+        "note": "the PlayStation Vita system update, PSVUPDAT.PUP (the font package, PSP2UPDAT.PUP, through Vita3K itself)"
+      }
+    }
   },
   "config": {
     "files": {
@@ -81,5 +110,15 @@
       "automatic": "Vita3K maps SDL pads itself, in the order they appear"
     }
   },
-  "notes": "Not on Flathub; the Linux AppImage channel is a later step."
+  "saves": {
+    "psvita": [
+      {
+        "kind": "save",
+        "path": "ux0/user/00/savedata",
+        "per_game": true,
+        "note": "per title id (PCSE…)"
+      }
+    ]
+  },
+  "notes": "Not on Flathub. Linux and Windows take its continuous build, rebuilt in place under one tag: an update is told by the release's id, not its name."
 }

@@ -12,7 +12,11 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo run -q -p hermir-cli -- catalog validate crates/hermir/catalog
-cargo package --workspace          # Linux only: builds each crate as crates.io will
+cargo package -p hermir -p hermir-cli   # Linux only: builds each published crate as crates.io will
+cargo test -p hermir-golden          # the golden fixtures alone (part of the workspace tests)
+cargo deny check                     # licences (permissive only), advisories, sources: deny.toml
+# the `enumerate` job: SDL 3 built from source (CMake and a C compiler; libudev-dev on Linux)
+cargo test -p hermir -p hermir-cli --features hermir-cli/enumerate-static
 ```
 
 The toolchain is pinned in `rust-toolchain.toml`. Commits follow
@@ -45,15 +49,22 @@ its own directory.
 5. **Describe its settings** in a `config` block, as far as you know them (below). An entry
    without one still installs and detects; `hermir config support <id>` then says "not
    described yet" for each knob, which is honest and fine for a first PR.
-6. **Install it for real** on the OS you can, and say in the PR which one:
-   `hermir --prefix /tmp/h install <id>` then `hermir --prefix /tmp/h where <id>`.
+6. **Say where its saves are** in `saves`: per platform (or `*`), each folder relative to the
+   config root, `{data}/…` beside it, or `{game}` for beside each game, with the `setting` that
+   moves it where there is one; or `{ "unknown": "<why>" }`. Validation wants every platform
+   covered.
+7. **Try it for real** on the OS you can, and say in the PR which one: `hermir check <id>`
+   installs it into a throwaway prefix and home, starts it, configures it, starts it again,
+   reads the settings back and reverts (on a server, under `xvfb-run`).
+8. **Capture a fixture** if it is on Flathub: `cargo xtask capture <id>` (below).
 
 The rules a reviewer holds an entry to:
 
 - **The emulator's own channel, nothing else.** Flathub on Linux; the project's GitHub releases
   or its official download on Windows. No mirrors, no rehosting, no third-party builds.
-- **Verifiable downloads.** GitHub releases publish a sha256 per asset. A `url` channel carries
-  `sha256` when the project publishes one.
+- **Verifiable downloads.** GitHub publishes a sha256 per asset (for assets uploaded since
+  2025-06). A `url` channel pins `sha256`, bumped with `version` in the same PR
+  (`curl -sSL --fail <url> | sha256sum`); validation rejects one without it.
 - **No Switch emulator carries an install channel.** Such an entry has `no_install` and is
   detect-and-configure only.
 - **`license` is the emulator's SPDX expression**, taken from its repository.
@@ -87,7 +98,10 @@ catalog change too:
   `~/.local/share/<x>`). Formats: `ini` (also flat TOML and RetroArch's cfg), `qt` (Qt's ini,
   which needs a `key\default=false` companion), `yaml` (two levels), `bml`, `xml` (with the
   document element as `root`), `json` (a key of the root, or of one object under it).
-- **Knobs** are `video.fullscreen`, `video.scale`, `video.vsync`, `video.aspect`, `region`.
+- **Knobs** are `video.fullscreen`, `video.scale`, `video.vsync`, `video.aspect`, `region`,
+  `audio.device` and `audio.latency_ms`. The audio knobs take a `text` template (`{value}` is
+  the device's name or the milliseconds; `"\"{value}\""` where the format quotes), `values`
+  for the device's `default`, and a `range` for latency where the emulator has one.
   A bool knob takes `bool: [true, false]` in the emulator's spelling; `video.scale` takes a
   `scale` (`multiplier`, `percent`, `lines` with a base, or a `map` from `n`); the others a
   `values` table from the neutral value to the emulator's literal, quotes included where the
@@ -102,8 +116,27 @@ catalog change too:
   and never parse text themselves.
 
 Every spelling here should come from the emulator's own config file, not memory; a fixture
-in the PR (the fresh-install file with the knob toggled once in the emulator's UI) is the
-best evidence.
+in the PR is the evidence.
+
+## Fixtures
+
+`fixtures/<emu>/<version>/<os>/` holds an emulator's own first-start files (`before/`), the
+sessions hermir applies to them (`sessions/`), what hermir wrote (`hermir/<session>/`) and,
+where a person captured it, what the emulator itself wrote for the same settings
+(`after/<session>/`). [`fixtures/README.md`](fixtures/README.md) has the layout and the checks.
+
+```sh
+cargo xtask capture <id>                 # in the capture image (Docker, --privileged)
+cargo xtask capture <id> --host          # on this machine: flatpak, xvfb-run, dbus-run-session
+cargo xtask capture <id> --interactive --session video-all
+                                         # a person sets the session in the emulator's UI
+HERMIR_BLESS=1 cargo test -p hermir-golden   # record what hermir writes; review the diff
+cargo xtask sessions                     # after adding a standard session: give it to every fixture
+cargo xtask drift <id>…|--all            # what the weekly job does: re-capture, check, smoke-start
+```
+
+An emulator that needs more than a plain start (a dialog closed, a slower first run, folders
+that appear only at the first save) gets a recipe in `ci/capture/recipes/<id>.json`.
 
 ## Changing the model
 

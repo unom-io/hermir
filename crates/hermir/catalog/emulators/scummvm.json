@@ -12,6 +12,7 @@
     "windows": {
       "url": "https://downloads.scummvm.org/frs/scummvm/2026.3.0/scummvm-2026.3.0-win32-x86_64.zip",
       "version": "2026.3.0",
+      "sha256": "ba0af3fd6cf0d281c623d48b23c77a4b4775860d496195155e6ceb281e0fff95",
       "exe": "scummvm.exe"
     }
   },
@@ -88,6 +89,23 @@
     "players": {
       "unsupported": "keyboard and mouse games"
     }
+  },
+  "saves": {
+    "scummvm": [
+      {
+        "kind": "save",
+        "path": {
+          "linux": "{data}/saves",
+          "windows": "Saved games"
+        },
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "scummvm",
+          "key": "savepath"
+        }
+      }
+    ]
   },
   "notes": "Launches a game directory, not a file."
 }

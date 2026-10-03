@@ -1,0 +1,52 @@
+{
+  "emulator": "dolphin",
+  "version": "2609",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "org.DolphinEmu.dolphin-emu",
+    "commit": "594afeb78ede945c8fe0e774649443cf12b0706188ce03bb3cd49e3004659e5b"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "gcpad": "GCPadNew.ini",
+    "gfx": "GFX.ini",
+    "main": "Dolphin.ini",
+    "wiimote": "WiimoteNew.ini"
+  },
+  "oracle": {
+    "gcpad": "ini",
+    "gfx": "ini",
+    "main": "ini",
+    "wiimote": "ini"
+  },
+  "masks": [
+    {
+      "file": "main",
+      "section": "Analytics",
+      "key": "ID"
+    }
+  ],
+  "full_writer": false,
+  "created": [
+    "config/dolphin-emu/DSUClient.ini",
+    "config/dolphin-emu/Dolphin.ini",
+    "config/dolphin-emu/FreeLook.ini",
+    "config/dolphin-emu/FreeLookController.ini",
+    "config/dolphin-emu/GBA.ini",
+    "config/dolphin-emu/GCKeyNew.ini",
+    "config/dolphin-emu/GCPadNew.ini",
+    "config/dolphin-emu/GFX.ini",
+    "config/dolphin-emu/Logger.ini",
+    "config/dolphin-emu/Qt.ini",
+    "config/dolphin-emu/RetroAchievements.ini",
+    "config/dolphin-emu/WiimoteNew.ini",
+    "data/dolphin-emu/Logs/dolphin.log",
+    "data/dolphin-emu/ResourcePacks/Packs.ini",
+    "data/dolphin-emu/Wii/fst.bin",
+    "data/dolphin-emu/Wii/shared2/sys/SYSCONF"
+  ]
+}

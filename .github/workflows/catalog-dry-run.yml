@@ -8,6 +8,10 @@ on:
     paths: ["crates/hermir/catalog/**"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   resolve:
     runs-on: ubuntu-latest
@@ -24,3 +28,20 @@ jobs:
         run: ./target/debug/hermir --os windows catalog resolve --all
       - name: resolve every Linux channel
         run: ./target/debug/hermir --os linux catalog resolve --all
+      # A red scheduled run nobody looks at helps nobody: it opens an issue, or adds to the open
+      # one, with the run that failed.
+      - name: report a scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="catalog dry run failed"
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --repo "$GITHUB_REPOSITORY" --body "Failed again: $RUN"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body \
+              "The weekly resolve of every channel failed: $RUN. A renamed asset is usually a one-line fix to the entry's \`asset\` filter; see CONTRIBUTING.md."
+          fi

@@ -1,0 +1,25 @@
+{
+  "emulator": "pcsx2",
+  "version": "2.8.2",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "net.pcsx2.PCSX2",
+    "commit": "f8162e3d6b0ce75f54d0e10605d368b3678fda969bb1e806277500156c85fa10"
+  },
+  "captured": {
+    "on": "2026-10-03",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "inis/PCSX2.ini"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": true,
+  "created": [
+    "config/PCSX2/inis/PCSX2.ini",
+    "config/PCSX2/logs/emulog.txt"
+  ]
+}

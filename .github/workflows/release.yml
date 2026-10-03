@@ -27,7 +27,11 @@ jobs:
         with:
           toolchain: 1.96.0
           targets: ${{ matrix.target }}
-      - run: cargo build --release -p hermir-cli --target ${{ matrix.target }}
+      # SDL 3 for `hermir pads` and `--pad auto`, built from source and linked in: the binary
+      # stays self-contained (on Linux it loads libudev at run time, when there is one).
+      - if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev
+      - run: cargo build --release -p hermir-cli --features enumerate-static --target ${{ matrix.target }}
       - name: package
         shell: bash
         run: |

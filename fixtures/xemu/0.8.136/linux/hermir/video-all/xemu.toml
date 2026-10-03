@@ -1,0 +1,13 @@
+[sys.files]
+eeprom_path = 'masked'
+
+
+[display.window]
+fullscreen_on_startup = true
+vsync = true
+
+[display.quality]
+surface_scale = 3
+
+[display.ui]
+aspect_ratio = "16x9"

@@ -1,0 +1,6 @@
+[sys.files]
+eeprom_path = 'masked'
+
+
+[input.bindings]
+port1 = "030081b85e0400008e02000010010000"

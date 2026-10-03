@@ -31,7 +31,15 @@
     }
   },
   "detect": {
+    "linux": {
+      "path": [
+        "xenia_canary"
+      ]
+    },
     "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\xenia-canary\\current\\xenia_canary.exe"
+      ],
       "portable_marker": "portable.txt"
     }
   },
@@ -98,6 +106,16 @@
     "players": {
       "automatic": "Xenia takes XInput pads in slot order"
     }
+  },
+  "saves": {
+    "xbox360": [
+      {
+        "kind": "save",
+        "path": "content",
+        "per_game": true,
+        "note": "per profile and title: content/<profile>/<title id>/00000001"
+      }
+    ]
   },
   "notes": "Linux gets Canary's own AppImage, unpacked; it outran the Windows build under Proton. The Windows build asks for a disclaimer once, remembered in HKCU\\SOFTWARE\\Xenia XEFLAGS."
 }
