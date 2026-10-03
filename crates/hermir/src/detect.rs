@@ -7,9 +7,13 @@ use crate::model::{Detect, Entry, Exe, Install, InstallKind, Os, Roots};
 
 /// What detection may ask of the machine.
 pub trait Env: Send + Sync {
+    /// The OS detection runs for.
     fn os(&self) -> Os;
+    /// The user's home directory.
     fn home(&self) -> Option<PathBuf>;
+    /// An environment variable.
     fn var(&self, name: &str) -> Option<String>;
+    /// Whether `path` exists.
     fn exists(&self, path: &Path) -> bool;
     /// `name` resolved on `PATH`, with `PATHEXT` on Windows.
     fn which(&self, name: &str) -> Option<PathBuf>;
@@ -21,6 +25,7 @@ pub struct RealEnv {
 }
 
 impl RealEnv {
+    /// This machine, detected as `os`.
     pub fn new(os: Os) -> RealEnv {
         RealEnv { os }
     }

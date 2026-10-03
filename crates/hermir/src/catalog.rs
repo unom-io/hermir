@@ -60,6 +60,8 @@ const PLATFORMS: &str = include_str!("../catalog/platforms.json");
 const NO_INSTALL_PLATFORMS: &[&str] = &["switch"];
 
 #[derive(Clone, Debug)]
+/// Every emulator and platform hermir knows: the entries under `catalog/`, embedded at build
+/// time, parsed strictly and checked against the rules a schema cannot express.
 pub struct Catalog {
     entries: Vec<Entry>,
     platforms: Vec<Platform>,
@@ -108,18 +110,22 @@ impl Catalog {
         Ok(c)
     }
 
+    /// Every entry, in id order.
     pub fn entries(&self) -> &[Entry] {
         &self.entries
     }
 
+    /// The entry with this id.
     pub fn get(&self, id: &str) -> Option<&Entry> {
         self.entries.iter().find(|e| e.id == id)
     }
 
+    /// Every platform, with its aliases and its emulators in order of preference.
     pub fn platforms(&self) -> &[Platform] {
         &self.platforms
     }
 
+    /// The platform with this id.
     pub fn platform(&self, id: &str) -> Option<&Platform> {
         self.platforms.iter().find(|p| p.id == id)
     }

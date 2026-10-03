@@ -20,6 +20,8 @@ use crate::error::{Error, Result};
 use crate::model::Installed;
 
 #[derive(Clone, Debug)]
+/// The managed prefix on disk: one folder per emulator (`<id>/app`, its manifest),
+/// `installed.json`, the snapshots of `apply`, and the lock every write holds.
 pub struct Store {
     root: PathBuf,
 }
@@ -65,14 +67,17 @@ impl Store {
         base.unwrap_or_else(|| PathBuf::from(".")).join("hermir")
     }
 
+    /// The prefix itself.
     pub fn root(&self) -> &Path {
         &self.root
     }
 
+    /// Where a managed emulator's release lives: `<prefix>/<id>/app`.
     pub fn app_dir(&self, id: &str) -> PathBuf {
         self.root.join(id).join("app")
     }
 
+    /// Where downloads land before they are verified.
     pub fn tmp_dir(&self) -> PathBuf {
         self.root.join(".tmp")
     }
@@ -98,10 +103,12 @@ impl Store {
         self.root.join("installed.json")
     }
 
+    /// Every managed install, as `installed.json` records it.
     pub fn installed(&self) -> Result<Vec<Installed>> {
         Ok(read_json(&self.installed_path())?.unwrap_or_default())
     }
 
+    /// One managed install, by emulator id.
     pub fn installed_one(&self, id: &str) -> Result<Option<Installed>> {
         Ok(self.installed()?.into_iter().find(|r| r.emulator == id))
     }
@@ -115,6 +122,7 @@ impl Store {
         write_json(&self.installed_path(), &rows)
     }
 
+    /// Drops an emulator's row from `installed.json`.
     pub fn forget(&self, id: &str) -> Result<()> {
         let mut rows = self.installed()?;
         rows.retain(|r| r.emulator != id);

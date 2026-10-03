@@ -25,6 +25,8 @@
 //! of the catalog on this machine: install it, prepare it, `apply` a session's players and
 //! settings to it and `revert` them. Every type is serde and JSON Schema, so the CLI's
 //! `--json` is the same contract as the library.
+#![warn(missing_docs)]
+
 mod catalog;
 mod channel;
 mod config;
@@ -93,6 +95,8 @@ pub struct Hermir {
 }
 
 impl Hermir {
+    /// hermir for this machine, with the embedded catalog. Nothing is written until something
+    /// is installed or applied.
     pub fn open(opts: Options) -> Result<Hermir> {
         let os = opts.os.unwrap_or_else(Os::current);
         Ok(Hermir {
@@ -106,14 +110,17 @@ impl Hermir {
         })
     }
 
+    /// What hermir knows.
     pub fn catalog(&self) -> &Catalog {
         &self.catalog
     }
 
+    /// The prefix: managed installs, snapshots, the lock.
     pub fn store(&self) -> &Store {
         &self.store
     }
 
+    /// The OS hermir resolves for.
     pub fn os(&self) -> Os {
         self.os
     }
@@ -146,6 +153,7 @@ impl Hermir {
             .collect()
     }
 
+    /// One catalog entry on this machine, by id.
     pub fn emulator(&self, id: &str) -> Result<EmulatorHandle<'_>> {
         let entry = self
             .catalog
@@ -310,6 +318,7 @@ pub struct EmulatorHandle<'a> {
 }
 
 impl EmulatorHandle<'_> {
+    /// The catalog entry.
     pub fn entry(&self) -> &Entry {
         self.entry
     }
@@ -319,6 +328,7 @@ impl EmulatorHandle<'_> {
         channel::resolve(self.entry, self.h.os, self.h.http.as_ref())
     }
 
+    /// The copy hermir installed, if any.
     pub fn managed(&self) -> Result<Option<Installed>> {
         self.h.store.installed_one(&self.entry.id)
     }
@@ -403,8 +413,12 @@ impl EmulatorHandle<'_> {
         })
     }
 
-    /// Answers `install`'s first-run questions and puts `firmware` for `platform` in place
-    /// (see [`prepare::prepare`]). Idempotent; every step is in the result.
+    /// Answers `install`'s first-run questions (the catalog's `first_run`: a setup wizard's
+    /// answers, a welcome box), then puts `firmware` for `platform` in place: copied into the
+    /// emulator's firmware folder, handed to its own installer (RPCS3's PUP), or unpacked from
+    /// an archive (Eden's system update). `firmware` is what the consumer's source holds for
+    /// the platform, companions included. Idempotent; every step is in the result, and a
+    /// platform still without its firmware says so. Holds the prefix lock while it writes.
     pub fn prepare(
         &self,
         install: &Install,

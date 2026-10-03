@@ -13,7 +13,9 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Error, Result};
 use crate::progress::{Event, Progress};
 
+/// How hermir fetches release metadata and downloads: [`Ureq`] does it, a test answers instead.
 pub trait Http: Send + Sync {
+    /// The JSON document at `url`.
     fn get_json(&self, url: &str) -> Result<serde_json::Value>;
     /// Downloads `url` to `part`, resuming from whatever `part` already holds. `expected_size`,
     /// when the channel knows it, sets the time budget and is what the part must add up to.
@@ -74,6 +76,7 @@ fn config(https_only: bool) -> ureq::config::ConfigBuilder<ureq::typestate::Agen
 }
 
 impl Ureq {
+    /// The client hermir uses unless told otherwise.
     pub fn new() -> Ureq {
         Ureq {
             agent: config(true).build().into(),

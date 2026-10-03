@@ -10,7 +10,10 @@ pub struct Output {
     pub stderr: String,
 }
 
+/// How hermir runs a program (`flatpak`, an emulator's own firmware installer): [`Process`]
+/// runs it, a test answers instead.
 pub trait Runner: Send + Sync {
+    /// Runs `program` with `args`, no shell, and says how it went.
     fn run(&self, program: &str, args: &[&str]) -> Result<Output>;
 }
 
