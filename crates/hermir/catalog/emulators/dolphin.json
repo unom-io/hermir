@@ -13,6 +13,7 @@
     "windows": {
       "url": "https://dl.dolphin-emu.org/releases/2609/dolphin-2609-x64.7z",
       "version": "2609",
+      "sha256": "1aa25785b7d4cb76259754c5fbcdd8856857b8e7bb4e523c57a8ac56665fba75",
       "exe": "Dolphin.exe",
       "portable": {
         "file": "portable.txt"

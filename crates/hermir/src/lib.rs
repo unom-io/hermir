@@ -50,6 +50,10 @@ pub struct Options {
     pub os: Option<Os>,
     pub http: Box<dyn channel::http::Http>,
     pub runner: Box<dyn channel::flatpak::Runner>,
+    /// Refuse a download there is nothing to check against (a GitHub asset without a digest,
+    /// a libretro core) with [`Error::Unverified`], before anything is fetched. Off by default:
+    /// such an install then records `verified: none`.
+    pub require_verified: bool,
 }
 
 impl Default for Options {
@@ -59,6 +63,7 @@ impl Default for Options {
             os: None,
             http: Box::new(channel::http::Ureq::new()),
             runner: Box::new(channel::flatpak::Process),
+            require_verified: false,
         }
     }
 }
@@ -70,6 +75,7 @@ pub struct Hermir {
     http: Box<dyn channel::http::Http>,
     runner: Box<dyn channel::flatpak::Runner>,
     env: Box<dyn detect::Env>,
+    require_verified: bool,
 }
 
 impl Hermir {
@@ -82,6 +88,7 @@ impl Hermir {
             http: opts.http,
             runner: opts.runner,
             env: Box::new(detect::RealEnv::new(os)),
+            require_verified: opts.require_verified,
         })
     }
 
@@ -230,8 +237,16 @@ impl Hermir {
         Ok(out)
     }
 
-    /// Installs a libretro core into the RetroArch this machine has (managed first).
+    /// Installs a libretro core into the RetroArch this machine has (managed first). The
+    /// buildbot publishes no checksums, so a core is never verified, and with
+    /// `Options::require_verified` this refuses.
     pub fn install_core(&self, core: &str, progress: &dyn Progress) -> Result<PathBuf> {
+        if self.require_verified {
+            return Err(Error::Unverified {
+                what: format!("core {core}"),
+                why: channel::libretro::UNVERIFIED.into(),
+            });
+        }
         let ra = self
             .installs()?
             .into_iter()
@@ -296,6 +311,10 @@ impl EmulatorHandle<'_> {
     /// Installs, or reinstalls, from the channel for this OS.
     pub fn install(&self, progress: &dyn Progress) -> Result<Installed> {
         let _lock = self.h.store.lock()?;
+        self.install_locked(progress)
+    }
+
+    fn install_locked(&self, progress: &dyn Progress) -> Result<Installed> {
         channel::install(
             self.entry,
             self.h.os,
@@ -303,21 +322,29 @@ impl EmulatorHandle<'_> {
             self.h.http.as_ref(),
             self.h.runner.as_ref(),
             progress,
+            self.h.require_verified,
         )
+    }
+
+    /// The managed row, or why there is none. Read it under the lock, so no other writer
+    /// changes it meanwhile.
+    fn managed_row(&self) -> Result<Installed> {
+        self.managed()?.ok_or_else(|| Error::Place {
+            what: self.entry.id.clone(),
+            why: "not installed by hermir".into(),
+        })
     }
 
     /// Reinstalls when the channel moved; `Ok(None)` when it did not. A Flatpak asks
     /// `flatpak update`.
     pub fn update(&self, progress: &dyn Progress) -> Result<Option<Installed>> {
-        let row = self.managed()?.ok_or_else(|| Error::Place {
-            what: self.entry.id.clone(),
-            why: "not installed by hermir".into(),
-        })?;
+        let _lock = self.h.store.lock()?;
+        let row = self.managed_row()?;
         if let Exe::FlatpakRun(id) = &row.exe {
-            let _lock = self.h.store.lock()?;
             channel::flatpak::update(self.h.runner.as_ref(), id)?;
             let fresh = Installed {
                 version: channel::flatpak::version(self.h.runner.as_ref(), id),
+                verified: Verified::Flatpak,
                 installed_at: store::now_rfc3339(),
                 ..row
             };
@@ -328,15 +355,13 @@ impl EmulatorHandle<'_> {
         if !channel::update_available(&row, &resolved) {
             return Ok(None);
         }
-        self.install(progress).map(Some)
+        self.install_locked(progress).map(Some)
     }
 
+    /// Removes the managed copy; with `purge`, its data too (a Flatpak's `~/.var/app/<id>`).
     pub fn remove(&self, purge: bool) -> Result<()> {
-        let row = self.managed()?.ok_or_else(|| Error::Place {
-            what: self.entry.id.clone(),
-            why: "not installed by hermir".into(),
-        })?;
         let _lock = self.h.store.lock()?;
+        let row = self.managed_row()?;
         channel::remove(
             self.entry,
             &row,
@@ -444,5 +469,48 @@ impl EmulatorHandle<'_> {
             .installs()?
             .into_iter()
             .find(|i| i.emulator == self.entry.id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::channel::flatpak::fake::FakeRunner;
+    use crate::channel::http::fake::FakeHttp;
+    use crate::progress::Quiet;
+
+    fn open(prefix: &std::path::Path, require_verified: bool) -> Hermir {
+        Hermir::open(Options {
+            prefix: Some(prefix.to_path_buf()),
+            os: Some(Os::Windows),
+            http: Box::new(FakeHttp::default()),
+            runner: Box::new(FakeRunner::default()),
+            require_verified,
+        })
+        .unwrap()
+    }
+
+    /// The row is read under the lock: while another writer holds the prefix, the answer is
+    /// "busy", never a stale "not installed".
+    #[test]
+    fn update_and_remove_take_the_lock_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let h = open(dir.path(), false);
+        let e = h.emulator("duckstation").unwrap();
+        let held = h.store().lock().unwrap();
+        assert!(matches!(e.update(&Quiet), Err(Error::Locked(_))));
+        assert!(matches!(e.remove(false), Err(Error::Locked(_))));
+        drop(held);
+        assert!(matches!(e.remove(false), Err(Error::Place { .. })));
+    }
+
+    #[test]
+    fn require_verified_refuses_a_core() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = open(dir.path(), true)
+            .install_core("snes9x", &Quiet)
+            .unwrap_err();
+        assert!(matches!(err, Error::Unverified { .. }));
+        assert_eq!(err.exit_code(), 4);
     }
 }

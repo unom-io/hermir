@@ -18,6 +18,9 @@ pub enum Error {
         expected: String,
         actual: String,
     },
+    /// Verification was required, and there is nothing to check this download against.
+    #[error("{what} is not verified: {why}")]
+    Unverified { what: String, why: String },
     #[error("{what}: {why}")]
     Place { what: String, why: String },
     #[error("catalog entry {entry}: {why}")]
@@ -41,7 +44,7 @@ impl Error {
             Error::Io { .. } => 1,
             Error::NotInCatalog(_) | Error::Policy { .. } | Error::Catalog { .. } => 2,
             Error::Network { .. } => 3,
-            Error::Verify { .. } => 4,
+            Error::Verify { .. } | Error::Unverified { .. } => 4,
             Error::Place { .. } => 5,
             Error::UnsupportedOs { .. } => 6,
             Error::Locked(_) => 8,

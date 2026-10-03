@@ -53,8 +53,9 @@ The rules a reviewer holds an entry to:
 
 - **The emulator's own channel, nothing else.** Flathub on Linux; the project's GitHub releases
   or its official download on Windows. No mirrors, no rehosting, no third-party builds.
-- **Verifiable downloads.** GitHub releases publish a sha256 per asset. A `url` channel carries
-  `sha256` when the project publishes one.
+- **Verifiable downloads.** GitHub publishes a sha256 per asset (for assets uploaded since
+  2025-06). A `url` channel pins `sha256`, bumped with `version` in the same PR
+  (`curl -sSL --fail <url> | sha256sum`); validation rejects one without it.
 - **No Switch emulator carries an install channel.** Such an entry has `no_install` and is
   detect-and-configure only.
 - **`license` is the emulator's SPDX expression**, taken from its repository.

@@ -35,8 +35,10 @@ hermir doctor
 Every verb takes `--json`. The catalog is data
 ([`crates/hermir/catalog/`](https://github.com/unom-io/hermir/tree/main/crates/hermir/catalog)),
 reviewed by pull request: each entry points at the emulator's own release channel and nothing
-else, downloads are verified against the digest the release page publishes, and no Switch
-emulator carries an install channel.
+else, and no Switch emulator carries an install channel. A download is checked against the
+sha256 GitHub publishes for the asset, or the one the catalog pins for a fixed URL; where there
+is none (an older GitHub asset, a libretro core) hermir says `not verified` and records
+`verified: none`, and `--require-verified` refuses it.
 
 The design — the model, the facade, how configuration is patched and reverted, what comes
 next — is in [`docs/design.md`](https://github.com/unom-io/hermir/blob/main/docs/design.md).
@@ -117,7 +119,7 @@ use hermir::{Hermir, Options, Patch, Region, Video, progress::Quiet};
 
 let h = Hermir::open(Options::default())?;
 let pcsx2 = h.emulator("pcsx2")?;
-let row = pcsx2.install(&Quiet)?;      // Installed { exe, version, release, digest, .. }
+let row = pcsx2.install(&Quiet)?;      // Installed { exe, release, sha256, verified, .. }
 for i in h.installs()? {               // managed + detected, one per exe
     println!("{} {:?} {}", i.emulator, i.kind, i.exe);
 }

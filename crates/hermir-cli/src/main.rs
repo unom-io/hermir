@@ -23,6 +23,10 @@ struct Cli {
     /// Resolve for another OS. Only `resolve` and `catalog` are meaningful across OSes.
     #[arg(long, global = true, value_parser = clap::value_parser!(Os))]
     os: Option<Os>,
+    /// Refuse a download there is nothing to check against (exit 4), instead of installing it
+    /// as not verified.
+    #[arg(long, global = true, env = "HERMIR_REQUIRE_VERIFIED")]
+    require_verified: bool,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -269,9 +273,25 @@ impl Progress for Stderr {
                 _ => write!(err, "\r  downloading {} MB", done / 1_048_576),
             },
             Event::Verifying => writeln!(err, "\n  verifying"),
+            Event::NotVerified { why } => writeln!(err, "\n  not verified: {why}"),
             Event::Extracting => writeln!(err, "  extracting"),
             Event::Placed => writeln!(err, "  done"),
         };
+    }
+}
+
+/// The one line about shipped files the user had edited, when there are any.
+fn kept_line(row: &hermir::Installed) -> Option<String> {
+    match row.kept.as_slice() {
+        [] => None,
+        [one] => Some(format!(
+            "kept {one}, which you edited; the new one is beside it as {one}.new"
+        )),
+        many => Some(format!(
+            "{} files you edited were kept; the new ones are beside them as .new: {}",
+            many.len(),
+            many.join(", ")
+        )),
     }
 }
 
@@ -341,6 +361,7 @@ fn run(cli: Cli) -> hermir::Result<()> {
     let h = Hermir::open(Options {
         prefix: cli.prefix,
         os: cli.os,
+        require_verified: cli.require_verified,
         ..Options::default()
     })?;
     let os = h.os();
@@ -507,7 +528,14 @@ fn run(cli: Cli) -> hermir::Result<()> {
                 eprintln!("installing {}", e.entry().name);
             }
             let row = e.install(&Stderr)?;
-            out(json, &row, || format!("{}: {}", row.emulator, row.exe));
+            out(json, &row, || {
+                let mut s = format!("{}: {}", row.emulator, row.exe);
+                if let Some(kept) = kept_line(&row) {
+                    s.push('\n');
+                    s.push_str(&kept);
+                }
+                s
+            });
         }
         Cmd::Update { emulator, all } => {
             let ids: Vec<String> = if all {
@@ -529,6 +557,9 @@ fn run(cli: Cli) -> hermir::Result<()> {
                                 "{id}: updated to {}",
                                 row.release.clone().unwrap_or_default()
                             );
+                            if let Some(kept) = kept_line(&row) {
+                                println!("{kept}");
+                            }
                         }
                         rows.push(serde_json::json!({ "emulator": id, "updated": row }));
                     }

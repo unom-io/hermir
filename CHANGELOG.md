@@ -13,9 +13,15 @@ The first release: P0 of the [design](docs/design.md), *get*.
 - A catalog of 20 emulators, embedded in the library, parsed strictly, with a JSON Schema and
   per-OS channels, detection rules, config roots and firmware folders.
 - Install, update and remove from each emulator's own channel — Flatpak on Linux; GitHub
-  releases or a pinned official URL on Windows — verified against the published sha256 and
-  resumable. An update keeps shipped files the user edited and never touches config, saves or
-  firmware.
+  releases or a pinned official URL on Windows — over https only, with the OS's trust store and
+  a timeout on every step. A download is checked against the sha256 GitHub publishes or the one
+  the catalog pins; `installed.json` records which (`verified: published | pinned | flatpak |
+  none`), the CLI says `not verified: <why>` when there was nothing to check against, and
+  `Options::require_verified` / `--require-verified` refuses such a download. Downloads resume
+  only into the same build. An update or a remove keeps shipped files the user edited (the new
+  ones beside them as `.new`), never touches config, saves or firmware, never follows a link the
+  user put in the copy's folder, and finishes a place that stopped halfway.
+- Archives are refused when an entry or a link would land outside the copy's folder.
 - Detection of copies the user installed: `PATH`, Flatpak (user and system), known install
   paths, portable markers.
 - libretro cores from the buildbot into RetroArch's cores directory.
