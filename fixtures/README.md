@@ -28,6 +28,14 @@ fixtures/<emulator>/<version>/<os>/
 | E | with `after/<session>/`: hermir changed what the emulator changed, to the same values, and nothing else (minus `meta.ignore_after`) |
 | G | a second apply changes nothing |
 | F | revert gives `before/` back byte for byte, and leaves nothing outstanding |
+| H | `get` on what hermir wrote reads back the session's values |
+| P | where the emulator has profiles, the session applied to a profile lands in the profile and leaves `before/` alone |
+
+The standard sessions every fixture starts with: `video-all`, `video-off`, `region-eu`,
+`audio-device`, `audio-latency`, `players-1-xbox`, `players-2-xbox`, and `players-2-mixed` (an
+Xbox pad and a DualSense seated out of SDL's order, with the `connected` list). A new standard
+session goes into `hermir_golden::fixture::standard_sessions`; `cargo xtask sessions` then adds
+it to every fixture, and a bless records it.
 
 A fixture of another OS runs everywhere: `apply` takes the OS as a parameter, so Windows fixtures
 are checked on Linux CI and the other way round.
@@ -49,7 +57,9 @@ unchanged; `--force` replaces it.
 `ci/capture/recipes/<emulator>.json` holds what an emulator needs beyond that: `masks` for values
 that differ on every first start (Dolphin's analytics id), `full_writer` for emulators that write
 every setting (every key the catalog binds must then already be in `before/`), `ignore_after`,
-`args`, and a longer `settle`.
+`args`, a longer `settle`, `close_after` for emulators that write only on a clean quit,
+`checklists` for `--interactive`, and `saves_later` for save folders that appear only at the
+first save.
 
 Then bless and review:
 
@@ -76,4 +86,6 @@ programs generate, kept here as test data. A project that would rather not have 
 can ask, and its fixtures go.
 
 Two captured versions per emulator and OS are kept; the weekly drift job (`cargo xtask drift`)
-adds the new one and drops the oldest.
+adds the new one and drops the oldest. For each emulator it also starts the new release on the
+files hermir wrote for `video-all` (it must still start, and a file it rewrites must keep what
+hermir set) and checks that its first start made the save folders the catalog names.

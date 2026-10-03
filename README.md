@@ -26,8 +26,20 @@ hermir config apply pcsx2 --fullscreen --scale 3 --region pal --pad 045e:028e
                                     the Xbox pad in seat 1; every file snapshotted first
 hermir config apply pcsx2 --set EmuCore/GS/TextureFiltering=2
                                     anything the model lacks, as a native key
+hermir config apply rpcs3 --audio-device alsa_output.usb-headset --audio-latency 40
+hermir config get pcsx2             each knob read back, as hermir and the emulator spell it
 hermir config revert --all          every file back, byte for byte
 hermir config support               the knob × emulator matrix
+hermir players dolphin --pad auto   every pad connected, seated in SDL's order
+hermir pads --watch                 the pads SDL sees, as they come and go
+hermir profile create dolphin streaming
+hermir config apply dolphin --profile streaming --scale 2
+                                    a profile: settings of its own, the player's untouched
+hermir launch pcsx2 game.iso --fullscreen --profile streaming
+                                    the command that starts it, as data; `run` runs it
+hermir saves where duckstation      memory cards and save states, resolved
+hermir check pcsx2                  install, start, configure, start again and revert, in a
+                                    throwaway prefix and home: does the entry work here?
 hermir catalog resolve --all        where every channel points, without downloading
 hermir doctor
 ```
@@ -40,10 +52,13 @@ sha256 GitHub publishes for the asset, or the one the catalog pins for a fixed U
 is none (an older GitHub asset, a libretro core) hermir says `not verified` and records
 `verified: none`, and `--require-verified` refuses it.
 
-The design — the model, the facade, how configuration is patched and reverted, what comes
-next — is in [`docs/design.md`](https://github.com/unom-io/hermir/blob/main/docs/design.md).
-Done so far: get, find, update, remove, prepare, and a session's settings in and out again.
-There is no `unsafe` anywhere in the workspace; the build forbids it.
+The design — the model, the facade, how configuration is patched and reverted, what is
+still open — is in [`docs/design.md`](https://github.com/unom-io/hermir/blob/main/docs/design.md).
+Done: get, find, update, remove, prepare (first-run answers and firmware), a session's settings
+in and out again, profiles, launch, pads, saves. What hermir writes is checked against each
+emulator's own files, captured from its Flathub build (`fixtures/`), and a weekly job does it
+again for every new release. There is no `unsafe` anywhere in the workspace; the build forbids
+it.
 
 ## Install
 
@@ -53,7 +68,9 @@ cargo binstall hermir-cli           # the release binary, no build
 ```
 
 Or take a binary from [Releases](https://github.com/unom-io/hermir/releases) (Linux x86-64,
-Windows x86-64, macOS arm64). On Linux, installs go through Flatpak, so `flatpak` must be on
+Windows x86-64, macOS arm64); those have pad enumeration built in (SDL 3, linked in). A build
+from source gets it with `--features enumerate` (the system's SDL 3) or `enumerate-static`
+(SDL built from source: CMake and a C compiler). On Linux, installs go through Flatpak, so `flatpak` must be on
 `PATH`; `hermir doctor` says what is missing. Set `GITHUB_TOKEN` to lift the GitHub API's
 anonymous rate limit.
 
@@ -68,7 +85,7 @@ The library is `cargo add hermir`.
 | [Cemu](https://github.com/cemu-project/Cemu) | Wii U | Flatpak | release build |
 | [Dolphin](https://dolphin-emu.org) | GameCube, Wii | Flatpak | release build |
 | [DOSBox Staging](https://github.com/dosbox-staging/dosbox-staging) | DOS | Flatpak | release build |
-| [DuckStation](https://github.com/stenzek/duckstation) | PlayStation | Flatpak | release build |
+| [DuckStation](https://github.com/stenzek/duckstation) † | PlayStation | Flatpak | release build |
 | [Flycast](https://github.com/flyinghead/flycast) | Dreamcast | Flatpak | release build |
 | [melonDS](https://github.com/melonDS-emu/melonDS) | Nintendo DS | Flatpak | release build |
 | [mGBA](https://github.com/mgba-emu/mgba) | Game Boy, Game Boy Color, Game Boy Advance | Flatpak | release build |
@@ -79,12 +96,16 @@ The library is `cargo add hermir`.
 | [RPCS3](https://github.com/RPCS3/rpcs3) | PlayStation 3 | AppImage | release build |
 | [ScummVM](https://www.scummvm.org) | ScummVM games | Flatpak | release build |
 | [shadPS4](https://github.com/shadps4-emu/shadPS4) | PlayStation 4 | release build | release build |
-| [Snes9x](https://github.com/snes9xgit/snes9x) | Super Nintendo | Flatpak | release build |
+| [Snes9x](https://github.com/snes9xgit/snes9x) † | Super Nintendo | Flatpak | release build |
 | [Supermodel](https://github.com/trzy/Supermodel) | Sega Model 3 | release build | release build |
-| [Vita3K](https://github.com/Vita3K/Vita3K) | PlayStation Vita | — | release build |
+| [Vita3K](https://github.com/Vita3K/Vita3K) | PlayStation Vita | release build | release build |
 | [xemu](https://github.com/xemu-project/xemu) | Xbox | Flatpak | release build |
 | [Xenia Canary](https://github.com/xenia-canary/xenia-canary) | Xbox 360 | release build | release build |
 | Eden, Ryujinx | Nintendo Switch | detect only | detect only |
+
+† Not free software: DuckStation is under the PolyForm Strict licence, Snes9x under its own
+non-commercial one. hermir installs them from their own channels like the others; whether
+their terms fit what you do with them is yours to check.
 
 `hermir catalog list` is the live list; `hermir catalog show <id>` is one entry in full. A new
 emulator is a JSON file and a pull request — see
@@ -102,20 +123,27 @@ what it did:
 | `video.vsync` | |
 | `video.aspect` | `auto`, `4:3`, `16:9`, `stretch` |
 | `region` | the console region: `auto`, `jp`, `us`, `eu` |
-| `players` | pads in seat order, into the emulator's bindings |
+| `audio.device` | the output device (a Pulse or PipeWire sink on Linux); where the emulator has no such setting, `launch` sets `PULSE_SINK` |
+| `audio.latency_ms` | how much sound is buffered ahead |
+| `players` | pads in seat order, into the emulator's bindings, numbered among every pad connected as the emulator numbers them |
 
 Every file is snapshotted before its first edit; `hermir config revert` puts the player's own
 settings back byte for byte, and one revert undoes the whole session. What an emulator cannot
 do it says, with the reason (`hermir config support pcsx2`: "region — the BIOS decides"), and
 `--set section/key=value` reaches any key the model does not cover, through the same
-transaction. Where each knob lands is data in the catalog entry (`config.files`,
-`config.knobs`), so an emulator with plain `key = value` settings needs no code; only player
-bindings are Rust, one adapter per emulator.
+transaction. If the emulator rewrote a file since, `revert` leaves it as the emulator wrote it
+and says so (`--force` restores it anyway). Where each knob lands is data in the catalog entry
+(`config.files`, `config.knobs`), so an emulator with plain `key = value` settings needs no
+code; only player bindings are Rust, one adapter per emulator.
+
+Where the emulator has a flag for another settings folder (Dolphin, RPCS3, RetroArch), a
+**profile** is a copy of the player's settings that a session patches instead, and `launch`
+adds the flag; elsewhere a profile is the snapshotted in-place patch, and `apply` says so.
 
 ## Library
 
 ```rust
-use hermir::{Hermir, Options, Patch, Region, Video, progress::Quiet};
+use hermir::{Hermir, LaunchRequest, Options, Patch, Region, Video, progress::Quiet};
 
 let h = Hermir::open(Options::default())?;
 let pcsx2 = h.emulator("pcsx2")?;
@@ -130,6 +158,8 @@ let done = pcsx2.apply(&copy, &Patch {   // Ok(Applied { knobs: [{ knob, support
     ..Default::default()
 })?;
 pcsx2.revert(false)?;                    // the player's files back, byte for byte
+let spec = pcsx2.launch(&copy, &LaunchRequest { file: Some("game.iso".into()), ..Default::default() })?;
+let saves = pcsx2.saves(&copy, Some("ps2"))?;   // memory cards and states, resolved
 ```
 
 Every type is serde and JSON Schema, so the CLI's `--json` is the same contract as the library.

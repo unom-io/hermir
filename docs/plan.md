@@ -2,14 +2,45 @@
 
 | | |
 |---|---|
-| **Status** | Proposed |
-| **Date** | 2026-10-02 |
+| **Status** | Done, except what needs a Windows machine (see "Where it stands") |
+| **Date** | 2026-10-02; status 2026-10-03 |
 | **Scope** | From today's tree (P0, `prepare`, `apply`/`revert`/`support`) to the rest of [`design.md`](design.md) §10: hardening for 0.1.0, the test setup, `launch`, profiles, pads, saves, `config get` and audio, the catalog's gaps |
 | **Inputs** | A review of the whole tree on 2026-10-02, and a capture probe the same day (§2.5) |
 
 This plan orders the work and says, for each step, what changes where, how it is tested, and when it is
 done. The design stays the reference for *what* hermir is; this is *how we get there*. Sizes are
 relative: **S** about a day, **M** a few days, **L** one to two weeks.
+
+## Where it stands
+
+Every milestone below has landed on `claude/epic-ramanujan-j1w6ra`, one commit or a few each:
+T0–T3, M0–M6. What changed on the way, and what is still open:
+
+| Item | Plan | As built |
+|---|---|---|
+| Adapter trait (M1) | a trait with `apply_players`, `apply_extra`, `launch_extra` | a table of `Adapter { name, players: fn(&Cx, &Seating) -> Plan }`, checked against the catalog; launch-only settings are catalog data (`"via": "launch"`), so nothing needed `launch_extra` |
+| `Install.data_root` (M4) | a second root on `Install` | `{data}/` in a save path: the data directory beside the config root, the mirror of `{config}/`. No new field, and it holds for Flatpak, XDG, Windows and portable roots alike |
+| DuckStation profiles (M2) | `-settings <file>` | DuckStation has no such flag: its profiles are the in-place patch, and `apply` says so |
+| RetroArch profiles (M2) | `--appendconfig` | `-c`: with an appended config, save-on-exit leaks the session into the player's `retroarch.cfg` (seen on the Flathub build) |
+| Audio fallback (M5) | `PULSE_SINK` / `PIPEWIRE_NODE` in `env` | `PULSE_SINK`, in `env` or as `--env=` in a Flatpak's `sandbox`; PipeWire's Pulse server honours it |
+| Ryujinx (M6) | verify its Flatpak id | `org.ryujinx.Ryujinx` left Flathub; detection looks for Ryubing's community package, `io.github.ryubing.Ryujinx` |
+| Vita3K on Linux (M6) | verify the asset | `Vita3K-x86_64.AppImage` on the `continuous` release |
+| Xenia Canary (M6) | a separate releases repo? | no: the main repo's releases carry `xenia_canary_linux.AppImage` and `xenia_canary_windows.7z` |
+| PPSSPP on Windows (M6) | verify the asset | `PPSSPP-v<ver>-Windows-x64.zip` on GitHub releases, which the filter matches |
+| Snes9x, RMG settings (M6) | describe them | described, with fixtures captured from Flathub |
+
+Open, because they need hardware or a machine this work did not have:
+
+- **Windows fixtures**, and with them the Windows pad forms (XInput slot or SDL index) for PCSX2,
+  DuckStation and Dolphin (§5). Every fixture so far is a Linux Flatpak's.
+- **`after/` captures** (T3): `cargo xtask capture --interactive` is built; the captures need a
+  person at the emulator.
+- **The uinput spike** (§2.3): there is no `/dev/uinput` in a container. The `enumerate` tests use
+  SDL's own virtual joystick instead, which exercises the same path through SDL.
+- **ares's per-system BIOS files** (M6, *verify*), and the Windows portable layouts of Flycast
+  and Vita3K; Windows detection looks at Scoop's install path, whose app names are unverified.
+- **Detected copies' versions**: the field exists, nothing fills it yet.
+- **Releases**: nothing has been tagged or published.
 
 ## 0. Order
 
