@@ -26,6 +26,7 @@ tar = "0.4"
 flate2 = "1"
 
 [dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3"
 # The writer, to build hostile 7z archives in tests.
 sevenz-rust2 = { version = "0.23", default-features = false, features = ["compress"] }

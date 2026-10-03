@@ -66,9 +66,15 @@ impl Edit {
                 value,
                 ..
             } => match format {
-                Format::Ini => Ok(ini::set(text, section, key, value)),
+                Format::Ini => ini::set(text, section, key, value),
                 // Qt spells `key=value`; a file Qt wrote says so itself, an empty one cannot.
-                Format::Qt => Ok(ini::set_with(text, section, key, value, "=")),
+                Format::Qt => {
+                    let opts = ini::IniOpts {
+                        sep: "=",
+                        ..ini::IniOpts::default()
+                    };
+                    ini::set_with(text, section, key, value, opts)
+                }
                 Format::Yaml => yaml::set(text, section, key, value, false),
                 Format::Bml => yaml::set(text, section, key, value, true),
                 Format::Xml => {
