@@ -134,6 +134,11 @@ pub struct Entry {
     /// how its player bindings are written. Absent while nothing is described yet.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<Config>,
+    /// How a copy runs on settings of its own, the player's left alone: the emulator's flag
+    /// for another config file or folder. Absent where the emulator has none; a profile then
+    /// is the in-place, snapshotted patch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<ProfileSupport>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// What to know about it that fits no other field.
     pub notes: Option<String>,
@@ -661,6 +666,10 @@ fn is_main(s: &str) -> bool {
 pub struct Applied {
     /// The catalog id of the emulator.
     pub emulator: String,
+    /// What to know about the whole: a profile asked of an emulator that has none was written
+    /// in place.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
     /// One per knob the patch carried, and `players` when it had pads.
     pub knobs: Vec<KnobChange>,
     /// One per file touched.
@@ -1024,6 +1033,21 @@ pub struct Launch {
     pub cores: BTreeMap<String, String>,
 }
 
+/// What a profile is for one emulator: the launch arguments that point it at the profile's
+/// folder, and which of the catalog's files live in there.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileSupport {
+    /// Launch arguments, before the template's; `{profile}` is the profile's folder.
+    pub args: Vec<String>,
+    /// Catalog file name → path under the profile's folder. A profile starts as a copy of the
+    /// player's own files; a file not named here is patched where it is, snapshotted.
+    pub files: BTreeMap<String, String>,
+    /// What else a profile keeps or leaves, in a phrase a UI shows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
 /// What a consumer wants started: a game, on a platform, for a session.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct LaunchRequest {
@@ -1039,6 +1063,10 @@ pub struct LaunchRequest {
     /// RetroArch: the libretro core (`mesen`) in place of the platform's default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub core: Option<String>,
+    /// Run on this profile's settings (made by `apply` to it, or created): the emulator's
+    /// flag for it goes on the command line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub profile: Option<String>,
     /// The session's patch, for the knobs that travel on the command line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub patch: Option<Patch>,

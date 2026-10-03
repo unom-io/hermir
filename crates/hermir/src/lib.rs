@@ -454,9 +454,41 @@ impl EmulatorHandle<'_> {
             self.entry,
             self.h.os,
             install,
+            None,
             patch,
             &self.h.snapshots(),
         ))
+    }
+
+    /// The profiles this copy has, by name.
+    pub fn profiles(&self, install: &Install) -> Result<Vec<String>> {
+        self.mine(install)?;
+        let mut names: Vec<String> = std::fs::read_dir(self.profiles_dir(install)?)
+            .map(|rd| {
+                rd.flatten()
+                    .filter(|e| e.path().is_dir())
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .collect()
+            })
+            .unwrap_or_default();
+        names.sort();
+        Ok(names)
+    }
+
+    /// Where this copy's profiles live: a Flatpak's own data folder, which its sandbox can
+    /// always read, or the prefix.
+    fn profiles_dir(&self, install: &Install) -> Result<PathBuf> {
+        Ok(match &install.exe {
+            Exe::FlatpakRun(app) => self
+                .h
+                .env
+                .home()
+                .ok_or_else(|| Error::Invalid("no home directory to keep profiles in".into()))?
+                .join(".var/app")
+                .join(app)
+                .join("data/hermir/profiles"),
+            Exe::Path(_) => self.h.store.root().join("profiles").join(&self.entry.id),
+        })
     }
 
     /// Restores every file [`Self::apply`] changed, for every copy of this emulator, and
@@ -472,7 +504,7 @@ impl EmulatorHandle<'_> {
     /// knob the file does not set reads as unset, with a note.
     pub fn get(&self, install: &Install) -> Result<Vec<KnobValue>> {
         self.mine(install)?;
-        config::get(self.entry, self.h.os, install).map_err(Error::Invalid)
+        config::get(self.entry, self.h.os, install, None).map_err(Error::Invalid)
     }
 
     /// What `key` in `section` of the catalog's `file` holds in this copy, as the file spells
@@ -494,7 +526,27 @@ impl EmulatorHandle<'_> {
     /// never runs it; the consumer does, its own way.
     pub fn launch(&self, install: &Install, req: &LaunchRequest) -> Result<LaunchSpec> {
         self.mine(install)?;
-        launch::launch(self.entry, self.h.os, install, req).map_err(Error::Invalid)
+        let profile = match &req.profile {
+            Some(name) => {
+                let p = self.profile(install, name)?;
+                if !p.supported() {
+                    return Err(Error::Invalid(format!(
+                        "{} has no profiles: a profile's settings were written in place, so \
+                         launch without one",
+                        self.entry.id
+                    )));
+                }
+                if !p.exists() {
+                    return Err(Error::Invalid(format!(
+                        "profile {name} does not exist yet: apply a patch to it, or create it"
+                    )));
+                }
+                Some(p.dir)
+            }
+            None => None,
+        };
+        launch::launch(self.entry, self.h.os, install, req, profile.as_deref())
+            .map_err(Error::Invalid)
     }
 
     /// An install of another emulator would be patched with this one's keys.
@@ -537,6 +589,127 @@ impl EmulatorHandle<'_> {
             })
             .or(copies.first())
             .cloned())
+    }
+}
+
+impl<'a> EmulatorHandle<'a> {
+    /// One of this copy's profiles, by name (letters, digits, `.`, `_`, `-`): settings of its
+    /// own, the player's left alone, where the emulator has a flag for that.
+    pub fn profile(&self, install: &Install, name: &str) -> Result<Profile<'a>> {
+        self.mine(install)?;
+        if name.is_empty()
+            || name.starts_with('.')
+            || !name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "._-".contains(c))
+        {
+            return Err(Error::Invalid(format!(
+                "{name:?}: a profile name is letters, digits, `.`, `_` and `-`"
+            )));
+        }
+        Ok(Profile {
+            h: self.h,
+            entry: self.entry,
+            install: install.clone(),
+            name: name.into(),
+            dir: self.profiles_dir(install)?.join(name),
+        })
+    }
+}
+
+/// One profile of one copy: a folder of settings the emulator runs on when launched with it,
+/// so a session never edits the player's own. Made from the player's files the first time it is
+/// applied to (or created), then hermir's: `revert` puts it back to how it was made.
+pub struct Profile<'a> {
+    h: &'a Hermir,
+    entry: &'a Entry,
+    install: Install,
+    name: String,
+    dir: PathBuf,
+}
+
+impl Profile<'_> {
+    /// Its name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Its folder.
+    pub fn dir(&self) -> &std::path::Path {
+        &self.dir
+    }
+
+    /// Whether the emulator has a flag for profiles. Without one a profile is the in-place,
+    /// snapshotted patch, and says so.
+    pub fn supported(&self) -> bool {
+        self.entry.profile.is_some()
+    }
+
+    /// Whether it has been made.
+    pub fn exists(&self) -> bool {
+        self.dir.is_dir()
+    }
+
+    /// Makes it from the player's own files (the emulator's defaults when `fresh`), keeping
+    /// any file it already has. One step per file.
+    pub fn create(&self, fresh: bool) -> Result<Vec<PrepareStep>> {
+        let _lock = self.h.store.lock()?;
+        config::seed_profile(self.entry, self.h.os, &self.install, &self.dir, fresh)
+            .map_err(Error::Invalid)
+    }
+
+    /// Makes it again: what it holds goes, the player's files are copied anew.
+    pub fn reset(&self, fresh: bool) -> Result<Vec<PrepareStep>> {
+        self.remove()?;
+        self.create(fresh)
+    }
+
+    /// Removes it, with everything the emulator kept in it.
+    pub fn remove(&self) -> Result<()> {
+        let _lock = self.h.store.lock()?;
+        match std::fs::remove_dir_all(&self.dir) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                Err(Error::io("remove", &self.dir, e))
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Writes `patch` into the profile, made first if it does not exist yet. Files the profile
+    /// does not keep are patched where they are, snapshotted as ever. Where the emulator has no
+    /// profiles, this is [`EmulatorHandle::apply`], and [`Applied::note`] says so.
+    pub fn apply(&self, patch: &Patch) -> Result<Applied> {
+        patch.validate().map_err(Error::Invalid)?;
+        if !self.supported() {
+            let mut done = EmulatorHandle {
+                h: self.h,
+                entry: self.entry,
+            }
+            .apply(&self.install, patch)?;
+            done.note = Some(format!(
+                "{} has no profiles: written in place, snapshotted; `revert` puts it back",
+                self.entry.id
+            ));
+            return Ok(done);
+        }
+        if !self.exists() {
+            self.create(false)?;
+        }
+        let _lock = self.h.store.lock()?;
+        Ok(config::apply(
+            self.entry,
+            self.h.os,
+            &self.install,
+            Some(&self.dir),
+            patch,
+            &self.h.snapshots(),
+        ))
+    }
+
+    /// What the profile holds for each knob, as [`EmulatorHandle::get`] reads a copy.
+    pub fn get(&self) -> Result<Vec<KnobValue>> {
+        let dir = self.supported().then_some(self.dir.as_path());
+        config::get(self.entry, self.h.os, &self.install, dir).map_err(Error::Invalid)
     }
 }
 
@@ -744,5 +917,110 @@ mod tests {
             ..Default::default()
         };
         assert!(matches!(pcsx2.apply(&best, &patch), Err(Error::Invalid(_))));
+    }
+
+    fn on_linux(tmp: &std::path::Path) -> Hermir {
+        let env = crate::detect::fake::FakeEnv::new(Os::Linux, tmp.join("home").to_str().unwrap());
+        Hermir::open(Options {
+            prefix: Some(tmp.join("prefix")),
+            os: Some(Os::Linux),
+            http: Box::new(FakeHttp::default()),
+            runner: Box::new(FakeRunner::default()),
+            env: Some(Box::new(env)),
+            require_verified: false,
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn a_profile_leaves_the_players_files_alone_and_launches_with_its_flag() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = on_linux(tmp.path());
+        let e = h.emulator("dolphin").unwrap();
+        let own = tmp
+            .path()
+            .join("home/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu");
+        std::fs::create_dir_all(&own).unwrap();
+        std::fs::write(own.join("GFX.ini"), "[Settings]\nInternalResolution = 1\n").unwrap();
+        let copy = Install::new(
+            "dolphin",
+            InstallKind::Flatpak,
+            Exe::FlatpakRun("org.DolphinEmu.dolphin-emu".into()),
+            Some(own.clone()),
+        );
+        let p = e.profile(&copy, "punktfunk").unwrap();
+        assert!(p.supported() && !p.exists());
+        let patch = Patch {
+            video: Some(Video {
+                scale: Some(3),
+                fullscreen: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let done = p.apply(&patch).unwrap();
+        assert!(!done.failed(), "{done:?}");
+        // The profile is the app's own data folder, where its sandbox reads; its files are
+        // Dolphin's user-folder layout.
+        let dir = tmp
+            .path()
+            .join("home/.var/app/org.DolphinEmu.dolphin-emu/data/hermir/profiles/punktfunk");
+        assert_eq!(p.dir(), dir);
+        let gfx = std::fs::read_to_string(dir.join("Config/GFX.ini")).unwrap();
+        assert!(gfx.contains("InternalResolution = 3"), "{gfx}");
+        assert_eq!(
+            std::fs::read_to_string(own.join("GFX.ini")).unwrap(),
+            "[Settings]\nInternalResolution = 1\n",
+            "the player's own file is untouched"
+        );
+        assert!(!own.join("Dolphin.ini").exists());
+        let read = p.get().unwrap();
+        let scale = read.iter().find(|k| k.knob == "video.scale").unwrap();
+        assert_eq!(scale.value.as_deref(), Some("3"));
+        assert_eq!(e.profiles(&copy).unwrap(), ["punktfunk"]);
+
+        let req = LaunchRequest {
+            file: Some("/games/Metroid.rvz".into()),
+            profile: Some("punktfunk".into()),
+            ..Default::default()
+        };
+        let spec = e.launch(&copy, &req).unwrap();
+        assert_eq!(
+            spec.args[..2],
+            ["-u".to_string(), dir.display().to_string()]
+        );
+
+        p.remove().unwrap();
+        assert!(!p.exists());
+        assert!(matches!(e.launch(&copy, &req), Err(Error::Invalid(_))));
+        assert!(e.profile(&copy, "../escape").is_err());
+    }
+
+    #[test]
+    fn a_profile_where_the_emulator_has_none_is_the_in_place_patch_and_says_so() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = on_linux(tmp.path());
+        let e = h.emulator("duckstation").unwrap();
+        let own = tmp.path().join("duck");
+        let copy = Install::new(
+            "duckstation",
+            InstallKind::Native,
+            Exe::Path("/usr/bin/duckstation-qt".into()),
+            Some(own.clone()),
+        );
+        let p = e.profile(&copy, "x").unwrap();
+        assert!(!p.supported());
+        let done = p
+            .apply(&Patch {
+                region: Some(Region::Europe),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(done.note.as_deref().unwrap().contains("in place"));
+        assert!(
+            std::fs::read_to_string(own.join("settings.ini"))
+                .unwrap()
+                .contains("PAL")
+        );
     }
 }

@@ -34,7 +34,7 @@ pub fn apply(h: &Hermir, a: &ApplyArgs) -> Result<Outcome> {
             "nothing to apply; see `hermir config apply --help`".into(),
         ));
     }
-    apply_patch(h, &a.emulator, &patch)
+    apply_patch(h, &a.emulator, &patch, a.profile.as_deref())
 }
 
 /// `players`: `config apply` with pads only, or `config revert`.
@@ -52,15 +52,23 @@ pub fn players(h: &Hermir, emulator: &str, revert: bool, pads: &PadArgs) -> Resu
         players: Some(players),
         ..Default::default()
     };
-    apply_patch(h, emulator, &patch)
+    apply_patch(h, emulator, &patch, None)
 }
 
-fn apply_patch(h: &Hermir, emulator: &str, patch: &Patch) -> Result<Outcome> {
+fn apply_patch(
+    h: &Hermir,
+    emulator: &str,
+    patch: &Patch,
+    profile: Option<&str>,
+) -> Result<Outcome> {
     let e = h.emulator(emulator)?;
     let copies = copies(h, emulator)?;
     let done: Vec<Applied> = copies
         .iter()
-        .map(|i| e.apply(i, patch))
+        .map(|i| match profile {
+            Some(name) => e.profile(i, name)?.apply(patch),
+            None => e.apply(i, patch),
+        })
         .collect::<Result<_>>()?;
     let rows: Vec<PerCopy<'_, Applied>> = copies
         .iter()
@@ -72,6 +80,7 @@ fn apply_patch(h: &Hermir, emulator: &str, patch: &Patch) -> Result<Outcome> {
         .zip(&done)
         .flat_map(|(i, a)| {
             std::iter::once(i.exe.to_string())
+                .chain(a.note.iter().map(|n| format!("  {n}")))
                 .chain(a.knobs.iter().map(render::knob))
                 .chain(a.steps.iter().map(render::step))
         })
@@ -229,7 +238,13 @@ struct Native<'a> {
 }
 
 /// What every copy holds: all knobs, one knob, or one native key.
-pub fn get(h: &Hermir, emulator: &str, what: Option<&str>, file: &str) -> Result<Outcome> {
+pub fn get(
+    h: &Hermir,
+    emulator: &str,
+    what: Option<&str>,
+    file: &str,
+    profile: Option<&str>,
+) -> Result<Outcome> {
     let e = h.emulator(emulator)?;
     let copies = copies(h, emulator)?;
     let native = what.filter(|w| !hermir::KNOBS.contains(w));
@@ -254,8 +269,11 @@ pub fn get(h: &Hermir, emulator: &str, what: Option<&str>, file: &str) -> Result
     let mut rows = Vec::new();
     let mut lines = Vec::new();
     for i in &copies {
-        let knobs: Vec<hermir::KnobValue> = e
-            .get(i)?
+        let read = match profile {
+            Some(name) => e.profile(i, name)?.get()?,
+            None => e.get(i)?,
+        };
+        let knobs: Vec<hermir::KnobValue> = read
             .into_iter()
             .filter(|k| what.is_none_or(|w| k.knob == w))
             .collect();

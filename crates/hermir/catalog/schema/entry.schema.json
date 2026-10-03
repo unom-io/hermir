@@ -913,6 +913,38 @@
       ],
       "description": "What makes the emulator keep its files beside the exe: a marker file or a directory."
     },
+    "ProfileSupport": {
+      "additionalProperties": false,
+      "description": "What a profile is for one emulator: the launch arguments that point it at the profile's\nfolder, and which of the catalog's files live in there.",
+      "properties": {
+        "args": {
+          "description": "Launch arguments, before the template's; `{profile}` is the profile's folder.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "files": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Catalog file name → path under the profile's folder. A profile starts as a copy of the\nplayer's own files; a file not named here is patched where it is, snapshotted.",
+          "type": "object"
+        },
+        "note": {
+          "description": "What else a profile keeps or leaves, in a phrase a UI shows.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "args",
+        "files"
+      ],
+      "type": "object"
+    },
     "Roots": {
       "additionalProperties": false,
       "description": "Config root per install kind.",
@@ -1151,6 +1183,17 @@
         "type": "string"
       },
       "type": "array"
+    },
+    "profile": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProfileSupport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "How a copy runs on settings of its own, the player's left alone: the emulator's flag\nfor another config file or folder. Absent where the emulator has none; a profile then\nis the in-place, snapshotted patch."
     },
     "roots": {
       "$ref": "#/$defs/Roots",

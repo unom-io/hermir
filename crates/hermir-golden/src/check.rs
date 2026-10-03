@@ -9,7 +9,9 @@
 //!   same values, and nothing else;
 //! - **H** `get` reads back what each applied knob was set to;
 //! - **G** a second apply changes nothing;
-//! - **F** revert gives `before/` back byte for byte, and leaves nothing outstanding.
+//! - **F** revert gives `before/` back byte for byte, and leaves nothing outstanding;
+//! - **P** where the emulator has profiles, the session applied to a profile made from
+//!   `before/` leaves the player's files as they were and reads back as asked.
 //!
 //! `bless` rewrites the expectations (A's `expect`, B's files, a players session's `may_touch`)
 //! instead of checking them; the PR diff is where they are reviewed.
@@ -50,17 +52,7 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
     })
     .map_err(|e| e.to_string())?;
     let emu = h.emulator(&fx.meta.emulator).map_err(|e| e.to_string())?;
-    let exe = match (fx.meta.kind, &fx.meta.source.flatpak) {
-        (InstallKind::Flatpak, Some(id)) => Exe::FlatpakRun(id.clone()),
-        _ => Exe::Path(root.join("emulator")),
-    };
-    let install = Install {
-        emulator: fx.meta.emulator.clone(),
-        kind: fx.meta.kind,
-        exe,
-        version: Some(fx.meta.version.clone()),
-        config_root: Some(root.clone()),
-    };
+    let install = install(fx, &root);
 
     let mut failures = Vec::new();
     let applied = emu.apply(&install, &s.patch).map_err(|e| e.to_string())?;
@@ -245,6 +237,11 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
         failures.push("F: a snapshot is still outstanding after revert".into());
     }
 
+    // P
+    if entry.profile.is_some() {
+        failures.extend(in_a_profile(fx, entry, &s, &before)?);
+    }
+
     if bless {
         let json = serde_json::to_string_pretty(&s).map_err(|e| e.to_string())? + "\n";
         std::fs::write(fx.session_path(session), json).map_err(|e| e.to_string())?;
@@ -253,6 +250,101 @@ pub fn run(fx: &Fixture, session: &str, bless: bool) -> Result<(), String> {
         Ok(())
     } else {
         Err(failures.join("\n"))
+    }
+}
+
+/// Check P: the session in a profile made from `before/`.
+fn in_a_profile(
+    fx: &Fixture,
+    entry: &Entry,
+    s: &Session,
+    before: &Tree,
+) -> Result<Vec<String>, String> {
+    let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let root = tmp.path().join("root");
+    std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    write_tree(&root, before)?;
+    let h = Hermir::open(Options {
+        prefix: Some(tmp.path().join("prefix")),
+        os: Some(fx.meta.os),
+        env: Some(Box::new(Home(tmp.path().join("home"), fx.meta.os))),
+        ..Default::default()
+    })
+    .map_err(|e| e.to_string())?;
+    let emu = h.emulator(&fx.meta.emulator).map_err(|e| e.to_string())?;
+    let install = install(fx, &root);
+    let profile = emu.profile(&install, "golden").map_err(|e| e.to_string())?;
+    let applied = profile.apply(&s.patch).map_err(|e| e.to_string())?;
+    let mut failures = Vec::new();
+    let reported: BTreeMap<_, _> = applied
+        .knobs
+        .iter()
+        .map(|k| (k.knob.clone(), k.support))
+        .collect();
+    if reported != s.expect {
+        failures.push(format!(
+            "P: in a profile apply reported {reported:?}, the session expects {:?}",
+            s.expect
+        ));
+    }
+    let moved: BTreeSet<&str> = entry
+        .profile
+        .iter()
+        .flat_map(|p| p.files.keys())
+        .filter_map(|name| {
+            let f = entry.config.as_ref()?.files.get(name)?;
+            f.path.get(fx.meta.os)
+        })
+        .collect();
+    let now = tree(&root);
+    for rel in moved {
+        if now.get(rel) != before.get(rel) {
+            failures.push(format!("P: {rel} changed, though the profile keeps it"));
+        }
+    }
+    let read = profile.get().map_err(|e| e.to_string())?;
+    failures.extend(
+        read_back(entry, s, &read)
+            .into_iter()
+            .map(|f| format!("P/{f}")),
+    );
+    Ok(failures)
+}
+
+/// A copy of the fixture's kind at `root`.
+fn install(fx: &Fixture, root: &Path) -> Install {
+    let exe = match (fx.meta.kind, &fx.meta.source.flatpak) {
+        (InstallKind::Flatpak, Some(id)) => Exe::FlatpakRun(id.clone()),
+        _ => Exe::Path(root.join("emulator")),
+    };
+    let mut i = Install::new(
+        &fx.meta.emulator,
+        fx.meta.kind,
+        exe,
+        Some(root.to_path_buf()),
+    );
+    i.version = Some(fx.meta.version.clone());
+    i
+}
+
+/// A machine with nothing on it but a home: where profiles of a Flatpak copy go.
+struct Home(std::path::PathBuf, hermir::Os);
+
+impl hermir::Env for Home {
+    fn os(&self) -> hermir::Os {
+        self.1
+    }
+    fn home(&self) -> Option<std::path::PathBuf> {
+        Some(self.0.clone())
+    }
+    fn var(&self, _: &str) -> Option<String> {
+        None
+    }
+    fn exists(&self, path: &Path) -> bool {
+        path.exists()
+    }
+    fn which(&self, _: &str) -> Option<std::path::PathBuf> {
+        None
     }
 }
 

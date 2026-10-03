@@ -22,11 +22,14 @@ pub(crate) use knobs::neutral_values;
 pub(crate) use txn::{Edit, write_atomic};
 pub use txn::{outstanding, revert};
 
-/// One copy, as the planners see it: the OS, the config root, the catalog's named files.
+/// One copy, as the planners see it: the OS, the config root, the catalog's named files, and
+/// the files a profile keeps elsewhere.
 pub(crate) struct Cx<'a> {
     pub os: Os,
     pub root: &'a Path,
     pub files: &'a BTreeMap<String, ConfigFile>,
+    /// Catalog file name → where a profile keeps it instead.
+    pub moved: BTreeMap<String, PathBuf>,
 }
 
 static NO_FILES: BTreeMap<String, ConfigFile> = BTreeMap::new();
@@ -38,6 +41,9 @@ impl Cx<'_> {
             .files
             .get(name)
             .ok_or_else(|| format!("the catalog names no `{name}` file"))?;
+        if let Some(at) = self.moved.get(name) {
+            return Ok((at.clone(), f));
+        }
         let rel = f
             .path
             .get(self.os)
@@ -81,10 +87,20 @@ pub fn settings_dir(root: &Path) -> PathBuf {
 
 /// Writes `patch` into `install`'s files, every file snapshotted under `snapshots/<id>/` before
 /// its first edit (see [`revert`]). One `KnobChange` per knob asked for, one step per file.
-pub fn apply(entry: &Entry, os: Os, install: &Install, patch: &Patch, snapshots: &Path) -> Applied {
+/// Writes `patch` into this copy, or into its profile at `profile` (a folder) where the
+/// entry has profiles: see [`Cx::moved`].
+pub fn apply(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    profile: Option<&Path>,
+    patch: &Patch,
+    snapshots: &Path,
+) -> Applied {
     let Some(root) = install.config_root.as_deref() else {
         return Applied {
             emulator: entry.id.clone(),
+            note: None,
             knobs: Vec::new(),
             steps: vec![PrepareStep {
                 kind: "config".into(),
@@ -94,8 +110,7 @@ pub fn apply(entry: &Entry, os: Os, install: &Install, patch: &Patch, snapshots:
             }],
         };
     };
-    let files = entry.config.as_ref().map_or(&NO_FILES, |c| &c.files);
-    let cx = Cx { os, root, files };
+    let cx = cx(entry, os, root, profile);
     let mut planned = knobs::plan(entry, &cx, patch);
     if let Some(players) = &patch.players {
         planned.push(adapters::plan(entry, &cx, players));
@@ -150,20 +165,97 @@ pub fn apply(entry: &Entry, os: Os, install: &Install, patch: &Patch, snapshots:
         .collect();
     Applied {
         emulator: entry.id.clone(),
+        note: None,
         knobs,
         steps,
     }
 }
 
-/// What this copy's files hold for each knob, back in the neutral spelling: what `apply`
-/// would write, read the other way. `Err` when the catalog does not know where it keeps them.
-pub fn get(entry: &Entry, os: Os, install: &Install) -> Result<Vec<KnobValue>, String> {
+/// The planners' view of a copy, its profile's files moved where the profile keeps them.
+fn cx<'a>(entry: &'a Entry, os: Os, root: &'a Path, profile: Option<&Path>) -> Cx<'a> {
+    let files = entry.config.as_ref().map_or(&NO_FILES, |c| &c.files);
+    let moved = match (profile, &entry.profile) {
+        (Some(dir), Some(p)) => p
+            .files
+            .iter()
+            .map(|(name, rel)| (name.clone(), dir.join(rel)))
+            .collect(),
+        _ => BTreeMap::new(),
+    };
+    Cx {
+        os,
+        root,
+        files,
+        moved,
+    }
+}
+
+/// Makes the profile at `dir`: each file it keeps, copied from the player's own (or left to the
+/// emulator's defaults when `fresh` or when the player has none). A file the profile already
+/// has stays. One step per file.
+pub fn seed_profile(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    dir: &Path,
+    fresh: bool,
+) -> Result<Vec<PrepareStep>, String> {
+    let p = entry
+        .profile
+        .as_ref()
+        .ok_or_else(|| format!("{} has no profiles", entry.id))?;
     let root = install
         .config_root
         .as_deref()
         .ok_or("the catalog does not know where this copy keeps its config")?;
-    let files = entry.config.as_ref().map_or(&NO_FILES, |c| &c.files);
-    Ok(knobs::read(entry, &Cx { os, root, files }))
+    let own = cx(entry, os, root, None);
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let mut steps = Vec::new();
+    for (name, rel) in &p.files {
+        let to = dir.join(rel);
+        let step = |outcome, note: Option<String>| PrepareStep {
+            kind: "profile".into(),
+            target: to.clone(),
+            outcome,
+            note,
+        };
+        if to.exists() {
+            steps.push(step(StepOutcome::Present, None));
+            continue;
+        }
+        let (from, _) = own.file(name)?;
+        if fresh || !from.is_file() {
+            steps.push(step(
+                StepOutcome::Skipped,
+                Some("the emulator writes its defaults here on its first start".into()),
+            ));
+            continue;
+        }
+        let copied = std::fs::read(&from).and_then(|bytes| write_atomic(&to, &bytes));
+        steps.push(match copied {
+            Ok(()) => step(
+                StepOutcome::Applied,
+                Some(format!("from {}", from.display())),
+            ),
+            Err(e) => step(StepOutcome::Failed, Some(e.to_string())),
+        });
+    }
+    Ok(steps)
+}
+
+/// What this copy's files hold for each knob, back in the neutral spelling: what `apply`
+/// would write, read the other way. `Err` when the catalog does not know where it keeps them.
+pub fn get(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    profile: Option<&Path>,
+) -> Result<Vec<KnobValue>, String> {
+    let root = install
+        .config_root
+        .as_deref()
+        .ok_or("the catalog does not know where this copy keeps its config")?;
+    Ok(knobs::read(entry, &cx(entry, os, root, profile)))
 }
 
 /// What `key` in `section` of the catalog's `file` holds in this copy, as the file spells it.
@@ -179,8 +271,7 @@ pub fn get_native(
         .config_root
         .as_deref()
         .ok_or("the catalog does not know where this copy keeps its config")?;
-    let files = entry.config.as_ref().map_or(&NO_FILES, |c| &c.files);
-    let cx = Cx { os, root, files };
+    let cx = cx(entry, os, root, None);
     let (path, f) = cx.file(file)?;
     txn::read(&path, f, section, key)
 }
@@ -305,7 +396,14 @@ mod tests {
     }
 
     fn run(c: &Catalog, id: &str, os: Os, root: &Path, patch: &Patch, snaps: &Path) -> Applied {
-        apply(c.get(id).unwrap(), os, &install(id, root), patch, snaps)
+        apply(
+            c.get(id).unwrap(),
+            os,
+            &install(id, root),
+            None,
+            patch,
+            snaps,
+        )
     }
 
     fn knob<'a>(a: &'a Applied, name: &str) -> &'a KnobChange {
@@ -864,6 +962,7 @@ mod tests {
             c.get("pcsx2").unwrap(),
             Os::Linux,
             &no_root,
+            None,
             &everything(),
             &snaps,
         );

@@ -93,6 +93,12 @@ pub enum Cmd {
     Launch(LaunchArgs),
     /// `launch`, then run it: the emulator's exit code is hermir's.
     Run(LaunchArgs),
+    /// Profiles: a copy's own settings for a session, where the emulator has a flag for them,
+    /// so the player's are never edited.
+    Profile {
+        #[command(subcommand)]
+        cmd: ProfileCmd,
+    },
     /// libretro cores for the RetroArch on this machine.
     Core {
         #[command(subcommand)]
@@ -148,6 +154,9 @@ pub enum ConfigCmd {
         /// The catalog's name for the file a native key is in.
         #[arg(long, default_value = "main")]
         file: String,
+        /// Read this profile instead of the player's own settings.
+        #[arg(long)]
+        profile: Option<String>,
     },
 }
 
@@ -180,6 +189,9 @@ pub struct ApplyArgs {
     pub file: String,
     #[command(flatten)]
     pub pads: PadArgs,
+    /// Write into this profile instead of the player's own settings (made on first use).
+    #[arg(long)]
+    pub profile: Option<String>,
 }
 
 /// Who plays where: pads in seat order, or the library's own `Player` list as JSON.
@@ -194,6 +206,30 @@ pub struct PadArgs {
     /// "index" } }]`, from a file or `-` for stdin.
     #[arg(long, value_name = "FILE", conflicts_with = "pad")]
     pub players: Option<PathBuf>,
+}
+
+#[derive(Subcommand)]
+pub enum ProfileCmd {
+    /// The profiles the best copy has.
+    List { emulator: String },
+    /// Make one from the player's own settings (`--fresh`: the emulator's defaults).
+    Create {
+        emulator: String,
+        name: String,
+        #[arg(long)]
+        fresh: bool,
+    },
+    /// Make it again from the player's settings; what it held goes.
+    Reset {
+        emulator: String,
+        name: String,
+        #[arg(long)]
+        fresh: bool,
+    },
+    /// Remove it, with everything the emulator kept in it.
+    Remove { emulator: String, name: String },
+    /// Its folder.
+    Where { emulator: String, name: String },
 }
 
 #[derive(Subcommand)]
@@ -217,4 +253,7 @@ pub struct LaunchArgs {
     /// RetroArch: the libretro core in place of the platform's default.
     #[arg(long)]
     pub core: Option<String>,
+    /// Run on this profile's settings.
+    #[arg(long)]
+    pub profile: Option<String>,
 }

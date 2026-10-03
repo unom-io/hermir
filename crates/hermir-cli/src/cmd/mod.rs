@@ -3,13 +3,14 @@
 use hermir::{Catalog, Error, Hermir, Install, Options, Result};
 use serde::Serialize;
 
-use crate::cli::{CatalogCmd, Cli, Cmd, ConfigCmd, CoreCmd};
+use crate::cli::{CatalogCmd, Cli, Cmd, ConfigCmd, CoreCmd, ProfileCmd};
 
 mod catalog;
 mod config;
 mod install;
 mod launch;
 mod machine;
+mod profile;
 
 pub struct Outcome {
     /// What `--json` prints: exactly one document.
@@ -94,6 +95,21 @@ pub fn run(cli: Cli) -> Result<Outcome> {
         Cmd::Core {
             cmd: CoreCmd::Install { core },
         } => install::core(&h, &core),
+        Cmd::Profile { cmd } => match cmd {
+            ProfileCmd::List { emulator } => profile::list(&h, &emulator),
+            ProfileCmd::Create {
+                emulator,
+                name,
+                fresh,
+            } => profile::create(&h, &emulator, &name, fresh, false),
+            ProfileCmd::Reset {
+                emulator,
+                name,
+                fresh,
+            } => profile::create(&h, &emulator, &name, fresh, true),
+            ProfileCmd::Remove { emulator, name } => profile::remove(&h, &emulator, &name),
+            ProfileCmd::Where { emulator, name } => profile::where_(&h, &emulator, &name),
+        },
         Cmd::Launch(a) => launch::launch(&h, &a),
         Cmd::Run(a) => launch::run(&h, &a),
         Cmd::Prepare {
@@ -118,7 +134,8 @@ pub fn run(cli: Cli) -> Result<Outcome> {
                 emulator,
                 what,
                 file,
-            } => config::get(&h, &emulator, what.as_deref(), &file),
+                profile,
+            } => config::get(&h, &emulator, what.as_deref(), &file, profile.as_deref()),
         },
     }
 }

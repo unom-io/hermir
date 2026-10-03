@@ -45,6 +45,7 @@ pub(crate) fn launch(
     os: Os,
     install: &Install,
     req: &LaunchRequest,
+    profile: Option<&std::path::Path>,
 ) -> Result<LaunchSpec, String> {
     let fullscreen = req
         .fullscreen
@@ -58,6 +59,17 @@ pub(crate) fn launch(
         None => None,
     };
     let mut args = Vec::new();
+    // The profile's flag first: the emulator reads its settings from there.
+    if let Some(dir) = profile {
+        let p = entry
+            .profile
+            .as_ref()
+            .ok_or_else(|| format!("{} has no profiles", entry.id))?;
+        let dir = dir
+            .to_str()
+            .ok_or_else(|| format!("{}: the path is not UTF-8", dir.display()))?;
+        args.extend(p.args.iter().map(|a| a.replace("{profile}", dir)));
+    }
     for a in &entry.launch.args {
         match parse(a)? {
             Arg::Fullscreen(flag) => {
@@ -143,6 +155,35 @@ pub(crate) fn validate(entry: &Entry) -> Result<(), String> {
             _ => {}
         }
     }
+    if let Some(p) = &entry.profile {
+        if !p.args.iter().any(|a| a.contains("{profile}")) {
+            return Err("profile.args never name {profile}".into());
+        }
+        if let Some(a) = p
+            .args
+            .iter()
+            .find(|a| a.replace("{profile}", "").contains(['{', '}']))
+        {
+            return Err(format!(
+                "profile.args: {a:?} holds a placeholder other than {{profile}}"
+            ));
+        }
+        let names = entry.config.as_ref().map(|c| &c.files);
+        for (name, rel) in &p.files {
+            if !names.is_some_and(|f| f.contains_key(name)) {
+                return Err(format!(
+                    "profile.files names {name}, which config.files does not"
+                ));
+            }
+            if rel.is_empty()
+                || !crate::channel::extract::is_safe_relative(std::path::Path::new(rel))
+            {
+                return Err(format!(
+                    "profile.files: {rel} is not a path under the profile"
+                ));
+            }
+        }
+    }
     for (knob, k) in entry.config.iter().flat_map(|c| &c.knobs) {
         if let Knob::Launch { .. } = k {
             if knob != "video.fullscreen" {
@@ -211,7 +252,7 @@ mod tests {
                 fullscreen: Some(true),
                 ..Default::default()
             };
-            match launch(e, Os::Linux, &copy, &req) {
+            match launch(e, Os::Linux, &copy, &req, None) {
                 Ok(spec) => assert!(
                     spec.args.iter().any(|a| a == "/games/a game.iso"),
                     "{}: {:?}",
@@ -221,7 +262,7 @@ mod tests {
                 // RetroArch's core is not installed in a temp dir: said, not guessed.
                 Err(why) => assert!(why.contains("is not installed"), "{}: {why}", e.id),
             }
-            let alone = launch(e, Os::Linux, &copy, &LaunchRequest::default()).unwrap();
+            let alone = launch(e, Os::Linux, &copy, &LaunchRequest::default(), None).unwrap();
             assert!(alone.args.is_empty(), "{}: {:?}", e.id, alone.args);
         }
     }
@@ -232,7 +273,14 @@ mod tests {
         let e = c.get("pcsx2").unwrap();
         let tmp = tempfile::tempdir().unwrap();
         let copy = flatpak("pcsx2", "net.pcsx2.PCSX2", tmp.path());
-        let spec = launch(e, Os::Linux, &copy, &game("/roms/ps2/Game.iso", Some(true))).unwrap();
+        let spec = launch(
+            e,
+            Os::Linux,
+            &copy,
+            &game("/roms/ps2/Game.iso", Some(true)),
+            None,
+        )
+        .unwrap();
         assert_eq!(
             spec.args,
             [
@@ -269,7 +317,7 @@ mod tests {
             }),
             ..game("/roms/ps2/Game.iso", None)
         };
-        let spec = launch(e, Os::Linux, &copy, &req).unwrap();
+        let spec = launch(e, Os::Linux, &copy, &req, None).unwrap();
         assert!(!spec.args.iter().any(|a| a == "-fullscreen"));
     }
 
@@ -287,7 +335,7 @@ mod tests {
             platform: Some("snes".into()),
             ..game("/roms/snes/Game.sfc", None)
         };
-        let spec = launch(e, Os::Linux, &copy, &req).unwrap();
+        let spec = launch(e, Os::Linux, &copy, &req, None).unwrap();
         let core = cores.join("snes9x_libretro.so");
         assert_eq!(
             spec.args,
@@ -297,16 +345,16 @@ mod tests {
             core: Some("bsnes".into()),
             ..req.clone()
         };
-        let spec = launch(e, Os::Linux, &copy, &named).unwrap();
+        let spec = launch(e, Os::Linux, &copy, &named, None).unwrap();
         assert!(spec.args[1].ends_with("bsnes_libretro.so"));
         let missing = LaunchRequest {
             core: Some("mesen".into()),
             ..req
         };
-        let err = launch(e, Os::Linux, &copy, &missing).unwrap_err();
+        let err = launch(e, Os::Linux, &copy, &missing, None).unwrap_err();
         assert!(err.contains("hermir core install mesen"), "{err}");
         let no_platform = game("/roms/snes/Game.sfc", None);
-        assert!(launch(e, Os::Linux, &copy, &no_platform).is_err());
+        assert!(launch(e, Os::Linux, &copy, &no_platform, None).is_err());
     }
 
     #[test]
@@ -320,7 +368,14 @@ mod tests {
             version: None,
             config_root: None,
         };
-        let spec = launch(e, Os::Windows, &copy, &game("D:\\Games\\Metroid.rvz", None)).unwrap();
+        let spec = launch(
+            e,
+            Os::Windows,
+            &copy,
+            &game("D:\\Games\\Metroid.rvz", None),
+            None,
+        )
+        .unwrap();
         assert!(spec.sandbox.is_empty());
         assert_eq!(spec.argv()[0], "C:\\hermir\\dolphin\\app\\Dolphin.exe");
     }

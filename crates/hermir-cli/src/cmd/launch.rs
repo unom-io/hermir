@@ -14,6 +14,7 @@ fn spec(h: &Hermir, a: &LaunchArgs) -> Result<LaunchSpec> {
         platform: a.platform.clone(),
         fullscreen: a.fullscreen,
         core: a.core.clone(),
+        profile: a.profile.clone(),
         patch: None,
     };
     e.launch(&copy, &req)

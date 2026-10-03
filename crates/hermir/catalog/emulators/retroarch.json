@@ -228,5 +228,15 @@
       "adapter": "retroarch"
     }
   },
+  "profile": {
+    "args": [
+      "-c",
+      "{profile}/retroarch.cfg"
+    ],
+    "files": {
+      "main": "retroarch.cfg"
+    },
+    "note": "cores, autoconfig profiles and saves stay where the player's own config points"
+  },
   "notes": "Cores come from the buildbot through `hermir core install <core>`; the Windows 7z is portable as shipped."
 }

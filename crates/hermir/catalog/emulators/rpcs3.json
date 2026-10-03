@@ -121,6 +121,16 @@
       "adapter": "rpcs3"
     }
   },
+  "profile": {
+    "args": [
+      "--config",
+      "{profile}/config.yml"
+    ],
+    "files": {
+      "main": "config.yml"
+    },
+    "note": "pads still go into RPCS3's own input config, snapshotted: it picks input configs by name, not path"
+  },
   "notes": "Linux gets RPCS3's own AppImage (x86_64), unpacked: the Flathub build asks on every launch whether to run an unofficial build. Keeps dev_hdd0 and dev_flash beside the exe on Windows, and config.yml, GuiConfigs and input_configs under config/ there. Firmware installs headless with `--installfw <PS3UPDAT.PUP>`; the exit code is not the verdict, dev_flash is.",
   "firmware": {
     "install": {

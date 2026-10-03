@@ -128,6 +128,19 @@
       "adapter": "dolphin"
     }
   },
+  "profile": {
+    "args": [
+      "-u",
+      "{profile}"
+    ],
+    "files": {
+      "main": "Config/Dolphin.ini",
+      "gfx": "Config/GFX.ini",
+      "gcpad": "Config/GCPadNew.ini",
+      "wiimote": "Config/WiimoteNew.ini"
+    },
+    "note": "with -u Dolphin keeps everything in the profile, its Wii NAND and GameCube memory cards (the saves) included"
+  },
   "notes": "No GitHub releases; the URL is bumped by catalog PRs. `-u <dir>` selects a user directory for profiles.",
   "first_run": {
     "linux": [
