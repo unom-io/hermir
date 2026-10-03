@@ -25,23 +25,63 @@ mod xemu;
 use super::{Cx, Edit};
 use crate::model::{Entry, KnobChange, Os, Player, PlayersSupport, Support};
 
-/// The adapters that exist, as `config.players.adapter` names them.
-pub const ADAPTERS: &[&str] = &[
-    "azahar",
-    "cemu",
-    "dolphin",
-    "duckstation",
-    "eden",
-    "melonds",
-    "pcsx2",
-    "retroarch",
-    "rpcs3",
-    "supermodel",
-    "xemu",
+/// One emulator's player bindings, by the name `config.players.adapter` gives it. The table
+/// below is the only list: an entry naming an adapter that is not in it fails validation.
+pub(crate) struct Adapter {
+    pub name: &'static str,
+    /// The edits that put `players` into this copy's bindings, seat by seat.
+    pub players: fn(&Cx, &[Player]) -> Plan,
+}
+
+pub(crate) const ADAPTERS: &[Adapter] = &[
+    Adapter {
+        name: "azahar",
+        players: azahar::players,
+    },
+    Adapter {
+        name: "cemu",
+        players: cemu::players,
+    },
+    Adapter {
+        name: "dolphin",
+        players: dolphin::players,
+    },
+    Adapter {
+        name: "duckstation",
+        players: duckstation::players,
+    },
+    Adapter {
+        name: "eden",
+        players: eden::players,
+    },
+    Adapter {
+        name: "melonds",
+        players: melonds::players,
+    },
+    Adapter {
+        name: "pcsx2",
+        players: pcsx2::players,
+    },
+    Adapter {
+        name: "retroarch",
+        players: retroarch::players,
+    },
+    Adapter {
+        name: "rpcs3",
+        players: rpcs3::players,
+    },
+    Adapter {
+        name: "supermodel",
+        players: supermodel::players,
+    },
+    Adapter {
+        name: "xemu",
+        players: xemu::players,
+    },
 ];
 
 pub fn exists(adapter: &str) -> bool {
-    ADAPTERS.contains(&adapter)
+    ADAPTERS.iter().any(|a| a.name == adapter)
 }
 
 /// What an adapter plans: the edits, and a caveat when the result is only partly what was
@@ -90,19 +130,9 @@ pub(crate) fn plan(entry: &Entry, cx: &Cx, players: &[Player]) -> (KnobChange, V
         }
         PlayersSupport::Adapter { adapter } => adapter.as_str(),
     };
-    let planned = match adapter {
-        "azahar" => azahar::players(cx, players),
-        "cemu" => cemu::players(cx, players),
-        "dolphin" => dolphin::players(cx, players),
-        "duckstation" => duckstation::players(cx, players),
-        "eden" => eden::players(cx, players),
-        "melonds" => melonds::players(cx, players),
-        "pcsx2" => pcsx2::players(cx, players),
-        "retroarch" => retroarch::players(cx, players),
-        "rpcs3" => rpcs3::players(cx, players),
-        "supermodel" => supermodel::players(cx, players),
-        "xemu" => xemu::players(cx, players),
-        other => Err(format!("no adapter named {other}")),
+    let planned = match ADAPTERS.iter().find(|a| a.name == adapter) {
+        Some(a) => (a.players)(cx, players),
+        None => Err(format!("no adapter named {adapter}")),
     };
     match planned {
         Ok(b) => {
@@ -174,9 +204,9 @@ mod tests {
                 _ => None,
             })
             .collect();
-        for a in ADAPTERS {
+        for a in ADAPTERS.iter().map(|a| a.name) {
             assert_eq!(
-                named.iter().filter(|n| n == &a).count(),
+                named.iter().filter(|n| **n == a).count(),
                 1,
                 "adapter {a} must be named by one catalog entry"
             );

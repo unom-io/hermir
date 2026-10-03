@@ -249,8 +249,26 @@ pub enum Knob {
         /// Why, in a phrase a UI shows.
         unsupported: String,
     },
+    /// The emulator takes the setting only as a launch flag: `video.fullscreen` through the
+    /// launch template's `{fullscreen:…}`. `apply` reports it applied on launch; `launch`
+    /// renders it from the request's patch.
+    Launch {
+        /// Always `launch`.
+        via: Via,
+        /// What to know, in a phrase a UI shows.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
     /// Where the knob lands and how it is spelled.
     Bound(Box<Binding>),
+}
+
+/// Where a knob that is not in a file goes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Via {
+    /// Into the launch command.
+    Launch,
 }
 
 /// One knob bound to one key, with the spelling the emulator expects. Exactly one of `bool`,
@@ -989,14 +1007,78 @@ pub struct Roots {
     pub windows: Option<String>,
 }
 
-/// The argv template after the exe. `{file}` is the game, `{fullscreen:-f}` expands to `-f`
-/// when fullscreen is asked for. Rendered in P1; carried as data now.
+/// The argv template after the exe. Each argument is a literal or exactly one placeholder:
+/// `{file}` the game, `{fullscreen:<arg>}` `<arg>` when fullscreen is asked for (everything
+/// after the first colon, colons included), `{platform}` the platform id, `{core}` the path of
+/// the libretro core for the platform (RetroArch). Without a game only the `{fullscreen:…}`
+/// arguments are kept, so the emulator opens on its own.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Launch {
-    #[serde(default)]
     /// Arguments after the exe.
+    #[serde(default)]
     pub args: Vec<String>,
+    /// RetroArch: platform id → the libretro core (`snes9x`) `{core}` loads for it, unless the
+    /// request names another.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub cores: BTreeMap<String, String>,
+}
+
+/// What a consumer wants started: a game, on a platform, for a session.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct LaunchRequest {
+    /// The game. Without one, the emulator opens on its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<PathBuf>,
+    /// The platform id the game is for (`snes`); RetroArch's core follows from it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub platform: Option<String>,
+    /// Start fullscreen; the patch's `video.fullscreen` when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fullscreen: Option<bool>,
+    /// RetroArch: the libretro core (`mesen`) in place of the platform's default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub core: Option<String>,
+    /// The session's patch, for the knobs that travel on the command line.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub patch: Option<Patch>,
+}
+
+/// A command to run, as hermir built it: the library never runs it. Every argument is one
+/// argument; nothing is ever joined into a shell string.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct LaunchSpec {
+    /// What runs: a program, or a Flatpak app the consumer starts as `flatpak run`.
+    pub exe: Exe,
+    /// Arguments after it.
+    pub args: Vec<String>,
+    /// Environment variables to set.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env: BTreeMap<String, String>,
+    /// The working directory, when it matters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<PathBuf>,
+    /// `flatpak run` options, before the app id: the game's folder granted to the sandbox.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sandbox: Vec<String>,
+}
+
+impl LaunchSpec {
+    /// The whole command line as `run` starts it: `flatpak run <sandbox…> <id> <args…>` for a
+    /// Flatpak, the program and its arguments otherwise.
+    pub fn argv(&self) -> Vec<String> {
+        match &self.exe {
+            Exe::FlatpakRun(id) => ["flatpak".to_string(), "run".to_string()]
+                .into_iter()
+                .chain(self.sandbox.iter().cloned())
+                .chain(std::iter::once(id.clone()))
+                .chain(self.args.iter().cloned())
+                .collect(),
+            Exe::Path(p) => std::iter::once(p.to_string_lossy().into_owned())
+                .chain(self.args.iter().cloned())
+                .collect(),
+        }
+    }
 }
 
 /// A platform (console) as `catalog/platforms.json` spells it.

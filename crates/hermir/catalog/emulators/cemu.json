@@ -76,7 +76,7 @@
     },
     "knobs": {
       "video.fullscreen": {
-        "unsupported": "a launch flag (-f); Cemu keeps no start-fullscreen setting"
+        "via": "launch"
       },
       "video.scale": {
         "unsupported": "resolution is a graphic pack in Cemu, enabled per game"

@@ -639,6 +639,27 @@
           "type": "object"
         },
         {
+          "additionalProperties": false,
+          "description": "The emulator takes the setting only as a launch flag: `video.fullscreen` through the\nlaunch template's `{fullscreen:…}`. `apply` reports it applied on launch; `launch`\nrenders it from the request's patch.",
+          "properties": {
+            "note": {
+              "description": "What to know, in a phrase a UI shows.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "via": {
+              "$ref": "#/$defs/Via",
+              "description": "Always `launch`."
+            }
+          },
+          "required": [
+            "via"
+          ],
+          "type": "object"
+        },
+        {
           "$ref": "#/$defs/Binding",
           "description": "Where the knob lands and how it is spelled."
         }
@@ -647,7 +668,7 @@
     },
     "Launch": {
       "additionalProperties": false,
-      "description": "The argv template after the exe. `{file}` is the game, `{fullscreen:-f}` expands to `-f`\nwhen fullscreen is asked for. Rendered in P1; carried as data now.",
+      "description": "The argv template after the exe. Each argument is a literal or exactly one placeholder:\n`{file}` the game, `{fullscreen:<arg>}` `<arg>` when fullscreen is asked for (everything\nafter the first colon, colons included), `{platform}` the platform id, `{core}` the path of\nthe libretro core for the platform (RetroArch). Without a game only the `{fullscreen:…}`\narguments are kept, so the emulator opens on its own.",
       "properties": {
         "args": {
           "default": [],
@@ -656,6 +677,13 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "cores": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "RetroArch: platform id → the libretro core (`snes9x`) `{core}` loads for it, unless the\nrequest names another.",
+          "type": "object"
         }
       },
       "type": "object"
@@ -1032,6 +1060,16 @@
             "map"
           ],
           "type": "object"
+        }
+      ]
+    },
+    "Via": {
+      "description": "Where a knob that is not in a file goes.",
+      "oneOf": [
+        {
+          "const": "launch",
+          "description": "Into the launch command.",
+          "type": "string"
         }
       ]
     }

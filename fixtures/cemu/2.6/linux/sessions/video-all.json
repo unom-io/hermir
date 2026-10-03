@@ -9,7 +9,7 @@
   },
   "expect": {
     "video.aspect": "applied",
-    "video.fullscreen": "unsupported",
+    "video.fullscreen": "applied",
     "video.scale": "unsupported",
     "video.vsync": "applied"
   }

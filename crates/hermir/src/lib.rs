@@ -32,6 +32,7 @@ mod channel;
 mod config;
 mod detect;
 mod error;
+mod launch;
 mod model;
 mod players;
 mod prepare;
@@ -280,10 +281,7 @@ impl Hermir {
             .installs()?
             .into_iter()
             .find(|i| i.emulator == "retroarch")
-            .ok_or_else(|| Error::Place {
-                what: format!("core {core}"),
-                why: "no RetroArch on this machine; install it first".into(),
-            })?;
+            .ok_or_else(|| Error::NotInstalled("retroarch".into()))?;
         let cores = ra
             .config_root
             .ok_or_else(|| Error::Place {
@@ -489,6 +487,14 @@ impl EmulatorHandle<'_> {
         self.mine(install)?;
         config::get_native(self.entry, self.h.os, install, file, section, key)
             .map_err(Error::Invalid)
+    }
+
+    /// The command that starts `install` with `req`: the catalog's template rendered, the
+    /// game's folder granted to a Flatpak, launch-only knobs from the request's patch. hermir
+    /// never runs it; the consumer does, its own way.
+    pub fn launch(&self, install: &Install, req: &LaunchRequest) -> Result<LaunchSpec> {
+        self.mine(install)?;
+        launch::launch(self.entry, self.h.os, install, req).map_err(Error::Invalid)
     }
 
     /// An install of another emulator would be patched with this one's keys.

@@ -47,6 +47,18 @@ pub(crate) fn plan(entry: &Entry, cx: &Cx, patch: &Patch) -> Vec<(KnobChange, Ve
         let planned = match binding {
             None => Err(format!("not described for {} yet", entry.id)),
             Some(Knob::Unsupported { unsupported }) => Err(unsupported.clone()),
+            Some(Knob::Launch { note, .. }) => {
+                out.push((
+                    KnobChange {
+                        knob: name.into(),
+                        support: Support::Applied,
+                        note: Some(on_launch(note.as_deref())),
+                        file: None,
+                    },
+                    Vec::new(),
+                ));
+                continue;
+            }
             Some(Knob::Bound(b)) => render(entry, cx, name, b, neutral),
         };
         out.push(match planned {
@@ -163,6 +175,10 @@ pub(crate) fn read(entry: &Entry, cx: &Cx) -> Vec<KnobValue> {
                     v.note = Some(unsupported.clone());
                     return v;
                 }
+                Some(Knob::Launch { .. }) => {
+                    v.note = Some("set at launch; no file keeps it".into());
+                    return v;
+                }
                 Some(Knob::Bound(b)) => b,
             };
             let (path, file) = match cx.file(&b.file) {
@@ -224,4 +240,13 @@ fn neutral(knob: &str, b: &Binding, literal: &str) -> Option<String> {
             .map(|n| n.to_string());
     }
     None
+}
+
+/// The note of a knob that travels on the command line.
+pub(crate) fn on_launch(note: Option<&str>) -> String {
+    let base = "on launch: `launch` adds it when the request carries this patch";
+    match note {
+        Some(n) => format!("{base}; {n}"),
+        None => base.into(),
+    }
 }

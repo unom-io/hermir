@@ -227,6 +227,7 @@ impl Catalog {
             if let Some(cfg) = &e.config {
                 validate_config(&e.id, cfg)?;
             }
+            crate::launch::validate(e).map_err(|why| bad(&e.id, why))?;
             // A `url` channel pins the file's checksum beside its version.
             for os in [Os::Linux, Os::Windows, Os::Macos] {
                 if let Some(Channel::Url { sha256, .. }) = e.channels.get(os) {
@@ -370,7 +371,11 @@ fn validate_config(id: &str, cfg: &Config) -> Result<()> {
     {
         return Err(bad(format!(
             "players adapter {adapter} has no code; one of {}",
-            adapters::ADAPTERS.join(", ")
+            adapters::ADAPTERS
+                .iter()
+                .map(|a| a.name)
+                .collect::<Vec<_>>()
+                .join(", ")
         )));
     }
     Ok(())

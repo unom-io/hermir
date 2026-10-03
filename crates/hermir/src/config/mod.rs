@@ -198,6 +198,9 @@ pub fn support(entry: &Entry) -> Vec<KnobChange> {
                 Some(Knob::Unsupported { unsupported }) => {
                     (Support::Unsupported, Some(unsupported.clone()))
                 }
+                Some(Knob::Launch { note, .. }) => {
+                    (Support::Applied, Some(knobs::on_launch(note.as_deref())))
+                }
                 Some(Knob::Bound(b)) => {
                     let mut notes: Vec<String> = b.note.iter().cloned().collect();
                     if let Some(values) = &b.values {
@@ -656,9 +659,14 @@ mod tests {
 
         let cemu = tmp.path().join("cemu");
         let a = run(&c, "cemu", Os::Linux, &cemu, &everything(), &snaps);
-        for k in ["video.fullscreen", "video.scale", "region"] {
+        for k in ["video.scale", "region"] {
             assert_eq!(knob(&a, k).support, Support::Unsupported, "{k}");
         }
+        // Cemu keeps no start-fullscreen setting: its `-f` goes on the launch command.
+        let full = knob(&a, "video.fullscreen");
+        assert_eq!(full.support, Support::Applied);
+        assert!(full.note.as_deref().unwrap().starts_with("on launch"));
+        assert_eq!(full.file, None);
         assert_eq!(
             read(&cemu.join("settings.xml")),
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<content>\n\t<Graphic>\n\t\t<VSync>1</VSync>\n\t\t<FullscreenScaling>0</FullscreenScaling>\n\t</Graphic>\n</content>\n"
@@ -755,7 +763,7 @@ mod tests {
         assert!(k.note.as_deref().unwrap().contains("OpenGL"));
         assert!(read(&melon.join("melonDS.toml")).contains("[3D.GL]\nScaleFactor = 2\n"));
         assert!(read(&melon.join("melonDS.toml")).contains("[3D]\nRenderer = 1\n"));
-        assert_eq!(knob(&a, "video.fullscreen").support, Support::Unsupported);
+        assert_eq!(knob(&a, "video.fullscreen").support, Support::Applied);
 
         let duck = tmp.path().join("duckstation");
         run(&c, "duckstation", Os::Linux, &duck, &everything(), &snaps);

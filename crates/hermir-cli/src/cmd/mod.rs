@@ -8,6 +8,7 @@ use crate::cli::{CatalogCmd, Cli, Cmd, ConfigCmd, CoreCmd};
 mod catalog;
 mod config;
 mod install;
+mod launch;
 mod machine;
 
 pub struct Outcome {
@@ -93,6 +94,8 @@ pub fn run(cli: Cli) -> Result<Outcome> {
         Cmd::Core {
             cmd: CoreCmd::Install { core },
         } => install::core(&h, &core),
+        Cmd::Launch(a) => launch::launch(&h, &a),
+        Cmd::Run(a) => launch::run(&h, &a),
         Cmd::Prepare {
             emulator,
             platform,

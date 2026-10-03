@@ -89,6 +89,10 @@ pub enum Cmd {
         #[command(subcommand)]
         cmd: ConfigCmd,
     },
+    /// The command that starts a game on the best copy: printed, never run.
+    Launch(LaunchArgs),
+    /// `launch`, then run it: the emulator's exit code is hermir's.
+    Run(LaunchArgs),
     /// libretro cores for the RetroArch on this machine.
     Core {
         #[command(subcommand)]
@@ -196,4 +200,21 @@ pub struct PadArgs {
 pub enum CoreCmd {
     /// Fetch `<core>_libretro` from the buildbot into RetroArch's cores directory.
     Install { core: String },
+}
+
+#[derive(Args)]
+pub struct LaunchArgs {
+    pub emulator: String,
+    /// The game; without one the emulator opens on its own.
+    pub file: Option<PathBuf>,
+    /// The game's platform id (`snes`); RetroArch picks its core by it.
+    #[arg(long)]
+    pub platform: Option<String>,
+    /// Start fullscreen: `--fullscreen` alone means yes, `--fullscreen=no` says no.
+    #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true",
+          value_parser = clap::builder::BoolishValueParser::new())]
+    pub fullscreen: Option<bool>,
+    /// RetroArch: the libretro core in place of the platform's default.
+    #[arg(long)]
+    pub core: Option<String>,
 }
