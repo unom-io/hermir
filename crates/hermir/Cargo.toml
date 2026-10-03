@@ -26,4 +26,5 @@ tar = "0.4"
 flate2 = "1"
 
 [dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std"] }
 tempfile = "3"

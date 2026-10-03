@@ -141,8 +141,9 @@ fn first_run(root: &Path, install: &Install, answer: &FirstRun) -> PrepareStep {
             }
             let value = &value.replace("{root}", &root.to_string_lossy());
             match ini_set(&text, section, key, value) {
-                None => step("first_run", &path, StepOutcome::Present, None),
-                Some(next) => match write_atomic(&path, next.as_bytes()) {
+                Err(why) => step("first_run", &path, StepOutcome::Failed, Some(why)),
+                Ok(None) => step("first_run", &path, StepOutcome::Present, None),
+                Ok(Some(next)) => match write_atomic(&path, next.as_bytes()) {
                     Ok(()) => step(
                         "first_run",
                         &path,
