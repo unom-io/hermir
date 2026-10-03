@@ -747,17 +747,39 @@ mod tests {
     }
 
     // Property tests over generated files: sections of entries, comments, blanks, a TOML
-    // array and an array of tables here and there, LF or CRLF, a final newline or not.
+    // array and an array of tables here and there, LF or CRLF, a final newline or not. The
+    // model renders the file, and renders what `set` should leave: the two must match byte for
+    // byte, so every line the edit does not own is unchanged.
+
+    #[derive(Clone, Debug)]
+    struct Entry {
+        k: String,
+        v: String,
+        /// `  # a number` after the value.
+        note: bool,
+        /// `; about k` on the line before.
+        remark: bool,
+    }
+
+    #[derive(Clone, Debug)]
+    struct Section {
+        name: String,
+        entries: Vec<Entry>,
+        /// A blank line and a comment before the header.
+        remark: bool,
+        /// A TOML array before the entries and an array of tables after them.
+        toml: bool,
+        /// Added by `set`: only a blank line before the header.
+        fresh: bool,
+    }
 
     #[derive(Clone, Debug)]
     struct Doc {
-        root: Vec<(String, String)>,
-        sections: Vec<(String, Vec<(String, String)>)>,
+        root: Vec<Entry>,
+        sections: Vec<Section>,
         spaced: bool,
         crlf: bool,
         final_nl: bool,
-        comments: bool,
-        toml: bool,
     }
 
     impl Doc {
@@ -765,31 +787,32 @@ mod tests {
             let nl = if self.crlf { "\r\n" } else { "\n" };
             let sep = if self.spaced { " = " } else { "=" };
             let mut out = String::new();
-            let entries = |out: &mut String, es: &[(String, String)]| {
-                for (i, (k, v)) in es.iter().enumerate() {
-                    if self.comments && i == 1 {
-                        out.push_str(&format!("; about {k}{nl}"));
+            let entries = |out: &mut String, es: &[Entry]| {
+                for e in es {
+                    if e.remark {
+                        out.push_str(&format!("; about {}{nl}", e.k));
                     }
-                    let note = if self.toml && v.parse::<u32>().is_ok() {
-                        "  # a number"
-                    } else {
-                        ""
-                    };
-                    out.push_str(&format!("{k}{sep}{v}{note}{nl}"));
+                    let note = if e.note { "  # a number" } else { "" };
+                    out.push_str(&format!("{}{sep}{}{note}{nl}", e.k, e.v));
                 }
             };
             entries(&mut out, &self.root);
-            for (n, (name, es)) in self.sections.iter().enumerate() {
-                if self.comments {
-                    out.push_str(&format!("{nl}# {name}{nl}"));
+            for s in &self.sections {
+                if s.fresh {
+                    if !out.is_empty() {
+                        out.push_str(nl);
+                    }
+                } else if s.remark {
+                    out.push_str(&format!("{nl}# {}{nl}", s.name));
                 }
-                out.push_str(&format!("[{name}]{nl}"));
-                if self.toml && n == 0 {
-                    out.push_str(&format!("arr-x{sep}[{nl}  [1, 2],{nl}  [3],{nl}]{nl}"));
+                out.push_str(&format!("[{}]{nl}", s.name));
+                if s.toml {
+                    // `  [3]` is a nested array, not a section.
+                    out.push_str(&format!("arr-x{sep}[{nl}  [1, 2],{nl}  [3]{nl}]{nl}"));
                 }
-                entries(&mut out, es);
-                if self.toml && n == 0 {
-                    out.push_str(&format!("[[{name}.more]]{nl}x{sep}1{nl}"));
+                entries(&mut out, &s.entries);
+                if s.toml {
+                    out.push_str(&format!("[[{}.more]]{nl}x{sep}1{nl}", s.name));
                 }
             }
             if !self.final_nl {
@@ -801,12 +824,69 @@ mod tests {
         }
 
         fn every_key(&self) -> Vec<(String, String)> {
-            let root = self.root.iter().map(|(k, _)| (String::new(), k.clone()));
+            let root = self.root.iter().map(|e| (String::new(), e.k.clone()));
             let rest = self
                 .sections
                 .iter()
-                .flat_map(|(s, es)| es.iter().map(move |(k, _)| (s.clone(), k.clone())));
+                .flat_map(|s| s.entries.iter().map(move |e| (s.name.clone(), e.k.clone())));
             root.chain(rest).collect()
+        }
+
+        fn value(&self, section: &str, key: &str) -> Option<&str> {
+            let es = if section.is_empty() {
+                &self.root
+            } else {
+                &self.sections.iter().find(|s| s.name == section)?.entries
+            };
+            es.iter().find(|e| e.k == key).map(|e| e.v.as_str())
+        }
+
+        /// The document `set(section, key, value)` should leave.
+        fn after(&self, section: &str, key: &str, value: &str) -> Doc {
+            let mut d = self.clone();
+            // A file without CRLF gets LF; an empty one has no final newline to keep, and none
+            // has an entry to copy `=` from.
+            let text = self.render();
+            d.crlf &= text.contains("\r\n");
+            d.final_nl |= text.is_empty();
+            d.spaced |= self.root.is_empty()
+                && self
+                    .sections
+                    .iter()
+                    .all(|s| s.entries.is_empty() && !s.toml);
+            // A comment stays after a value it still reads as a comment after.
+            let shaped = value.parse::<u32>().is_ok() || value.starts_with('"');
+            let new = Entry {
+                k: key.into(),
+                v: value.into(),
+                note: false,
+                remark: false,
+            };
+            let es = if section.is_empty() {
+                Some(&mut d.root)
+            } else {
+                d.sections
+                    .iter_mut()
+                    .find(|s| s.name == section)
+                    .map(|s| &mut s.entries)
+            };
+            match es {
+                Some(es) => match es.iter_mut().find(|e| e.k == key) {
+                    Some(e) => {
+                        e.v = value.into();
+                        e.note &= shaped;
+                    }
+                    None => es.push(new),
+                },
+                None => d.sections.push(Section {
+                    name: section.into(),
+                    entries: vec![new],
+                    remark: false,
+                    toml: false,
+                    fresh: true,
+                }),
+            }
+            d
         }
     }
 
@@ -820,40 +900,77 @@ mod tests {
         ]
     }
 
-    fn entries() -> impl Strategy<Value = Vec<(String, String)>> {
-        prop::collection::btree_map("[a-z][A-Za-z0-9_/]{0,6}", value(), 0..5)
-            .prop_map(|m| m.into_iter().collect())
+    /// Few names, so sections share keys, and a section's key is often the one in the array of
+    /// tables after it (`x`).
+    const KEYS: [&str; 6] = ["x", "vsync", "Name", "scale", "Pad1/Up", "Device"];
+    const KEY: &str = "(x|vsync|Name|scale|Pad1/Up|Device)";
+
+    fn entries(toml: bool) -> impl Strategy<Value = Vec<Entry>> {
+        (
+            prop::collection::btree_map(KEY, value(), 0..5),
+            any::<bool>(),
+        )
+            .prop_map(move |(m, comments)| {
+                m.into_iter()
+                    .enumerate()
+                    .map(|(i, (k, v))| Entry {
+                        note: toml && v.parse::<u32>().is_ok(),
+                        remark: comments && i == 1,
+                        k,
+                        v,
+                    })
+                    .collect()
+            })
     }
 
     fn doc() -> impl Strategy<Value = Doc> {
-        (
-            entries(),
-            prop::collection::btree_map("[A-Z][A-Za-z0-9./]{0,6}", entries(), 0..4),
-            any::<[bool; 5]>(),
-        )
-            .prop_map(
-                |(root, sections, [spaced, crlf, final_nl, comments, toml])| Doc {
-                    root,
-                    sections: sections.into_iter().collect(),
-                    spaced,
-                    crlf,
-                    final_nl,
-                    comments,
-                    toml,
-                },
-            )
+        any::<bool>()
+            .prop_flat_map(|toml| {
+                (
+                    entries(toml),
+                    prop::collection::btree_map(
+                        "(UI|Main|GPU|3D\\.GL|EmuCore/GS|Pad1)",
+                        (entries(toml), any::<bool>()),
+                        0..4,
+                    ),
+                    Just(toml),
+                    any::<[bool; 3]>(),
+                )
+            })
+            .prop_map(|(root, sections, toml, [spaced, crlf, final_nl])| Doc {
+                root,
+                sections: sections
+                    .into_iter()
+                    .enumerate()
+                    .map(|(n, (name, (entries, remark)))| Section {
+                        name,
+                        entries,
+                        remark,
+                        toml: toml && n == 0,
+                        fresh: false,
+                    })
+                    .collect(),
+                spaced,
+                crlf,
+                final_nl,
+            })
     }
 
-    /// A section and key of the document, or new ones.
+    /// A section and key of the document, or new ones: a key its section does not have,
+    /// though others may.
     fn target(d: &Doc, pick: usize, fresh: bool) -> (String, String) {
         let all = d.every_key();
         if fresh || all.is_empty() {
             let section = match d.sections.get(pick % (d.sections.len() + 2)) {
-                Some((s, _)) => s.clone(),
+                Some(s) => s.name.clone(),
                 None if pick.is_multiple_of(2) => String::new(),
                 None => "Fresh".into(),
             };
-            (section, "fresh_key".into())
+            let key = KEYS
+                .iter()
+                .find(|k| d.value(&section, k).is_none())
+                .map_or("fresh_key", |k| k);
+            (section, key.into())
         } else {
             all[pick % all.len()].clone()
         }
@@ -876,28 +993,29 @@ mod tests {
         ) {
             let text = d.render();
             let (s, k) = target(&d, pick, fresh);
-            let existed = get(&text, &s, &k).is_some();
-            let section_existed = s.is_empty() || d.sections.iter().any(|(n, _)| *n == s);
+            let old = d.value(&s, &k);
             let r = super::set(&text, &s, &k, &v).unwrap();
             let out = r.clone().unwrap_or_else(|| text.clone());
+            prop_assert_eq!(&out, &d.after(&s, &k, &v).render());
+            prop_assert_eq!(r.is_none(), old == Some(v.as_str()));
             let back = get(&out, &s, &k);
             prop_assert_eq!(back.as_deref(), Some(unquoted(&v)));
             prop_assert_eq!(super::set(&out, &s, &k, &v), Ok(None));
             for (os, ok) in d.every_key() {
-                if (os.as_str(), ok.as_str()) != (s.as_str(), k.as_str()) {
-                    prop_assert_eq!(get(&out, &os, &ok), get(&text, &os, &ok));
+                if (&os, &ok) != (&s, &k) {
+                    let was = d.value(&os, &ok).map(unquoted);
+                    let now = get(&out, &os, &ok);
+                    prop_assert_eq!(now.as_deref(), was);
                 }
             }
+            // At most the one key, and a header with a blank line before it.
             let (gone, new) = changed(&text, &out);
-            if r.is_none() {
-                prop_assert!(existed);
-            } else if existed {
-                prop_assert_eq!((gone.len(), new.len()), (1, 1));
-            } else if section_existed {
-                prop_assert_eq!((gone.len(), new.len()), (0, 1));
-            } else {
-                prop_assert!(gone.is_empty() && new.len() <= 3);
-                prop_assert_eq!(new.iter().filter(|l| l.contains('=')).count(), 1);
+            let section_existed = s.is_empty() || d.sections.iter().any(|x| x.name == s);
+            match (old.is_some(), section_existed) {
+                _ if r.is_none() => {}
+                (true, _) => prop_assert_eq!((gone.len(), new.len()), (1, 1)),
+                (false, true) => prop_assert_eq!((gone.len(), new.len()), (0, 1)),
+                (false, false) => prop_assert!(gone.is_empty() && new.len() <= 3),
             }
             prop_assert!(same_endings(&text, &out));
         }
@@ -914,6 +1032,32 @@ mod tests {
             let broken_key = format!("{k}{brk}{b}");
             prop_assert!(super::set(&text, &s, &k, &v).is_err());
             prop_assert!(super::set(&text, &s, &broken_key, "1").is_err());
+        }
+
+        #[test]
+        fn names_match_whatever_their_case_when_asked(
+            d in doc(), pick in any::<usize>(), v in value(),
+        ) {
+            let all = d.every_key();
+            prop_assume!(!all.is_empty());
+            let (s, k) = &all[pick % all.len()];
+            // Names in the generated files differ in more than case, so the flipped spelling
+            // finds the one key and changes it as the exact spelling would.
+            let flip = |n: &str| {
+                n.chars()
+                    .map(|c| if c.is_ascii_lowercase() { c.to_ascii_uppercase() } else { c.to_ascii_lowercase() })
+                    .collect::<String>()
+            };
+            let lower: std::collections::BTreeSet<String> =
+                all.iter().map(|(s, k)| format!("{}/{}", s.to_lowercase(), k.to_lowercase())).collect();
+            prop_assume!(lower.len() == all.len());
+            let ci = IniOpts { case_insensitive: true, ..IniOpts::default() };
+            let text = d.render();
+            prop_assert_eq!(
+                set_with(&text, &flip(s), &flip(k), &v, ci),
+                super::set(&text, s, k, &v)
+            );
+            prop_assert_eq!(get_with(&text, &flip(s), &flip(k), ci), get(&text, s, k));
         }
 
         #[test]

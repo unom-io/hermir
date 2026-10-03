@@ -823,11 +823,12 @@ mod tests {
 
     // Property tests over generated files: top-level keys and sections whose keys may own a
     // nested map or a list (with names that also appear as section keys), comments, blanks,
-    // quoted keys, `{}` sections, LF or CRLF, a final newline or not.
+    // quoted keys, `{}` sections, LF or CRLF, a final newline or not. The model renders the
+    // file, and renders what `set` should leave: the two must match byte for byte.
 
     #[derive(Clone, Debug)]
     enum Entry {
-        Scalar(String, String),
+        Scalar { k: String, v: String, quoted: bool },
         Map(String, Vec<String>),
         List(String, Vec<String>),
     }
@@ -835,70 +836,77 @@ mod tests {
     #[derive(Clone, Debug)]
     struct Section {
         name: String,
-        entries: Vec<Entry>,
-        comment: bool,
+        /// Each with a blank line and a comment before it, or not.
+        entries: Vec<(Entry, bool)>,
+        /// A comment line before the header, and one after it unless `flow`.
+        remark: bool,
+        /// Written `name: {}` while it has no entries.
+        flow: bool,
     }
 
     #[derive(Clone, Debug)]
     struct Doc {
         top: Vec<(String, String)>,
         sections: Vec<Section>,
+        /// Top-level keys after the sections, where `set` adds one.
+        tail: Vec<(String, String)>,
         indent: &'static str,
-        quoted: bool,
+        deep_lists: bool,
         crlf: bool,
         final_nl: bool,
+    }
+
+    fn kv(k: &str, v: &str) -> String {
+        if v.is_empty() {
+            format!("{k}:")
+        } else {
+            format!("{k}: {v}")
+        }
     }
 
     impl Doc {
         fn render(&self) -> String {
             let nl = if self.crlf { "\r\n" } else { "\n" };
             let ind = self.indent;
-            let mut out = String::new();
-            let kv = |k: &str, v: &str| {
-                if v.is_empty() {
-                    format!("{k}:")
-                } else {
-                    format!("{k}: {v}")
-                }
-            };
-            for (k, v) in &self.top {
-                out.push_str(&format!("{}{nl}", kv(k, v)));
-            }
+            let mut lines: Vec<String> = self.top.iter().map(|(k, v)| kv(k, v)).collect();
             for s in &self.sections {
-                if s.comment {
-                    out.push_str(&format!("# {}{nl}", s.name));
+                if s.remark {
+                    lines.push(format!("# {}", s.name));
                 }
                 if s.entries.is_empty() {
-                    out.push_str(&format!("{}: {{}}{nl}", s.name));
+                    lines.push(format!("{}: {{}}", s.name));
                     continue;
                 }
-                let note = if s.comment { " # settings" } else { "" };
-                out.push_str(&format!("{}:{note}{nl}", s.name));
-                for (i, e) in s.entries.iter().enumerate() {
-                    if s.comment && i == 1 {
-                        out.push_str(&format!("{nl}{ind}# more{nl}"));
+                let note = if s.remark && !s.flow {
+                    " # settings"
+                } else {
+                    ""
+                };
+                lines.push(format!("{}:{note}", s.name));
+                for (e, remark) in &s.entries {
+                    if *remark {
+                        lines.push(String::new());
+                        lines.push(format!("{ind}# more"));
                     }
                     match e {
-                        Entry::Scalar(k, v) if self.quoted => {
-                            out.push_str(&format!("{ind}{}{nl}", kv(&quote(k), v)));
+                        Entry::Scalar { k, v, quoted } => {
+                            let k = if *quoted { quote(k) } else { k.clone() };
+                            lines.push(format!("{ind}{}", kv(&k, v)));
                         }
-                        Entry::Scalar(k, v) => out.push_str(&format!("{ind}{}{nl}", kv(k, v))),
                         Entry::Map(k, children) => {
-                            out.push_str(&format!("{ind}{k}:{nl}"));
-                            for c in children {
-                                out.push_str(&format!("{ind}{ind}{c}: 1{nl}"));
-                            }
+                            lines.push(format!("{ind}{k}:"));
+                            lines.extend(children.iter().map(|c| format!("{ind}{ind}{c}: 1")));
                         }
                         Entry::List(k, items) => {
-                            out.push_str(&format!("{ind}{k}:{nl}"));
-                            let item_ind = if self.quoted { ind } else { "" };
-                            for it in items {
-                                out.push_str(&format!("{ind}{item_ind}- {it}{nl}"));
-                            }
+                            lines.push(format!("{ind}{k}:"));
+                            let deeper = if self.deep_lists { ind } else { "" };
+                            lines.extend(items.iter().map(|it| format!("{ind}{deeper}- {it}")));
                         }
                     }
                 }
             }
+            lines.extend(self.tail.iter().map(|(k, v)| kv(k, v)));
+            let mut out: String = lines.iter().map(|l| format!("{l}{nl}")).collect();
             if !self.final_nl {
                 while out.ends_with(['\r', '\n']) {
                     out.pop();
@@ -907,20 +915,73 @@ mod tests {
             out
         }
 
-        /// Every key that holds a value: `(section, key)`.
-        fn scalars(&self) -> Vec<(String, String)> {
-            let top = self.top.iter().map(|(k, _)| (String::new(), k.clone()));
+        /// Every key that holds a value, and the value: `(section, key, value)`.
+        fn scalars(&self) -> Vec<(String, String, String)> {
+            let top = self.top.iter().chain(&self.tail);
+            let top = top.map(|(k, v)| (String::new(), k.clone(), v.clone()));
             let nested = self.sections.iter().flat_map(|s| {
-                s.entries.iter().filter_map(move |e| match e {
-                    Entry::Scalar(k, _) => Some((s.name.clone(), k.clone())),
+                s.entries.iter().filter_map(move |(e, _)| match e {
+                    Entry::Scalar { k, v, .. } => Some((s.name.clone(), k.clone(), v.clone())),
                     _ => None,
                 })
             });
             top.chain(nested).collect()
         }
+
+        /// The document `set(section, key, value)` should leave.
+        fn after(&self, section: &str, key: &str, value: &str) -> Doc {
+            let mut d = self.clone();
+            // A file without CRLF gets LF; an empty one has no final newline to keep; one
+            // without an indented key indents by two spaces.
+            let text = self.render();
+            d.crlf &= text.contains("\r\n");
+            d.final_nl |= text.is_empty();
+            if self.sections.iter().all(|s| s.entries.is_empty()) {
+                d.indent = "  ";
+            }
+            let new = Entry::Scalar {
+                k: key.into(),
+                v: value.into(),
+                quoted: false,
+            };
+            if section.is_empty() {
+                match d.top.iter_mut().chain(&mut d.tail).find(|(k, _)| k == key) {
+                    Some((_, v)) => *v = value.into(),
+                    None => d.tail.push((key.into(), value.into())),
+                }
+                return d;
+            }
+            let Some(s) = d.sections.iter_mut().find(|s| s.name == section) else {
+                d.sections.push(Section {
+                    name: section.into(),
+                    entries: vec![(new, false)],
+                    remark: false,
+                    flow: false,
+                });
+                return d;
+            };
+            let found = s.entries.iter_mut().find_map(|(e, _)| match e {
+                Entry::Scalar { k, v, .. } if k == key => Some(v),
+                _ => None,
+            });
+            match found {
+                Some(v) => *v = value.into(),
+                None => s.entries.push((new, false)),
+            }
+            d
+        }
     }
 
-    const KEY: &str = "[A-Z][a-z]{0,4}( [A-Z][a-z]{0,4})?";
+    /// Few names, so a section's key and one nested under another key often share one.
+    const NAMES: [&str; 6] = [
+        "Enabled",
+        "Renderer",
+        "VSync Mode",
+        "Aspect ratio",
+        "Keys",
+        "Adapter",
+    ];
+    const KEY: &str = "(Enabled|Renderer|VSync Mode|Aspect ratio|Keys|Adapter)";
 
     fn plain_value() -> impl Strategy<Value = String> {
         "[A-Za-z0-9][A-Za-z0-9._/()]{0,4}(:[0-9]{1,2})?( [A-Za-z0-9._/()-][A-Za-z0-9._/()#-]{0,3}){0,2}"
@@ -935,70 +996,89 @@ mod tests {
         ]
     }
 
-    fn entry() -> impl Strategy<Value = Entry> {
+    fn entry(quoted: bool) -> impl Strategy<Value = Entry> {
         let names = prop::collection::vec(KEY, 1..3);
         prop_oneof![
-            4 => (KEY, value()).prop_map(|(k, v)| Entry::Scalar(k, v)),
+            4 => (KEY, value()).prop_map(move |(k, v)| Entry::Scalar { k, v, quoted }),
             1 => (KEY, names.clone()).prop_map(|(k, c)| Entry::Map(k, c)),
             1 => (KEY, names).prop_map(|(k, c)| Entry::List(k, c)),
         ]
     }
 
-    fn entries() -> impl Strategy<Value = Vec<Entry>> {
-        prop::collection::vec(entry(), 0..5).prop_map(|es| {
+    fn section(name: String, quoted: bool) -> impl Strategy<Value = Section> {
+        (prop::collection::vec(entry(quoted), 0..5), any::<bool>()).prop_map(move |(es, remark)| {
             let mut seen = std::collections::BTreeSet::new();
-            es.into_iter()
+            let entries: Vec<(Entry, bool)> = es
+                .into_iter()
                 .filter(|e| {
-                    let (Entry::Scalar(k, _) | Entry::Map(k, _) | Entry::List(k, _)) = e;
+                    let (Entry::Scalar { k, .. } | Entry::Map(k, _) | Entry::List(k, _)) = e;
                     seen.insert(k.clone())
                 })
-                .collect()
+                .enumerate()
+                .map(|(i, e)| (e, remark && i == 1))
+                .collect();
+            Section {
+                name: name.clone(),
+                flow: entries.is_empty(),
+                entries,
+                remark,
+            }
         })
     }
 
     fn doc() -> impl Strategy<Value = Doc> {
         (
             prop::collection::btree_map("[a-z][a-z-]{1,8}", plain_value(), 0..3),
-            prop::collection::btree_map("[A-Z][a-z]{1,6}", (entries(), any::<bool>()), 0..4),
-            prop_oneof![Just("  "), Just("    ")],
-            any::<[bool; 3]>(),
+            prop::collection::btree_set("[A-Z][a-z]{1,6}", 0..4),
+            any::<bool>(),
         )
-            .prop_map(|(top, sections, indent, [quoted, crlf, final_nl])| Doc {
-                top: top.into_iter().collect(),
-                sections: sections
-                    .into_iter()
-                    .map(|(name, (entries, comment))| Section {
-                        name,
-                        entries,
-                        comment,
-                    })
-                    .collect(),
-                indent,
-                quoted,
-                crlf,
-                final_nl,
+            .prop_flat_map(|(top, names, quoted)| {
+                let sections: Vec<_> = names.into_iter().map(|n| section(n, quoted)).collect();
+                (
+                    Just(top),
+                    sections,
+                    prop_oneof![Just("  "), Just("    ")],
+                    any::<[bool; 3]>(),
+                )
             })
+            .prop_map(
+                |(top, sections, indent, [deep_lists, crlf, final_nl])| Doc {
+                    top: top.into_iter().collect(),
+                    sections,
+                    tail: Vec::new(),
+                    indent,
+                    deep_lists,
+                    crlf,
+                    final_nl,
+                },
+            )
     }
 
-    /// A key of the document that holds a value, or a new one.
+    /// A key of the document that holds a value, or a new one: a name the section's keys do
+    /// not have, though a map nested in it may.
     fn target(d: &Doc, pick: usize, fresh: bool) -> (String, String) {
         let all = d.scalars();
         if fresh || all.is_empty() {
-            let section = match d.sections.get(pick % (d.sections.len() + 2)) {
-                Some(s) => s.name.clone(),
-                None if pick.is_multiple_of(2) => String::new(),
-                None => "Fresh".into(),
+            let Some(s) = d.sections.get(pick % (d.sections.len() + 2)) else {
+                let section = if pick.is_multiple_of(2) { "" } else { "Fresh" };
+                return (section.into(), "fresh-key".into());
             };
-            let key = if section.is_empty() {
-                "fresh-key"
-            } else {
-                "Fresh-Key"
+            let taken = |n: &str| {
+                s.entries.iter().any(|(e, _)| {
+                    let (Entry::Scalar { k, .. } | Entry::Map(k, _) | Entry::List(k, _)) = e;
+                    k == n
+                })
             };
-            (section, key.into())
+            let key = NAMES.iter().find(|n| !taken(n)).map_or("Fresh-Key", |n| n);
+            (s.name.clone(), key.into())
         } else {
-            all[pick % all.len()].clone()
+            let (s, k, _) = all[pick % all.len()].clone();
+            (s, k)
         }
     }
+
+    /// A BML section: its header, its keys, and a blank line after it unless `set` added it.
+    type BmlSection = (String, Vec<(String, String)>, bool);
 
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(256))]
@@ -1009,30 +1089,33 @@ mod tests {
         ) {
             let text = d.render();
             let (s, k) = target(&d, pick, fresh);
-            let existed = get(&text, &s, &k, false).is_some();
-            let section = d.sections.iter().find(|x| x.name == s);
+            let old = d.scalars().into_iter().find(|(os, ok, _)| (os, ok) == (&s, &k));
             let r = set(&text, &s, &k, &v, false).unwrap();
             let out = r.clone().unwrap_or_else(|| text.clone());
+            prop_assert_eq!(&out, &d.after(&s, &k, &v).render());
+            prop_assert_eq!(r.is_none(), old.as_ref().is_some_and(|(_, _, ov)| *ov == v));
             let back = get(&out, &s, &k, false);
             prop_assert_eq!(back.as_deref(), Some(v.as_str()));
             prop_assert_eq!(set(&out, &s, &k, &v, false), Ok(None));
-            for (os, ok) in d.scalars() {
-                if (os.as_str(), ok.as_str()) != (s.as_str(), k.as_str()) {
-                    prop_assert_eq!(get(&out, &os, &ok, false), get(&text, &os, &ok, false));
+            for (os, ok, ov) in d.scalars() {
+                if (&os, &ok) != (&s, &k) {
+                    let now = get(&out, &os, &ok, false);
+                    prop_assert_eq!(now.as_deref(), Some(ov.as_str()));
                 }
             }
+            // At most the one key, and a header for a new section or a `{}` one.
             let (gone, new) = changed(&text, &out);
-            let counts = (gone.len(), new.len());
-            if r.is_none() {
-                prop_assert!(existed);
-            } else if existed {
-                prop_assert_eq!(counts, (1, 1));
-            } else {
-                match section {
-                    Some(x) if x.entries.is_empty() => prop_assert_eq!(counts, (1, 2)),
-                    None if !s.is_empty() => prop_assert_eq!(counts, (0, 2)),
-                    _ => prop_assert_eq!(counts, (0, 1)),
+            let section = d.sections.iter().find(|x| x.name == s);
+            match (old.is_some(), section) {
+                _ if r.is_none() => {}
+                (true, _) => prop_assert_eq!((gone.len(), new.len()), (1, 1)),
+                (false, Some(x)) if x.entries.is_empty() => {
+                    prop_assert_eq!((gone.len(), new.len()), (1, 2));
                 }
+                (false, None) if !s.is_empty() => {
+                    prop_assert_eq!((gone.len(), new.len()), (0, 2));
+                }
+                (false, _) => prop_assert_eq!((gone.len(), new.len()), (0, 1)),
             }
             prop_assert!(same_endings(&text, &out));
         }
@@ -1055,48 +1138,62 @@ mod tests {
         fn bml_set_changes_one_key_and_get_reads_it_back(
             sections in prop::collection::btree_map(
                 "[A-Z][a-z]{1,6}",
-                prop::collection::btree_map("[A-Z][A-Za-z0-9]{0,6}", "[!-~]{1,4}( [!-~]{1,4}){0,2}", 0..4),
+                prop::collection::btree_map(
+                    "[A-Z][A-Za-z0-9]{0,6}",
+                    "[!-~]{1,4}( [!-~]{1,4}){0,2}",
+                    0..4,
+                ),
                 0..4,
             ),
             pick in any::<usize>(), fresh in any::<bool>(), v in "[!-~]{1,4}( [!-~]{1,4}){0,2}",
         ) {
-            let mut text = String::new();
-            for (name, es) in &sections {
-                text.push_str(&format!("{name}\n"));
-                for (k, val) in es {
-                    text.push_str(&format!("  {k}: {val}\n"));
+            let render = |sections: &[BmlSection]| {
+                let mut out = String::new();
+                for (name, es, blank) in sections {
+                    out.push_str(&format!("{name}\n"));
+                    for (k, val) in es {
+                        out.push_str(&format!("  {k}: {val}\n"));
+                    }
+                    if *blank {
+                        out.push('\n');
+                    }
                 }
-                text.push('\n');
-            }
-            let all: Vec<(String, String)> = sections
+                out
+            };
+            let model: Vec<BmlSection> = sections
+                .into_iter()
+                .map(|(n, es)| (n, es.into_iter().collect(), true))
+                .collect();
+            let text = render(&model);
+            let all: Vec<(String, String, String)> = model
                 .iter()
-                .flat_map(|(s, es)| es.keys().map(move |k| (s.clone(), k.clone())))
+                .flat_map(|(s, es, _)| es.iter().map(move |(k, v)| (s.clone(), k.clone(), v.clone())))
                 .collect();
             let (s, k) = if fresh || all.is_empty() {
-                let names: Vec<&String> = sections.keys().collect();
-                let s = names.get(pick % (names.len() + 1)).map_or("Fresh".into(), |s| (*s).clone());
-                (s, "FreshKey".to_string())
+                let s = model.get(pick % (model.len() + 1)).map_or("Fresh", |m| m.0.as_str());
+                (s.to_string(), "FreshKey".to_string())
             } else {
-                all[pick % all.len()].clone()
+                let (s, k, _) = &all[pick % all.len()];
+                (s.clone(), k.clone())
             };
-            let existed = get(&text, &s, &k, true).is_some();
-            let r = set(&text, &s, &k, &v, true).unwrap();
-            let out = r.clone().unwrap_or_else(|| text.clone());
+            let mut expected = model.clone();
+            match expected.iter_mut().find(|m| m.0 == s) {
+                Some((_, es, _)) => match es.iter_mut().find(|(ok, _)| *ok == k) {
+                    Some((_, ov)) => *ov = v.clone(),
+                    None => es.push((k.clone(), v.clone())),
+                },
+                None => expected.push((s.clone(), vec![(k.clone(), v.clone())], false)),
+            }
+            let out = set(&text, &s, &k, &v, true).unwrap().unwrap_or_else(|| text.clone());
+            prop_assert_eq!(&out, &render(&expected));
             let back = get(&out, &s, &k, true);
             prop_assert_eq!(back.as_deref(), Some(v.as_str()));
             prop_assert_eq!(set(&out, &s, &k, &v, true), Ok(None));
-            for (os, ok) in &all {
+            for (os, ok, ov) in &all {
                 if (os, ok) != (&s, &k) {
-                    prop_assert_eq!(get(&out, os, ok, true), get(&text, os, ok, true));
+                    let now = get(&out, os, ok, true);
+                    prop_assert_eq!(now.as_deref(), Some(ov.as_str()));
                 }
-            }
-            let (gone, new) = changed(&text, &out);
-            let counts = (gone.len(), new.len());
-            match (r.is_some(), existed, sections.contains_key(&s)) {
-                (false, ..) => prop_assert!(existed),
-                (true, true, _) => prop_assert_eq!(counts, (1, 1)),
-                (true, false, true) => prop_assert_eq!(counts, (0, 1)),
-                (true, false, false) => prop_assert_eq!(counts, (0, 2)),
             }
         }
     }

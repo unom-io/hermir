@@ -501,82 +501,171 @@ mod tests {
     }
 
     // Property tests over generated files: a document element with leaves and groups (some
-    // self-closing), names reused at every depth, comments, tabs or spaces, LF or CRLF.
+    // self-closing, some with a `>` in an attribute), few names reused at every depth,
+    // comments, tabs or spaces, LF or CRLF. The model renders the file, and renders what `set`
+    // should leave: the two must match byte for byte.
 
     #[derive(Clone, Debug)]
     enum Node {
-        Leaf(String, String),
-        Group(String, Vec<Node>),
+        /// Name, text, and whether empty text is written `<name/>`.
+        Leaf(String, String, bool),
+        Group {
+            name: String,
+            children: Vec<Node>,
+            /// ` kind="a > b"` in the open tag.
+            attr: bool,
+            /// A comment before the first child.
+            remark: bool,
+        },
     }
 
-    fn render(
-        nodes: &[Node],
-        depth: usize,
-        unit: &str,
-        nl: &str,
-        comments: bool,
-        out: &mut String,
-    ) {
-        let ind = unit.repeat(depth);
-        for (i, n) in nodes.iter().enumerate() {
-            if comments && i == 1 {
-                out.push_str(&format!("{ind}<!-- <{0}>x</{0}> -->{nl}", "note"));
+    impl Node {
+        fn name(&self) -> &str {
+            match self {
+                Node::Leaf(name, ..) | Node::Group { name, .. } => name,
             }
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    struct Doc {
+        nodes: Vec<Node>,
+        remark: bool,
+        unit: &'static str,
+        crlf: bool,
+    }
+
+    fn render_nodes(nodes: &[Node], depth: usize, unit: &str, nl: &str, out: &mut String) {
+        let ind = unit.repeat(depth);
+        for n in nodes {
             match n {
-                Node::Leaf(name, v) if v.is_empty() && comments => {
+                Node::Leaf(name, v, true) if v.is_empty() => {
                     out.push_str(&format!("{ind}<{name}/>{nl}"));
                 }
-                Node::Leaf(name, v) => {
+                Node::Leaf(name, v, _) => {
                     out.push_str(&format!("{ind}<{name}>{}</{name}>{nl}", escape(v)));
                 }
-                Node::Group(name, children) if children.is_empty() => {
-                    out.push_str(&format!("{ind}<{name} kind=\"a > b\"/>{nl}"));
-                }
-                Node::Group(name, children) => {
-                    out.push_str(&format!("{ind}<{name}>{nl}"));
-                    render(children, depth + 1, unit, nl, comments, out);
+                Node::Group {
+                    name,
+                    children,
+                    attr,
+                    remark,
+                } => {
+                    let attr = if *attr { " kind=\"a > b\"" } else { "" };
+                    if children.is_empty() {
+                        out.push_str(&format!("{ind}<{name}{attr}/>{nl}"));
+                        continue;
+                    }
+                    out.push_str(&format!("{ind}<{name}{attr}>{nl}"));
+                    if *remark {
+                        out.push_str(&format!("{ind}{unit}<!-- <api>9</api> -->{nl}"));
+                    }
+                    render_nodes(children, depth + 1, unit, nl, out);
                     out.push_str(&format!("{ind}</{name}>{nl}"));
                 }
             }
         }
     }
 
-    /// Every leaf's path under the document element.
-    fn leaves(nodes: &[Node], at: &[String], out: &mut Vec<Vec<String>>) {
-        for n in nodes {
-            match n {
-                Node::Leaf(name, _) => out.push([at, std::slice::from_ref(name)].concat()),
-                Node::Group(name, children) => {
-                    leaves(children, &[at, std::slice::from_ref(name)].concat(), out);
+    impl Doc {
+        fn render(&self) -> String {
+            let nl = if self.crlf { "\r\n" } else { "\n" };
+            let mut out = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>{nl}<content>{nl}");
+            if self.remark {
+                out.push_str(&format!("{}<!-- <x>0</x> -->{nl}", self.unit));
+            }
+            render_nodes(&self.nodes, 1, self.unit, nl, &mut out);
+            out.push_str(&format!("</content>{nl}"));
+            out
+        }
+
+        /// Every leaf's path and text.
+        fn leaves(&self) -> Vec<(Vec<String>, String)> {
+            fn walk(nodes: &[Node], at: &[String], out: &mut Vec<(Vec<String>, String)>) {
+                for n in nodes {
+                    let p = [at, &[n.name().to_string()]].concat();
+                    match n {
+                        Node::Leaf(_, v, _) => out.push((p, v.clone())),
+                        Node::Group { children, .. } => walk(children, &p, out),
+                    }
                 }
             }
+            let mut out = Vec::new();
+            walk(&self.nodes, &["content".to_string()], &mut out);
+            out
         }
-    }
 
-    /// Every group's path under the document element, the document element itself first.
-    fn groups(nodes: &[Node], at: &[String], out: &mut Vec<Vec<String>>) {
-        if at.len() == 1 {
-            out.push(at.to_vec());
-        }
-        for n in nodes {
-            if let Node::Group(name, children) = n {
-                let p = [at, std::slice::from_ref(name)].concat();
-                out.push(p.clone());
-                groups(children, &p, out);
+        /// Every group's path, the document element's first, with its children.
+        fn groups(&self) -> Vec<(Vec<String>, &[Node])> {
+            fn walk<'a>(
+                nodes: &'a [Node],
+                at: &[String],
+                out: &mut Vec<(Vec<String>, &'a [Node])>,
+            ) {
+                for n in nodes {
+                    if let Node::Group { name, children, .. } = n {
+                        let p = [at, std::slice::from_ref(name)].concat();
+                        out.push((p.clone(), children));
+                        walk(children, &p, out);
+                    }
+                }
             }
+            let root = vec!["content".to_string()];
+            let mut out = vec![(root.clone(), self.nodes.as_slice())];
+            walk(&self.nodes, &root, &mut out);
+            out
+        }
+
+        /// The document `set(path, value)` should leave.
+        fn after(&self, path: &[&str], value: &str) -> Doc {
+            let mut d = self.clone();
+            // With nothing indented yet, the editor indents by a tab.
+            if self.nodes.is_empty() && !self.remark {
+                d.unit = "\t";
+            }
+            put(&mut d.nodes, &path[1..], value);
+            d
         }
     }
 
+    /// `value` at `path` under `nodes`: the leaf's text, or a new branch at the end.
+    fn put(nodes: &mut Vec<Node>, path: &[&str], value: &str) {
+        let Some((step, rest)) = path.split_first() else {
+            return;
+        };
+        let Some(at) = nodes.iter().position(|n| n.name() == *step) else {
+            let (leaf, groups) = path.split_last().unwrap_or((step, &[]));
+            let mut branch = Node::Leaf((*leaf).into(), value.into(), false);
+            for name in groups.iter().rev() {
+                branch = Node::Group {
+                    name: (*name).into(),
+                    children: vec![branch],
+                    attr: false,
+                    remark: false,
+                };
+            }
+            nodes.push(branch);
+            return;
+        };
+        match &mut nodes[at] {
+            Node::Leaf(_, v, short) => {
+                // `<name/>` stays only when it already holds the empty text asked for.
+                *short &= v.is_empty() && value.is_empty();
+                *v = value.into();
+            }
+            Node::Group { children, .. } => put(children, rest, value),
+        }
+    }
+
+    /// Few names, so an element and one nested deeper often share one.
+    const NAMES: [&str; 6] = ["api", "VSync", "Graphic", "Pad", "x", "y"];
     const NAME: &str = "(api|VSync|Graphic|Pad|x|y)";
 
     fn unique(nodes: Vec<Node>) -> Vec<Node> {
         let mut seen = std::collections::BTreeSet::new();
         nodes
             .into_iter()
-            .filter(|n| {
-                let (Node::Leaf(name, _) | Node::Group(name, _)) = n;
-                seen.insert(name.clone())
-            })
+            .filter(|n| seen.insert(n.name().to_string()))
             .collect()
     }
 
@@ -584,10 +673,31 @@ mod tests {
         "[a-zA-Z0-9 &<>\"'\\n\\r\\t;#é]{0,10}"
     }
 
-    fn node() -> impl Strategy<Value = Node> {
-        let leaf = (NAME, text()).prop_map(|(n, v)| Node::Leaf(n, v));
-        leaf.prop_recursive(2, 12, 4, |inner| {
-            (NAME, prop::collection::vec(inner, 0..4)).prop_map(|(n, c)| Node::Group(n, unique(c)))
+    fn nodes(flags: [bool; 3]) -> impl Strategy<Value = Vec<Node>> {
+        let [short, attr, remark] = flags;
+        let leaf = (NAME, text()).prop_map(move |(n, v)| Node::Leaf(n, v, short));
+        let node = leaf.prop_recursive(2, 12, 4, move |inner| {
+            (NAME, prop::collection::vec(inner, 0..4)).prop_map(move |(name, c)| {
+                let children = unique(c);
+                Node::Group {
+                    name,
+                    attr,
+                    remark: remark && !children.is_empty(),
+                    children,
+                }
+            })
+        });
+        prop::collection::vec(node, 0..5).prop_map(unique)
+    }
+
+    fn doc() -> impl Strategy<Value = Doc> {
+        any::<[bool; 6]>().prop_flat_map(|[short, attr, remark, spaces, crlf, top_remark]| {
+            nodes([short, attr, remark]).prop_map(move |nodes| Doc {
+                nodes,
+                remark: top_remark,
+                unit: if spaces { "  " } else { "\t" },
+                crlf,
+            })
         })
     }
 
@@ -596,55 +706,50 @@ mod tests {
 
         #[test]
         fn set_changes_one_element_and_get_reads_it_back(
-            nodes in prop::collection::vec(node(), 0..5).prop_map(unique),
-            spaces in any::<bool>(), crlf in any::<bool>(), comments in any::<bool>(),
-            pick in any::<usize>(), fresh in any::<bool>(),
-            extra in prop::collection::vec(NAME, 1..3), v in text(),
+            d in doc(), pick in any::<usize>(), fresh in any::<bool>(),
+            extra in prop::collection::vec(NAME, 0..2), v in text(),
         ) {
-            let nl = if crlf { "\r\n" } else { "\n" };
-            let unit = if spaces { "  " } else { "\t" };
-            let mut doc = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>{nl}<content>{nl}");
-            render(&nodes, 1, unit, nl, comments, &mut doc);
-            doc.push_str(&format!("</content>{nl}"));
-            let root = vec!["content".to_string()];
-            let mut all = Vec::new();
-            leaves(&nodes, &root, &mut all);
-            let mut parents = Vec::new();
-            groups(&nodes, &root, &mut parents);
-            // An existing leaf, or a new branch under a group: names no element has yet.
+            let text = d.render();
+            let all = d.leaves();
+            // An existing leaf, or a new branch under a group, named as no child of the group
+            // is, though an element deeper down may be.
             let path: Vec<String> = if fresh || all.is_empty() {
-                let mut p = parents[pick % parents.len()].clone();
-                p.extend(extra.iter().map(|e| format!("{e}New")));
-                p
+                let groups = d.groups();
+                let (parent, children) = &groups[pick % groups.len()];
+                let first = NAMES
+                    .iter()
+                    .find(|n| children.iter().all(|c| c.name() != **n))
+                    .map_or("xNew".to_string(), |n| n.to_string());
+                [parent.clone(), vec![first], extra.clone()].concat()
             } else {
-                all[pick % all.len()].clone()
+                all[pick % all.len()].0.clone()
             };
             let path: Vec<&str> = path.iter().map(String::as_str).collect();
-            let existed = get(&doc, &path).is_some();
-            let r = set(&doc, &path, &v).unwrap();
-            let out = r.clone().unwrap_or_else(|| doc.clone());
+            let old = all.iter().find(|(p, _)| *p == path).map(|(_, v)| v.as_str());
+            let r = set(&text, &path, &v).unwrap();
+            let out = r.clone().unwrap_or_else(|| text.clone());
+            prop_assert_eq!(&out, &d.after(&path, &v).render());
+            prop_assert_eq!(r.is_none(), old == Some(v.as_str()));
             let back = get(&out, &path);
             prop_assert_eq!(back.as_deref(), Some(v.as_str()));
             prop_assert_eq!(set(&out, &path, &v), Ok(None));
-            for other in &all {
+            for (other, was) in &all {
                 let other: Vec<&str> = other.iter().map(String::as_str).collect();
                 if other != path {
-                    prop_assert_eq!(get(&out, &other), get(&doc, &other));
+                    let now = get(&out, &other);
+                    prop_assert_eq!(now.as_deref(), Some(was.as_str()));
                 }
             }
-            let (gone, new) = changed(&doc, &out);
-            if r.is_none() {
-                prop_assert!(existed);
-            } else if existed {
+            // The element's line, or one line per tag of the new branch whatever the text; a
+            // self-closing parent's line becomes an open and a close tag around it.
+            let (gone, new) = changed(&text, &out);
+            if r.is_some() && old.is_some() {
                 prop_assert_eq!((gone.len(), new.len()), (1, 1));
-            } else {
-                // One line per open and close tag of the new branch, its leaf on one line
-                // whatever the value; a self-closing parent's line becomes an open and a
-                // close tag around it.
+            } else if r.is_some() {
                 prop_assert!(gone.len() <= 1);
-                prop_assert_eq!(new.len(), 2 * extra.len() - 1 + 2 * gone.len());
+                prop_assert_eq!(new.len(), 2 * (extra.len() + 1) - 1 + 2 * gone.len());
             }
-            prop_assert!(same_endings(&doc, &out));
+            prop_assert!(same_endings(&text, &out));
         }
     }
 }

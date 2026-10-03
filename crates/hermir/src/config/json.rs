@@ -595,19 +595,38 @@ mod tests {
         .prop_map(|m| m.into_iter().collect())
     }
 
-    /// `doc` pretty, compact, or one member a line with the rest compact.
+    /// `v` on one line with a space after each `:` and `,`.
+    fn spaced(v: &Value) -> String {
+        match v {
+            Value::Object(m) => {
+                let members: Vec<String> = m
+                    .iter()
+                    .map(|(k, v)| format!("{}: {}", string(k), spaced(v)))
+                    .collect();
+                format!("{{{}}}", members.join(", "))
+            }
+            Value::Array(a) => {
+                let items: Vec<String> = a.iter().map(spaced).collect();
+                format!("[{}]", items.join(", "))
+            }
+            v => v.to_string(),
+        }
+    }
+
+    /// `doc` pretty, compact, one member a line with the rest compact, or spaced on one line.
     fn render(doc: &Map<String, Value>, style: u8, crlf: bool) -> String {
         let v = Value::Object(doc.clone());
         let text = match style {
             0 => serde_json::to_string_pretty(&v).unwrap(),
             1 => v.to_string(),
-            _ => {
+            2 => {
                 let members: Vec<String> = doc
                     .iter()
                     .map(|(k, v)| format!("\t{}:{}", string(k), v))
                     .collect();
                 format!("{{\n{}\n}}", members.join(",\n"))
             }
+            _ => spaced(&v),
         };
         if crlf {
             text.replace('\n', "\r\n")
@@ -621,7 +640,7 @@ mod tests {
 
         #[test]
         fn set_changes_one_member_and_the_file_stays_json(
-            d in doc(), style in 0u8..3, crlf in any::<bool>(),
+            d in doc(), style in 0u8..4, crlf in any::<bool>(),
             section_pick in any::<usize>(), key in KEY, v in scalar_value(),
         ) {
             let text = render(&d, style, crlf);
@@ -654,6 +673,21 @@ mod tests {
             let out = r.clone().unwrap_or_else(|| text.clone());
             let parsed: Value = serde_json::from_str(&out).unwrap();
             prop_assert_eq!(parsed, Value::Object(expected));
+            // Of the file's bytes only the old literal goes, or, for a new member, at most the
+            // blank inside an empty `{ }`.
+            let (a, b) = (text.as_bytes(), out.as_bytes());
+            let head = a.iter().zip(b).take_while(|(x, y)| x == y).count();
+            let tail = a[head..]
+                .iter()
+                .rev()
+                .zip(b[head..].iter().rev())
+                .take_while(|(x, y)| x == y)
+                .count();
+            let gone = &a[head..a.len() - tail];
+            match &old {
+                Some(o) => prop_assert!(gone.len() <= o.to_string().len()),
+                None => prop_assert!(gone.iter().all(u8::is_ascii_whitespace)),
+            }
             let back = get(&out, &section, &key);
             prop_assert_eq!(back.as_deref(), Some(literal.as_str()));
             prop_assert_eq!(set(&out, &section, &key, &literal), Ok(None));
@@ -674,7 +708,7 @@ mod tests {
 
         #[test]
         fn nothing_but_one_scalar_is_written(
-            d in doc(), style in 0u8..3, key in KEY,
+            d in doc(), style in 0u8..4, key in KEY,
             junk in prop_oneof![
                 "[0-9]{1,3}, \"[a-z]{1,4}\": (true|1)",
                 "\\[[0-9]{0,2}\\]",
