@@ -12,11 +12,18 @@
         "eden"
       ],
       "flatpak": "dev.eden_emu.eden"
+    },
+    "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\eden\\current\\eden.exe"
+      ],
+      "portable_marker": "user"
     }
   },
   "roots": {
     "flatpak": "~/.var/app/dev.eden_emu.eden/data/eden",
     "native": "~/.local/share/eden",
+    "portable": "<app>/user",
     "windows": "%APPDATA%\\eden"
   },
   "launch": {

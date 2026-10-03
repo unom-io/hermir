@@ -51,6 +51,35 @@
     ]
   },
   "config": {
+    "files": {
+      "main": {
+        "path": "mupen64plus.cfg",
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "Rosalie's Mupen GUI",
+        "key": "AutomaticFullscreen",
+        "bool": [
+          "True",
+          "False"
+        ]
+      },
+      "video.scale": {
+        "unsupported": "per video plugin in RMG (GLideN64 or ParaLLEl-RDP); pass it through native"
+      },
+      "video.vsync": {
+        "unsupported": "per video plugin in RMG; pass it through native"
+      },
+      "video.aspect": {
+        "unsupported": "per video plugin in RMG; pass it through native"
+      },
+      "region": {
+        "unsupported": "the cartridge decides"
+      }
+    },
     "players": {
       "automatic": "RMG-Input takes the first pads itself, in the order they appear"
     }
@@ -60,12 +89,22 @@
       {
         "kind": "save",
         "path": "{data}/Save/Game",
-        "per_game": true
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "Core",
+          "key": "SaveSRAMPath"
+        }
       },
       {
         "kind": "state",
         "path": "{data}/Save/State",
-        "per_game": true
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "Core",
+          "key": "SaveStatePath"
+        }
       }
     ]
   },

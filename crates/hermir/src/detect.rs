@@ -513,6 +513,31 @@ mod tests {
     }
 
     #[test]
+    fn scoop_installs_are_found_on_windows_and_a_user_folder_makes_them_portable() {
+        let c = Catalog::embedded().unwrap();
+        let apps = "C:\\Users\\u\\scoop\\apps";
+        let env = FakeEnv::new(Os::Windows, "C:\\Users\\u")
+            .var("USERPROFILE", "C:\\Users\\u")
+            .var("APPDATA", "C:\\Users\\u\\AppData\\Roaming")
+            .file(&format!("{apps}\\flycast\\current\\flycast.exe"))
+            .file(&format!("{apps}\\eden\\current\\eden.exe"))
+            .file(&format!("{apps}\\eden\\current\\user"));
+        let flycast = detect_entry(c.get("flycast").unwrap(), &env);
+        assert_eq!(flycast.len(), 1);
+        assert_eq!(flycast[0].kind, InstallKind::Native);
+        assert_eq!(
+            flycast[0].config_root.as_deref(),
+            Some(Path::new("C:\\Users\\u\\AppData\\Roaming\\flycast"))
+        );
+        let eden = detect_entry(c.get("eden").unwrap(), &env);
+        assert_eq!(eden[0].kind, InstallKind::Portable);
+        assert_eq!(
+            eden[0].config_root.as_deref(),
+            Some(Path::new(&format!("{apps}\\eden\\current/user")))
+        );
+    }
+
+    #[test]
     fn nothing_on_a_bare_machine() {
         let c = Catalog::embedded().unwrap();
         assert!(detect(&c, &FakeEnv::new(Os::Linux, "/home/u")).is_empty());

@@ -26,6 +26,11 @@
         "flycast"
       ],
       "flatpak": "org.flycast.Flycast"
+    },
+    "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\flycast\\current\\flycast.exe"
+      ]
     }
   },
   "roots": {

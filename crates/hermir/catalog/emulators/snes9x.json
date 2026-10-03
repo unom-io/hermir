@@ -47,6 +47,67 @@
     ]
   },
   "config": {
+    "files": {
+      "main": {
+        "path": {
+          "linux": "snes9x.conf"
+        },
+        "format": "ini"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "Display",
+        "key": "FullscreenOnOpen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "unsupported": "a 2D console; Snes9x scales the picture to the window"
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "OpenGL",
+        "key": "VSync",
+        "bool": [
+          "true",
+          "false"
+        ],
+        "note": "the OpenGL output's, the default one; Vulkan keeps its own"
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "Display",
+        "key": "AspectRatio",
+        "values": {
+          "auto": "4",
+          "4:3": "2",
+          "stretch": "2"
+        },
+        "also": [
+          {
+            "key": "MaintainAspectRatio",
+            "values": {
+              "auto": "true",
+              "4:3": "true",
+              "stretch": "false"
+            }
+          }
+        ]
+      },
+      "region": {
+        "unsupported": "the cartridge's header decides"
+      },
+      "audio.latency_ms": {
+        "file": "main",
+        "section": "Sound",
+        "key": "BufferSize",
+        "text": "{value}"
+      }
+    },
     "players": {
       "unsupported": "Snes9x's bindings differ between its Windows and GTK builds; not yet described"
     }
@@ -61,7 +122,12 @@
         },
         "pattern": "*.srm",
         "per_game": true,
-        "note": "beside each game on Linux unless SRAMDirectory is set; Saves/ beside the exe on Windows"
+        "note": "beside each game on Linux unless SRAMDirectory is set; Saves/ beside the exe on Windows",
+        "setting": {
+          "file": "main",
+          "section": "Files",
+          "key": "SRAMDirectory"
+        }
       },
       {
         "kind": "state",
@@ -71,7 +137,12 @@
         },
         "pattern": "*.00?",
         "per_game": true,
-        "note": "beside each game on Linux unless SaveStateDirectory is set"
+        "note": "beside each game on Linux unless SaveStateDirectory is set",
+        "setting": {
+          "file": "main",
+          "section": "Files",
+          "key": "SaveStateDirectory"
+        }
       }
     ]
   },

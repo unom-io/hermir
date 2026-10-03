@@ -988,9 +988,37 @@ pub struct Firmware {
     /// Firmware that comes as an archive, unpacked into a folder of its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unpack: Option<FirmwareUnpack>,
+    /// Firmware the emulator reads from paths its settings name, one key per file, rather than
+    /// from a folder (xemu's MCPX boot ROM, flash BIOS and hard-disk image): each file is
+    /// copied into `dir` and its key pointed at it, unless the key names a file already there.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keys: Vec<FirmwareKey>,
     /// Per platform id: what satisfies it.
     #[serde(default)]
     pub platforms: BTreeMap<String, FirmwareNeed>,
+}
+
+/// One firmware file the emulator finds through a key of its settings.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FirmwareKey {
+    /// The ini (or flat TOML) file, under the config root.
+    pub ini: String,
+    /// The section.
+    pub section: String,
+    /// The key.
+    pub key: String,
+    /// File name patterns: the first file given that matches, and that no key before this
+    /// one took.
+    pub any_of: Vec<String>,
+    /// The value, `{path}` standing for the file's absolute path (`'{path}'` in TOML).
+    pub value: String,
+    /// What the file is, in a phrase a UI shows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+    /// The emulator also runs without it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub optional: bool,
 }
 
 /// An archive of firmware files (a Switch system update as a `.zip` of NCAs), unpacked once.

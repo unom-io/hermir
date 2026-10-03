@@ -12,7 +12,7 @@
         "Ryujinx",
         "ryujinx"
       ],
-      "flatpak": "org.ryujinx.Ryujinx"
+      "flatpak": "io.github.ryubing.Ryujinx"
     },
     "windows": {
       "paths": [
@@ -24,7 +24,7 @@
     }
   },
   "roots": {
-    "flatpak": "~/.var/app/org.ryujinx.Ryujinx/config/Ryujinx",
+    "flatpak": "~/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx",
     "native": "~/.config/Ryujinx",
     "portable": "<app>/portable",
     "windows": "%APPDATA%\\Ryujinx"
@@ -34,6 +34,17 @@
       "{fullscreen:--fullscreen}",
       "{file}"
     ]
+  },
+  "firmware": {
+    "dir": "system",
+    "platforms": {
+      "switch": {
+        "any_of": [
+          "prod.keys"
+        ],
+        "note": "prod.keys and title.keys, dumped from your Switch; system firmware is installed from Ryujinx's Tools menu"
+      }
+    }
   },
   "config": {
     "files": {
@@ -97,5 +108,5 @@
       }
     ]
   },
-  "notes": "The Ryubing fork keeps the Ryujinx binary and folder names."
+  "notes": "The Ryubing fork keeps the Ryujinx binary and folder names. org.ryujinx.Ryujinx left Flathub; the Flatpak looked for is Ryubing's community package, io.github.ryubing.Ryujinx."
 }

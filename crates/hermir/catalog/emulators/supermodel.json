@@ -36,6 +36,11 @@
         "supermodel"
       ],
       "flatpak": "com.supermodel3.Supermodel"
+    },
+    "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\supermodel\\current\\supermodel.exe"
+      ]
     }
   },
   "roots": {

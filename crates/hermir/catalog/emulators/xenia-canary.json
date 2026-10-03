@@ -31,7 +31,15 @@
     }
   },
   "detect": {
+    "linux": {
+      "path": [
+        "xenia_canary"
+      ]
+    },
     "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\xenia-canary\\current\\xenia_canary.exe"
+      ],
       "portable_marker": "portable.txt"
     }
   },

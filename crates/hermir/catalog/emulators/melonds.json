@@ -31,6 +31,9 @@
       "flatpak": "net.kuribo64.melonDS"
     },
     "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\melonds\\current\\melonDS.exe"
+      ],
       "portable_marker": "portable"
     }
   },

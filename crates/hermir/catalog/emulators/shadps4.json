@@ -35,6 +35,12 @@
       "path": [
         "shadps4"
       ]
+    },
+    "windows": {
+      "paths": [
+        "%USERPROFILE%\\scoop\\apps\\shadps4\\current\\shadPS4.exe"
+      ],
+      "portable_marker": "user"
     }
   },
   "roots": {

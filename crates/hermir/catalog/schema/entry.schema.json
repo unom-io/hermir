@@ -419,6 +419,13 @@
           ],
           "description": "The emulator's own installer, for firmware that is not loose files."
         },
+        "keys": {
+          "description": "Firmware the emulator reads from paths its settings name, one key per file, rather than\nfrom a folder (xemu's MCPX boot ROM, flash BIOS and hard-disk image): each file is\ncopied into `dir` and its key pointed at it, unless the key names a file already there.",
+          "items": {
+            "$ref": "#/$defs/FirmwareKey"
+          },
+          "type": "array"
+        },
         "platforms": {
           "additionalProperties": {
             "$ref": "#/$defs/FirmwareNeed"
@@ -460,6 +467,54 @@
       "required": [
         "args",
         "done"
+      ],
+      "type": "object"
+    },
+    "FirmwareKey": {
+      "additionalProperties": false,
+      "description": "One firmware file the emulator finds through a key of its settings.",
+      "properties": {
+        "any_of": {
+          "description": "File name patterns: the first file given that matches, and that no key before this\none took.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ini": {
+          "description": "The ini (or flat TOML) file, under the config root.",
+          "type": "string"
+        },
+        "key": {
+          "description": "The key.",
+          "type": "string"
+        },
+        "note": {
+          "description": "What the file is, in a phrase a UI shows.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "optional": {
+          "description": "The emulator also runs without it.",
+          "type": "boolean"
+        },
+        "section": {
+          "description": "The section.",
+          "type": "string"
+        },
+        "value": {
+          "description": "The value, `{path}` standing for the file's absolute path (`'{path}'` in TOML).",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ini",
+        "section",
+        "key",
+        "any_of",
+        "value"
       ],
       "type": "object"
     },

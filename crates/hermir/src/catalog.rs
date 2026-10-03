@@ -194,6 +194,18 @@ impl Catalog {
                 if fw.dir.is_none() && fw.install.is_none() {
                     return Err(bad(&e.id, "firmware with neither dir nor install".into()));
                 }
+                if !fw.keys.is_empty() && fw.dir.is_none() {
+                    return Err(bad(
+                        &e.id,
+                        "firmware keys need a dir to copy the files into".into(),
+                    ));
+                }
+                if let Some(k) = fw.keys.iter().find(|k| !k.value.contains("{path}")) {
+                    return Err(bad(
+                        &e.id,
+                        format!("firmware key {}: the value has no {{path}}", k.key),
+                    ));
+                }
             }
             // Everything prepare writes stays under the config root.
             let written = e
@@ -204,6 +216,7 @@ impl Catalog {
                         .iter()
                         .chain(f.install.iter().map(|i| &i.done))
                         .chain(f.unpack.iter().map(|u| &u.into))
+                        .chain(f.keys.iter().map(|k| &k.ini))
                 })
                 .chain(
                     [Os::Linux, Os::Windows, Os::Macos]
@@ -254,6 +267,21 @@ impl Catalog {
             }
             if !has_channel && e.no_install.is_none() {
                 return Err(bad(&e.id, "no channel and no no_install reason".into()));
+            }
+            for os in [Os::Linux, Os::Windows, Os::Macos] {
+                if let Some(d) = e.detect.get(os)
+                    && d.path.is_empty()
+                    && d.paths.is_empty()
+                    && d.flatpak.is_none()
+                {
+                    return Err(bad(
+                        &e.id,
+                        format!(
+                            "detect on {os}: no path, paths or flatpak rule; a portable marker \
+                             alone never fires, it is looked for beside an exe a rule found"
+                        ),
+                    ));
+                }
             }
             validate_saves(e).map_err(|why| bad(&e.id, why))?;
         }
@@ -558,6 +586,16 @@ mod tests {
         unpack.into = "../../.ssh".into();
         let err = c.validate().unwrap_err().to_string();
         assert!(err.contains("not a path under the config root"), "{err}");
+    }
+
+    #[test]
+    fn a_portable_marker_alone_detects_nothing_and_is_refused() {
+        let mut c = Catalog::embedded().unwrap();
+        let e = c.entries.iter_mut().find(|e| e.id == "melonds").unwrap();
+        let w = e.detect.windows.as_mut().unwrap();
+        w.paths.clear();
+        let err = c.validate().unwrap_err().to_string();
+        assert!(err.contains("never fires"), "{err}");
     }
 
     #[test]
