@@ -92,6 +92,16 @@
       "automatic": "shadPS4 maps SDL pads itself, in the order they appear"
     }
   },
+  "saves": {
+    "ps4": [
+      {
+        "kind": "save",
+        "path": "savedata",
+        "per_game": true,
+        "note": "per user, 1 the first, and game id (CUSA…)"
+      }
+    ]
+  },
   "notes": "The SDL core, not the Qt launcher. It takes the game folder or its eboot.bin. Portable mode keys on a `user` folder in the working directory, not beside the exe. Settings are config.json under the user directory, in General, Input and GPU objects.",
   "firmware": {
     "dir": "sys_modules",

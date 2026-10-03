@@ -87,5 +87,15 @@
       "unsupported": "Ryujinx keys pads by its own controller id in Config.json; not yet described"
     }
   },
+  "saves": {
+    "switch": [
+      {
+        "kind": "save",
+        "path": "bis/user/save",
+        "per_game": true,
+        "note": "each save under an index of its own, not the title id; Ryujinx maps them in bis/system/save"
+      }
+    ]
+  },
   "notes": "The Ryubing fork keeps the Ryujinx binary and folder names."
 }

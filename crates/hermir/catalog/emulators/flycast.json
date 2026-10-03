@@ -128,5 +128,21 @@
       "automatic": "Flycast maps SDL pads itself, in the order they appear"
     }
   },
+  "saves": {
+    "dc": [
+      {
+        "kind": "memcard",
+        "path": "{data}",
+        "pattern": "vmu_save_*.bin",
+        "note": "a VMU image per port and slot (vmu_save_A1.bin), shared by every game unless per-game VMUs are on"
+      },
+      {
+        "kind": "state",
+        "path": "{data}",
+        "pattern": "*.state",
+        "per_game": true
+      }
+    ]
+  },
   "notes": "Where a Windows install keeps emu.cfg (beside the exe or under %APPDATA%) is verified when the adapter lands."
 }

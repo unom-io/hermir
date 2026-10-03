@@ -116,5 +116,20 @@
     "players": {
       "automatic": "PPSSPP maps SDL pads itself, in the order they appear"
     }
+  },
+  "saves": {
+    "psp": [
+      {
+        "kind": "save",
+        "path": "PSP/SAVEDATA",
+        "per_game": true
+      },
+      {
+        "kind": "state",
+        "path": "PSP/PPSSPP_STATE",
+        "pattern": "*.ppst",
+        "per_game": true
+      }
+    ]
   }
 }

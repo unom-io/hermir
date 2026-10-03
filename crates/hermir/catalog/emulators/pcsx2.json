@@ -141,11 +141,58 @@
       },
       "region": {
         "unsupported": "the BIOS decides the region; PCSX2 has no override"
+      },
+      "audio.device": {
+        "file": "main",
+        "section": "SPU2/Output",
+        "key": "DeviceName",
+        "values": {
+          "default": ""
+        },
+        "text": "{value}"
+      },
+      "audio.latency_ms": {
+        "file": "main",
+        "section": "SPU2/Output",
+        "key": "OutputLatencyMS",
+        "text": "{value}",
+        "also": [
+          {
+            "key": "OutputLatencyMinimal",
+            "value": "false"
+          }
+        ]
       }
     },
     "players": {
       "adapter": "pcsx2"
     }
+  },
+  "saves": {
+    "ps2": [
+      {
+        "kind": "memcard",
+        "path": "memcards",
+        "pattern": "*.ps2",
+        "setting": {
+          "file": "main",
+          "section": "Folders",
+          "key": "MemoryCards"
+        },
+        "note": "two 8 MB cards every game shares (Mcd001.ps2, Mcd002.ps2), or folder cards"
+      },
+      {
+        "kind": "state",
+        "path": "sstates",
+        "pattern": "*.p2s",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "Folders",
+          "key": "Savestates"
+        }
+      }
+    ]
   },
   "notes": "The first-run seed carries the settings version this release expects (a file without it is reset to defaults, wizard included); bump it with the emulator."
 }

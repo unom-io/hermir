@@ -1,4 +1,7 @@
 {
   "notes": "Cemu writes settings.xml only when it quits cleanly; its getting-started dialog is closed the same way.",
-  "close_after": 15
+  "close_after": 15,
+  "saves_later": [
+    "{data}/mlc01/usr/save"
+  ]
 }

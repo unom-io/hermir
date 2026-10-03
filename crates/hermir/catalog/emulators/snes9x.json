@@ -51,5 +51,29 @@
       "unsupported": "Snes9x's bindings differ between its Windows and GTK builds; not yet described"
     }
   },
+  "saves": {
+    "snes": [
+      {
+        "kind": "save",
+        "path": {
+          "linux": "{game}",
+          "windows": "Saves"
+        },
+        "pattern": "*.srm",
+        "per_game": true,
+        "note": "beside each game on Linux unless SRAMDirectory is set; Saves/ beside the exe on Windows"
+      },
+      {
+        "kind": "state",
+        "path": {
+          "linux": "{game}",
+          "windows": "Saves"
+        },
+        "pattern": "*.00?",
+        "per_game": true,
+        "note": "beside each game on Linux unless SaveStateDirectory is set"
+      }
+    ]
+  },
   "notes": "The Windows build keeps snes9x.conf beside its exe; the GTK build under ~/.config/snes9x. Its licence is Snes9x's own, non-commercial."
 }

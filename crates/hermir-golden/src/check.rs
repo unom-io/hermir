@@ -408,24 +408,7 @@ fn against_emulator(
 /// Check H: every knob `apply` reported written reads back as what the session asked for, or
 /// as a value the emulator spells the same way (PPSSPP writes 16:9 and auto alike).
 fn read_back(entry: &Entry, s: &Session, got: &[KnobValue]) -> Vec<String> {
-    let mut asked: Vec<(&str, String)> = Vec::new();
-    if let Some(v) = &s.patch.video {
-        if let Some(f) = v.fullscreen {
-            asked.push(("video.fullscreen", f.to_string()));
-        }
-        if let Some(n) = v.scale {
-            asked.push(("video.scale", n.to_string()));
-        }
-        if let Some(f) = v.vsync {
-            asked.push(("video.vsync", f.to_string()));
-        }
-        if let Some(a) = v.aspect {
-            asked.push(("video.aspect", a.as_str().to_string()));
-        }
-    }
-    if let Some(r) = s.patch.region {
-        asked.push(("region", r.as_str().to_string()));
-    }
+    let asked = s.patch.knobs();
     let mut failures = Vec::new();
     for (knob, want) in asked {
         if !matches!(
@@ -500,22 +483,7 @@ fn addressed(entry: &Entry, fx: &Fixture, patch: &Patch) -> BTreeSet<Addr> {
             out.insert((rel.to_string(), section, format!("{key}\\default")));
         }
     };
-    let mut knobs = Vec::new();
-    if let Some(v) = &patch.video {
-        for (name, set) in [
-            ("video.fullscreen", v.fullscreen.is_some()),
-            ("video.scale", v.scale.is_some()),
-            ("video.vsync", v.vsync.is_some()),
-            ("video.aspect", v.aspect.is_some()),
-        ] {
-            if set {
-                knobs.push(name);
-            }
-        }
-    }
-    if patch.region.is_some() {
-        knobs.push("region");
-    }
+    let knobs: Vec<&str> = patch.knobs().into_iter().map(|(k, _)| k).collect();
     for name in knobs {
         if let Some(Knob::Bound(b)) = cfg.knobs.get(name) {
             push(&b.file, &b.section, &b.key);

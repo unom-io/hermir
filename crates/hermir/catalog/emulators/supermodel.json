@@ -97,6 +97,23 @@
       "adapter": "supermodel"
     }
   },
+  "saves": {
+    "model3": [
+      {
+        "kind": "save",
+        "path": "{data}/NVRAM",
+        "pattern": "*.nv",
+        "per_game": true,
+        "note": "each game's backup RAM"
+      },
+      {
+        "kind": "state",
+        "path": "{data}/Saves",
+        "pattern": "*.st?",
+        "per_game": true
+      }
+    ]
+  },
   "notes": "SDL2 + OpenGL through GLX: it needs X11 or XWayland, not a Wayland socket. With `~/.supermodel` present it keeps Config, NVRAM, Saves and Assets in there; without Games.xml and the crosshair bitmaps it exits. A ROM set is a MAME-style zip, its parent set beside it.",
   "first_run": {
     "linux": [

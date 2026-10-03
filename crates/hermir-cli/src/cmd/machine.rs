@@ -1,7 +1,7 @@
 //! `hermir status`, `detect`, `where`, `doctor`: what is on this machine.
 use std::path::Path;
 
-use hermir::{Error, Hermir, Os, Result};
+use hermir::{Error, Hermir, Os, Result, SaveKind};
 
 use super::Outcome;
 use crate::render;
@@ -74,6 +74,52 @@ pub fn where_(h: &Hermir, emulator: &str) -> Result<Outcome> {
             .unwrap_or_else(|| "unknown".into())
     );
     Ok(Outcome::new(&i, human))
+}
+
+pub fn saves(h: &Hermir, emulator: &str, platform: Option<&str>) -> Result<Outcome> {
+    let e = h.emulator(emulator)?;
+    let i = e
+        .best()?
+        .ok_or_else(|| Error::NotInstalled(emulator.into()))?;
+    let saves = e.saves(&i, platform)?;
+    let mut lines = Vec::new();
+    for s in &saves {
+        lines.push(format!("{}:", s.platform));
+        if let Some(why) = &s.unknown {
+            lines.push(format!("  unknown: {why}"));
+        }
+        for l in &s.locations {
+            let kind = match l.kind {
+                SaveKind::Save => "saves",
+                SaveKind::Memcard => "memory cards",
+                SaveKind::State => "save states",
+                _ => "other",
+            };
+            let at = match (&l.path, l.beside_game) {
+                (Some(p), _) => {
+                    let mut at = p.display().to_string();
+                    if let Some(glob) = &l.pattern {
+                        at.push_str(&format!(" ({glob})"));
+                    }
+                    if l.from_setting {
+                        at.push_str(", set in its settings");
+                    }
+                    if !l.exists {
+                        at.push_str(", not there yet");
+                    }
+                    at
+                }
+                (None, true) => "beside each game".into(),
+                (None, false) => "not known for this copy".into(),
+            };
+            lines.push(format!("  {kind:<13} {at}"));
+            if let Some(note) = &l.note {
+                lines.push(format!("  {:<13} {note}", ""));
+            }
+        }
+    }
+    let doc = serde_json::json!({ "install": i, "saves": saves });
+    Ok(Outcome::new(&doc, lines.join("\n")))
 }
 
 pub fn doctor(h: &Hermir) -> Result<Outcome> {

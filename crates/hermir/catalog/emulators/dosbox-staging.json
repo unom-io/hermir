@@ -77,10 +77,27 @@
       },
       "region": {
         "unsupported": "not a console"
+      },
+      "audio.latency_ms": {
+        "file": "main",
+        "section": "mixer",
+        "key": "prebuffer",
+        "text": "{value}",
+        "note": "the milliseconds DOSBox Staging renders ahead, on top of its block size"
       }
     },
     "players": {
       "unsupported": "keyboard and mouse games"
     }
+  },
+  "saves": {
+    "dos": [
+      {
+        "kind": "save",
+        "path": "{game}",
+        "per_game": true,
+        "note": "a DOS game writes its saves into its own folder, the drive it is mounted as"
+      }
+    ]
   }
 }

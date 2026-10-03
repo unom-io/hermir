@@ -1,5 +1,5 @@
 //! `hermir launch` and `run`: the command that starts a game, printed or run.
-use hermir::{Error, Hermir, LaunchRequest, LaunchSpec, Result};
+use hermir::{Audio, Error, Hermir, LaunchRequest, LaunchSpec, Patch, Result};
 
 use super::Outcome;
 use crate::cli::LaunchArgs;
@@ -15,7 +15,13 @@ fn spec(h: &Hermir, a: &LaunchArgs) -> Result<LaunchSpec> {
         fullscreen: a.fullscreen,
         core: a.core.clone(),
         profile: a.profile.clone(),
-        patch: None,
+        patch: a.audio_device.as_ref().map(|d| Patch {
+            audio: Some(Audio {
+                device: Some(d.clone()),
+                latency_ms: None,
+            }),
+            ..Default::default()
+        }),
     };
     e.launch(&copy, &req)
 }

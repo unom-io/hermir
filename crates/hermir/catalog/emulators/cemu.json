@@ -107,5 +107,21 @@
     "players": {
       "adapter": "cemu"
     }
+  },
+  "saves": {
+    "wiiu": [
+      {
+        "kind": "save",
+        "path": "{data}/mlc01/usr/save",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "",
+          "key": "mlc_path",
+          "then": "usr/save"
+        },
+        "note": "per title id: 00050000/<low>/user"
+      }
+    ]
   }
 }

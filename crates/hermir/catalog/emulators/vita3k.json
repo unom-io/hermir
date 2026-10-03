@@ -81,5 +81,15 @@
       "automatic": "Vita3K maps SDL pads itself, in the order they appear"
     }
   },
+  "saves": {
+    "psvita": [
+      {
+        "kind": "save",
+        "path": "ux0/user/00/savedata",
+        "per_game": true,
+        "note": "per title id (PCSE…)"
+      }
+    ]
+  },
   "notes": "Not on Flathub; the Linux AppImage channel is a later step."
 }

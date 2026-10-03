@@ -3,7 +3,7 @@
 use hermir::{Catalog, Error, Hermir, Install, Options, Result};
 use serde::Serialize;
 
-use crate::cli::{CatalogCmd, Cli, Cmd, ConfigCmd, CoreCmd, ProfileCmd};
+use crate::cli::{CatalogCmd, Cli, Cmd, ConfigCmd, CoreCmd, ProfileCmd, SavesCmd};
 
 mod catalog;
 mod check;
@@ -94,6 +94,9 @@ pub fn run(cli: Cli) -> Result<Outcome> {
         Cmd::Status { emulator, check } => machine::status(&h, emulator, check),
         Cmd::Detect => Ok(machine::detect(&h)),
         Cmd::Where { emulator } => machine::where_(&h, &emulator),
+        Cmd::Saves {
+            cmd: SavesCmd::Where { emulator, platform },
+        } => machine::saves(&h, &emulator, platform.as_deref()),
         Cmd::Doctor => machine::doctor(&h),
         Cmd::Check {
             emulator,

@@ -5,14 +5,15 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
-use hermir::{Catalog, Entry, Hermir, Options, Os};
+use hermir::{Catalog, Entry, Exe, Hermir, Install, InstallKind, Options, Os, PlatformSaves};
 use hermir_golden::check::{self, Home, Tree, tree, write_tree};
 use hermir_golden::fixture::{Fixture, discover};
 
 use crate::capture::{self, Run};
 
 enum Outcome {
-    Unchanged(String),
+    /// The release the newest fixture holds; what the catalog says that it does not match.
+    Unchanged(String, Vec<String>),
     New {
         version: String,
         dir: PathBuf,
@@ -42,7 +43,17 @@ pub fn main(args: &[String]) -> Result<(), String> {
             .get(id)
             .ok_or_else(|| format!("{id} is not in the catalog"))?;
         let row = match drift(entry, run) {
-            Ok(Outcome::Unchanged(v)) => format!("| {id} | {v} | unchanged |"),
+            Ok(Outcome::Unchanged(v, problems)) if problems.is_empty() => {
+                format!("| {id} | {v} | unchanged |")
+            }
+            Ok(Outcome::Unchanged(v, problems)) => {
+                failed += 1;
+                format!(
+                    "| {id} | {v} | unchanged, **{} problem(s)**: {} |",
+                    problems.len(),
+                    problems.join("; ").replace('|', "\\|")
+                )
+            }
             Ok(Outcome::New {
                 version,
                 dir,
@@ -94,13 +105,13 @@ fn newest(id: &str) -> Option<Fixture> {
 
 fn drift(entry: &Entry, run: Run) -> Result<Outcome, String> {
     let s = capture::first_start(entry, run)?;
+    let mut problems = saves(entry, &s)?;
     if let Some(fx) = newest(&entry.id)
         && fx.meta.version == s.version
         && tree(&fx.dir.join("before")) == s.files
     {
-        return Ok(Outcome::Unchanged(s.version));
+        return Ok(Outcome::Unchanged(s.version, problems));
     }
-    let mut problems = Vec::new();
     if !s.alive() {
         problems.push(format!("its first start exited {}", s.exit.trim()));
     }
@@ -121,6 +132,72 @@ fn drift(entry: &Entry, run: Run) -> Result<Outcome, String> {
         dir,
         problems,
     })
+}
+
+/// Every save folder the catalog places under the config root or beside it that the first
+/// start did not make, unless its recipe says it appears only at the first save: the emulator
+/// moved its saves, or the catalog is wrong.
+fn saves(entry: &Entry, s: &capture::Start) -> Result<Vec<String>, String> {
+    let app = capture::flatpak_id(entry).ok_or("no Flathub id in the catalog")?;
+    let home = s.raw.join("home");
+    let root = home
+        .join(".var/app")
+        .join(app)
+        .join(capture::under_app(entry, app)?);
+    let later = capture::recipe(&entry.id)?.saves_later;
+    let tmp = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let h = Hermir::open(Options {
+        prefix: Some(tmp.path().join("prefix")),
+        os: Some(Os::Linux),
+        env: Some(Box::new(Home(home, Os::Linux))),
+        ..Default::default()
+    })
+    .map_err(|e| e.to_string())?;
+    let install = Install::new(
+        &entry.id,
+        InstallKind::Flatpak,
+        Exe::FlatpakRun(app.to_string()),
+        Some(root),
+    );
+    let found = h
+        .emulator(&entry.id)
+        .and_then(|e| e.saves(&install, None))
+        .map_err(|e| e.to_string())?;
+    let mut missing = Vec::new();
+    for (platform, dir) in entry.saves.iter().flat_map(|(p, s)| match s {
+        PlatformSaves::Dirs(dirs) => dirs.iter().map(|d| (p.as_str(), d)).collect(),
+        _ => Vec::new(),
+    }) {
+        let Some(spelled) = dir.path.as_ref().and_then(|p| p.get(Os::Linux)) else {
+            continue;
+        };
+        if spelled == "{game}" || later.iter().any(|l| l == spelled) {
+            continue;
+        }
+        let platform = if platform == "*" {
+            entry.platforms[0].as_str()
+        } else {
+            platform
+        };
+        let at = found
+            .iter()
+            .find(|f| f.platform == platform)
+            .and_then(|f| f.locations.iter().find(|l| l.kind == dir.kind && !l.exists));
+        if let Some(l) = at {
+            let line = format!(
+                "the catalog puts {platform} saves at {spelled} ({}), and its first start made no \
+                 such folder",
+                l.path
+                    .as_deref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default()
+            );
+            if !missing.contains(&line) {
+                missing.push(line);
+            }
+        }
+    }
+    Ok(missing)
 }
 
 /// The emulator started on the files hermir wrote for `video-all`: it must still start, and a

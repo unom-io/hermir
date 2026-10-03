@@ -139,9 +139,124 @@ pub struct Entry {
     /// is the in-place, snapshotted patch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub profile: Option<ProfileSupport>,
+    /// Where the player's progress is, per platform id, or `*` for every platform the entry
+    /// has: each platform's folders, or why they are not known yet.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub saves: BTreeMap<String, PlatformSaves>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// What to know about it that fits no other field.
     pub notes: Option<String>,
+}
+
+/// One platform's saves in the catalog: its folders, or why they are not known.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
+pub enum PlatformSaves {
+    /// Not known yet: the note says why, in a phrase a UI shows.
+    Unknown {
+        /// Why.
+        unknown: String,
+    },
+    /// The folders, in the order a UI lists them.
+    Dirs(Vec<SaveDir>),
+}
+
+/// What a save folder holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum SaveKind {
+    /// The games' own saves: battery RAM, a console's save data, a virtual drive's.
+    Save,
+    /// Memory card images the games save to.
+    Memcard,
+    /// Save states: the emulator's snapshots of a running game.
+    State,
+}
+
+/// One folder of saves, as the catalog describes it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SaveDir {
+    /// What it holds.
+    pub kind: SaveKind,
+    /// Relative to the config root; `{data}/` at the start is the data directory beside it
+    /// (`~/.local/share/<x>` for `~/.config/<x>`, a Flatpak's `data/<x>` for its `config/<x>`,
+    /// the root itself elsewhere); `{game}` alone is beside each game file. Left out when only
+    /// `setting` says where (a disk image the player picks).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<FilePath>,
+    /// The files in it that are saves, a glob (`*.ps2`); all of them when left out.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    /// One file or folder per game, rather than one every game shares (a memory card).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub per_game: bool,
+    /// The setting a player moves the folder with: read first, `path` when it is empty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub setting: Option<SaveSetting>,
+    /// What to know about the layout inside, in a phrase a UI shows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// A key of one of the entry's config files that names a save folder.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SaveSetting {
+    /// The catalog's name for the file.
+    pub file: String,
+    /// The section, `""` for the top level.
+    #[serde(default)]
+    pub section: String,
+    /// The key.
+    pub key: String,
+    /// The folder under the one the key names (Cemu's `usr/save` under its `mlc_path`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub then: Option<String>,
+    /// Values that mean "the default folder", besides an empty one (RetroArch's `default`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unset: Vec<String>,
+}
+
+/// One platform's saves on a copy (`EmulatorHandle::saves`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Saves {
+    /// The platform id.
+    pub platform: String,
+    /// Each folder, resolved.
+    pub locations: Vec<SaveLocation>,
+    /// Why the catalog does not know, when it does not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unknown: Option<String>,
+}
+
+/// One folder of saves on a copy, resolved.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SaveLocation {
+    /// What it holds.
+    pub kind: SaveKind,
+    /// Where it is; `None` beside each game (`beside_game`), or when this copy's root is not
+    /// known, or nothing names it yet (`note` says).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+    /// The saves are beside each game file, wherever the games are.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub beside_game: bool,
+    /// The files in it that are saves, a glob; all of them when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    /// One file or folder per game.
+    pub per_game: bool,
+    /// The path is the one the emulator's settings name: the player moved it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub from_setting: bool,
+    /// The folder is there now; some appear only at the first save.
+    pub exists: bool,
+    /// What to know about the layout inside.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 /// What `apply` may write into a copy, as the catalog describes it: data, so an emulator with
@@ -169,6 +284,8 @@ pub const KNOBS: &[&str] = &[
     "video.vsync",
     "video.aspect",
     "region",
+    "audio.device",
+    "audio.latency_ms",
 ];
 
 /// One settings file of an emulator.
@@ -276,9 +393,10 @@ pub enum Via {
     Launch,
 }
 
-/// One knob bound to one key, with the spelling the emulator expects. Exactly one of `bool`,
-/// `values` and `scale` is present, by the knob's type: `bool` for `video.fullscreen` and
-/// `video.vsync`, `values` for `video.aspect` and `region`, `scale` for `video.scale`.
+/// One knob bound to one key, with the spelling the emulator expects, by the knob's type:
+/// `bool` for `video.fullscreen` and `video.vsync`, `values` for `video.aspect` and `region`,
+/// `scale` for `video.scale`, `text` for `audio.device` (with `values` for `default`) and
+/// `audio.latency_ms` (with a `range`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Binding {
@@ -300,6 +418,14 @@ pub struct Binding {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// How `video.scale`'s multiple is spelled.
     pub scale: Option<Scale>,
+    /// `audio.device` and `audio.latency_ms`: the literal, `{value}` standing for the device's
+    /// name or the milliseconds (`"\"{value}\""` where the format quotes). `values` may spell
+    /// the device `default` otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// `audio.latency_ms`: the milliseconds the emulator takes, lowest and highest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<[u32; 2]>,
     /// Keys written alongside every write of this knob (the renderer a scale needs, a second
     /// axis, a mode string beside a flag).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -486,6 +612,9 @@ pub struct Patch {
     /// The console region the emulator should present.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub region: Option<Region>,
+    /// Where the sound goes, and how much of it is buffered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audio: Option<Audio>,
     /// Keys the model does not cover, written as given.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub native: Vec<Native>,
@@ -552,6 +681,14 @@ impl Patch {
                 ));
             }
         }
+        if let Some(d) = self.audio.as_ref().and_then(|a| a.device.as_deref()) {
+            text("the audio device", d)?;
+            if d.trim().is_empty() || d.contains(['"', '\\']) {
+                return Err(format!(
+                    "the audio device {d:?} is empty or holds a quote or a backslash"
+                ));
+            }
+        }
         for n in &self.native {
             if n.key.trim().is_empty() {
                 return Err(format!("a native key of {} has no name", n.file));
@@ -569,7 +706,61 @@ impl Patch {
         self.players.is_none()
             && self.video.as_ref().is_none_or(Video::is_empty)
             && self.region.is_none()
+            && self.audio.as_ref().is_none_or(Audio::is_empty)
             && self.native.is_empty()
+    }
+
+    /// Each knob of [`KNOBS`] the patch sets, with its neutral value as text (`true`, `3`,
+    /// `16:9`, a device's name): what `apply` reports on and `get` reads back.
+    pub fn knobs(&self) -> Vec<(&'static str, String)> {
+        let mut out = Vec::new();
+        if let Some(v) = &self.video {
+            if let Some(f) = v.fullscreen {
+                out.push(("video.fullscreen", f.to_string()));
+            }
+            if let Some(n) = v.scale {
+                out.push(("video.scale", n.to_string()));
+            }
+            if let Some(f) = v.vsync {
+                out.push(("video.vsync", f.to_string()));
+            }
+            if let Some(a) = v.aspect {
+                out.push(("video.aspect", a.as_str().to_string()));
+            }
+        }
+        if let Some(r) = self.region {
+            out.push(("region", r.as_str().to_string()));
+        }
+        if let Some(a) = &self.audio {
+            if let Some(d) = &a.device {
+                out.push(("audio.device", d.clone()));
+            }
+            if let Some(ms) = a.latency_ms {
+                out.push(("audio.latency_ms", ms.to_string()));
+            }
+        }
+        out
+    }
+}
+
+/// The sound side of a session.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Audio {
+    /// The output device, as the emulator's audio backend names it: on Linux a PulseAudio or
+    /// PipeWire sink's name (`alsa_output.pci-0000_00_1f.3.analog-stereo`), which is also what
+    /// `PULSE_SINK` takes; `default` for the system's default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub device: Option<String>,
+    /// How much sound the emulator buffers ahead, in milliseconds: lower is more responsive,
+    /// higher survives a busy machine.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latency_ms: Option<u32>,
+}
+
+impl Audio {
+    /// True when no setting is given.
+    pub fn is_empty(&self) -> bool {
+        self.device.is_none() && self.latency_ms.is_none()
     }
 }
 

@@ -202,6 +202,14 @@ pub fn standard_sessions() -> Vec<(&'static str, Session)> {
         ),
         ("region-eu", s(serde_json::json!({ "region": "eu" }))),
         (
+            "audio-device",
+            s(serde_json::json!({ "audio": { "device": "hermir_test_sink" } })),
+        ),
+        (
+            "audio-latency",
+            s(serde_json::json!({ "audio": { "latency_ms": 64 } })),
+        ),
+        (
             "players-1-xbox",
             s(serde_json::json!({ "players": [ { "seat": 1, "pad": xbox(0) } ] })),
         ),

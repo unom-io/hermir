@@ -115,6 +115,31 @@
           "us": "SCEA",
           "eu": "SCEE"
         }
+      },
+      "audio.device": {
+        "file": "main",
+        "section": "Audio",
+        "key": "Audio Device",
+        "values": {
+          "default": "\"@@@default@@@\""
+        },
+        "text": "\"{value}\""
+      },
+      "audio.latency_ms": {
+        "file": "main",
+        "section": "Audio",
+        "key": "Desired Audio Buffer Duration",
+        "text": "{value}",
+        "range": [
+          4,
+          250
+        ],
+        "also": [
+          {
+            "key": "Enable Buffering",
+            "value": "true"
+          }
+        ]
       }
     },
     "players": {
@@ -130,6 +155,21 @@
       "main": "config.yml"
     },
     "note": "pads still go into RPCS3's own input config, snapshotted: it picks input configs by name, not path"
+  },
+  "saves": {
+    "ps3": [
+      {
+        "kind": "save",
+        "path": "dev_hdd0/home/00000001/savedata",
+        "per_game": true,
+        "note": "per user, 00000001 the first, and per save id"
+      },
+      {
+        "kind": "state",
+        "path": "savestates",
+        "per_game": true
+      }
+    ]
   },
   "notes": "Linux gets RPCS3's own AppImage (x86_64), unpacked: the Flathub build asks on every launch whether to run an unofficial build. Keeps dev_hdd0 and dev_flash beside the exe on Windows, and config.yml, GuiConfigs and input_configs under config/ there. Firmware installs headless with `--installfw <PS3UPDAT.PUP>`; the exit code is not the verdict, dev_flash is.",
   "firmware": {

@@ -98,5 +98,18 @@
       "adapter": "xemu"
     }
   },
+  "saves": {
+    "xbox": [
+      {
+        "kind": "save",
+        "setting": {
+          "file": "main",
+          "section": "sys.files",
+          "key": "hdd_path"
+        },
+        "note": "inside the Xbox hard-disk image the player chose; none until one is set"
+      }
+    ]
+  },
   "notes": "Needs an MCPX ROM, a BIOS and an HDD image the user provides."
 }

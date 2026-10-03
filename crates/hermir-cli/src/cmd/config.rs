@@ -1,7 +1,9 @@
 //! `hermir config …`, `players`, `prepare`: a session's settings into every copy, and back.
 use std::path::PathBuf;
 
-use hermir::{Applied, Error, Hermir, Patch, PrepareStep, Prepared, Result, StepOutcome, Video};
+use hermir::{
+    Applied, Audio, Error, Hermir, Patch, PrepareStep, Prepared, Result, StepOutcome, Video,
+};
 use serde::Serialize;
 
 use super::{Outcome, PerCopy, copies};
@@ -19,8 +21,13 @@ pub fn apply(h: &Hermir, a: &ApplyArgs) -> Result<Outcome> {
         vsync: a.vsync,
         aspect: a.aspect,
     };
+    let audio = Audio {
+        device: a.audio_device.clone(),
+        latency_ms: a.audio_latency,
+    };
     let seats = parse::seats(&a.pads)?;
     let patch = Patch {
+        audio: (!audio.is_empty()).then_some(audio),
         players: seats.players,
         connected: seats.connected,
         video: (!video.is_empty()).then_some(video),

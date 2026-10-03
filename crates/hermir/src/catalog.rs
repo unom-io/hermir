@@ -9,7 +9,8 @@ use crate::channel::extract::is_safe_relative;
 use crate::config::adapters;
 use crate::error::{Error, Result};
 use crate::model::{
-    Channel, Config, Entry, FirstRun, Format, KNOBS, Knob, Os, Platform, PlayersSupport, Scale,
+    Channel, Config, Entry, FilePath, FirstRun, Format, KNOBS, Knob, Os, Platform, PlatformSaves,
+    PlayersSupport, Scale,
 };
 
 /// `(id, json)` for every file under `catalog/emulators/`. A test checks the directory listing
@@ -254,6 +255,7 @@ impl Catalog {
             if !has_channel && e.no_install.is_none() {
                 return Err(bad(&e.id, "no channel and no no_install reason".into()));
             }
+            validate_saves(e).map_err(|why| bad(&e.id, why))?;
         }
         for p in &self.platforms {
             for id in &p.emulators {
@@ -264,6 +266,69 @@ impl Catalog {
         }
         Ok(())
     }
+}
+
+/// The rules of `saves`: every platform the entry runs is listed or covered by `*`, and only
+/// those; each folder is under the config root or beside it (`{data}/`), beside the game
+/// (`{game}`), or named by a setting of a file the entry describes.
+fn validate_saves(e: &Entry) -> std::result::Result<(), String> {
+    if e.saves.is_empty() {
+        return Err("no saves: list each platform's folders, or say `unknown` and why".into());
+    }
+    for key in e.saves.keys() {
+        if key != "*" && !e.platforms.contains(key) {
+            return Err(format!(
+                "saves for {key}, a platform the entry does not run"
+            ));
+        }
+    }
+    if !e.saves.contains_key("*")
+        && let Some(p) = e.platforms.iter().find(|p| !e.saves.contains_key(*p))
+    {
+        return Err(format!("no saves for {p}, and no `*`"));
+    }
+    let files = e.config.as_ref().map(|c| &c.files);
+    for (platform, s) in &e.saves {
+        let PlatformSaves::Dirs(dirs) = s else {
+            continue;
+        };
+        if dirs.is_empty() {
+            return Err(format!(
+                "saves for {platform}: no folder; say `unknown` and why"
+            ));
+        }
+        for d in dirs {
+            if d.path.is_none() && d.setting.is_none() {
+                return Err(format!(
+                    "saves for {platform}: a folder with no path and no setting"
+                ));
+            }
+            for p in d.path.iter().flat_map(FilePath::all) {
+                let rel = p
+                    .strip_prefix("{data}/")
+                    .or_else(|| p.strip_prefix("{data}\\"))
+                    .unwrap_or(p);
+                let ok = p == "{game}"
+                    || p == "{data}"
+                    || (!rel.is_empty() && !rel.contains('{') && is_safe_relative(Path::new(rel)));
+                if !ok {
+                    return Err(format!(
+                        "saves for {platform}: {p} is not under the config root, beside it \
+                         ({{data}}/…) or beside the game ({{game}})"
+                    ));
+                }
+            }
+            if let Some(set) = &d.setting
+                && !files.is_some_and(|f| f.contains_key(&set.file))
+            {
+                return Err(format!(
+                    "saves for {platform}: the setting's file {} is not described",
+                    set.file
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The rules of a `config` block: files are under the root, knobs are the known ones and
@@ -305,23 +370,42 @@ fn validate_config(id: &str, cfg: &Config) -> Result<()> {
         if !file_known(&b.file) {
             return Err(bad(format!("{knob}: no file named {}", b.file)));
         }
+        // What each knob's binding carries: the audio knobs `text`, and the device may spell
+        // `default` in `values` beside it; only latency has a range.
+        let audio = knob.starts_with("audio.");
         let (want_bool, want_scale, want_values) = match knob.as_str() {
             "video.fullscreen" | "video.vsync" => (true, false, false),
             "video.scale" => (false, true, false),
-            _ => (false, false, true),
+            _ => (false, false, !audio),
         };
         if b.bool.is_some() != want_bool
             || b.scale.is_some() != want_scale
-            || b.values.is_some() != want_values
+            || b.text.is_some() != audio
+            || (b.values.is_some() != want_values && knob != "audio.device")
+            || (b.range.is_some() && knob != "audio.latency_ms")
         {
             let want = if want_bool {
                 "bool"
             } else if want_scale {
                 "scale"
+            } else if knob == "audio.device" {
+                "text, and values for default"
+            } else if audio {
+                "text, and a range"
             } else {
                 "values"
             };
             return Err(bad(format!("{knob} takes `{want}` and nothing else")));
+        }
+        if let Some(t) = &b.text
+            && !t.contains("{value}")
+        {
+            return Err(bad(format!("{knob}: the text has no {{value}}")));
+        }
+        if let Some([lo, hi]) = b.range
+            && lo > hi
+        {
+            return Err(bad(format!("{knob}: the range runs backwards")));
         }
         if let Some(values) = &b.values {
             let allowed = crate::config::neutral_values(knob);
@@ -474,6 +558,44 @@ mod tests {
         unpack.into = "../../.ssh".into();
         let err = c.validate().unwrap_err().to_string();
         assert!(err.contains("not a path under the config root"), "{err}");
+    }
+
+    #[test]
+    fn every_platform_has_saves_and_every_save_folder_stays_put() {
+        let fresh = || Catalog::embedded().unwrap();
+        let mut c = fresh();
+        let e = c.entries.iter_mut().find(|e| e.id == "dolphin").unwrap();
+        e.saves.remove("wii");
+        let err = c.validate().unwrap_err().to_string();
+        assert!(err.contains("no saves for wii"), "{err}");
+
+        let mut c = fresh();
+        let e = c.entries.iter_mut().find(|e| e.id == "pcsx2").unwrap();
+        let ps2 = e.saves.remove("ps2").unwrap();
+        e.saves.insert("ps3".into(), ps2.clone());
+        e.saves.insert("ps2".into(), ps2);
+        let err = c.validate().unwrap_err().to_string();
+        assert!(err.contains("does not run"), "{err}");
+
+        for bad in ["../../.ssh", "/etc", "{data}/../x", "x/{game}"] {
+            let mut c = fresh();
+            let e = c.entries.iter_mut().find(|e| e.id == "pcsx2").unwrap();
+            let Some(PlatformSaves::Dirs(dirs)) = e.saves.get_mut("ps2") else {
+                unreachable!()
+            };
+            dirs[0].path = Some(FilePath::Same(bad.into()));
+            let err = c.validate().unwrap_err().to_string();
+            assert!(err.contains("not under the config root"), "{bad}: {err}");
+        }
+
+        let mut c = fresh();
+        let e = c.entries.iter_mut().find(|e| e.id == "pcsx2").unwrap();
+        let Some(PlatformSaves::Dirs(dirs)) = e.saves.get_mut("ps2") else {
+            unreachable!()
+        };
+        dirs[0].setting.as_mut().unwrap().file = "nope".into();
+        let err = c.validate().unwrap_err().to_string();
+        assert!(err.contains("file nope"), "{err}");
     }
 
     #[test]

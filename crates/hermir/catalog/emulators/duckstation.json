@@ -118,11 +118,59 @@
           "us": "NTSC-U",
           "eu": "PAL"
         }
+      },
+      "audio.device": {
+        "file": "main",
+        "section": "Audio",
+        "key": "OutputDevice",
+        "values": {
+          "default": ""
+        },
+        "text": "{value}"
+      },
+      "audio.latency_ms": {
+        "file": "main",
+        "section": "Audio",
+        "key": "OutputLatencyMS",
+        "text": "{value}",
+        "also": [
+          {
+            "key": "OutputLatencyMinimal",
+            "value": "false"
+          }
+        ]
       }
     },
     "players": {
       "adapter": "duckstation"
     }
+  },
+  "saves": {
+    "psx": [
+      {
+        "kind": "memcard",
+        "path": "memcards",
+        "pattern": "*.mcd",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "MemoryCards",
+          "key": "Directory"
+        },
+        "note": "a card per game by default (MemoryCards → Card1Type = PerGameTitle)"
+      },
+      {
+        "kind": "state",
+        "path": "savestates",
+        "pattern": "*.sav",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "Folders",
+          "key": "SaveStates"
+        }
+      }
+    ]
   },
   "notes": "The licence forbids modification and redistribution: hermir installs the official build unchanged. Of its config it writes only the answers to its first-run questions. The first-run seed carries the settings version this release expects (a file without it is reset to defaults, wizard included); bump it with the emulator.",
   "first_run": {

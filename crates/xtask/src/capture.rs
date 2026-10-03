@@ -30,6 +30,9 @@ pub(crate) struct Recipe {
     ignore_after: Vec<String>,
     /// Session name → what a person sets in the emulator's UI for it (`capture --interactive`).
     pub checklists: BTreeMap<String, Vec<String>>,
+    /// Save folders, as the catalog spells them, that appear only at the first save: the drift
+    /// job does not expect its first start to make them.
+    pub saves_later: Vec<String>,
     /// Why the recipe is what it is.
     #[allow(dead_code)]
     notes: Option<String>,
@@ -146,7 +149,7 @@ pub(crate) fn flatpak_id(e: &Entry) -> Option<&str> {
 }
 
 /// The config root's path under the app's home (`config/PCSX2`), from the catalog.
-fn under_app<'a>(entry: &'a Entry, app: &str) -> Result<&'a str, String> {
+pub(crate) fn under_app<'a>(entry: &'a Entry, app: &str) -> Result<&'a str, String> {
     entry
         .roots
         .flatpak

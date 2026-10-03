@@ -90,5 +90,22 @@
       "unsupported": "keyboard and mouse games"
     }
   },
+  "saves": {
+    "scummvm": [
+      {
+        "kind": "save",
+        "path": {
+          "linux": "{data}/saves",
+          "windows": "Saved games"
+        },
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "scummvm",
+          "key": "savepath"
+        }
+      }
+    ]
+  },
   "notes": "Launches a game directory, not a file."
 }

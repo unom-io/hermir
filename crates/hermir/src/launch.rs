@@ -90,16 +90,33 @@ pub(crate) fn launch(
         }
     }
     let mut sandbox = Vec::new();
+    let mut env = BTreeMap::new();
     // A Flatpak reads only what it was granted: the game's folder, for this run.
     if let (Exe::FlatpakRun(_), Some(f)) = (&install.exe, &req.file)
         && let Some(dir) = f.parent().filter(|d| !d.as_os_str().is_empty())
     {
         sandbox.push(format!("--filesystem={}", dir.display()));
     }
+    // The sound to a device on Linux whatever the emulator's settings say: Pulse, and
+    // PipeWire's Pulse server, play a client's streams to PULSE_SINK. A Flatpak gets it inside.
+    if os == Os::Linux
+        && let Some(sink) = req
+            .patch
+            .as_ref()
+            .and_then(|p| p.audio.as_ref()?.device.as_deref())
+            .filter(|d| *d != "default")
+    {
+        match install.exe {
+            Exe::FlatpakRun(_) => sandbox.push(format!("--env=PULSE_SINK={sink}")),
+            _ => {
+                env.insert("PULSE_SINK".to_string(), sink.to_string());
+            }
+        }
+    }
     Ok(LaunchSpec {
         exe: install.exe.clone(),
         args,
-        env: BTreeMap::new(),
+        env,
         cwd: None,
         sandbox,
     })
@@ -224,6 +241,42 @@ mod tests {
             fullscreen,
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn a_device_asked_for_reaches_the_sound_server_on_linux() {
+        let c = Catalog::embedded().unwrap();
+        let entry = c.get("dolphin").unwrap();
+        let root = Path::new("/r");
+        let req = LaunchRequest {
+            patch: Some(Patch {
+                audio: Some(crate::model::Audio {
+                    device: Some("hermir_sink".into()),
+                    latency_ms: None,
+                }),
+                ..Default::default()
+            }),
+            ..LaunchRequest::default()
+        };
+        let copy = flatpak("dolphin", "org.DolphinEmu.dolphin-emu", root);
+        let spec = launch(entry, Os::Linux, &copy, &req, None).unwrap();
+        assert!(
+            spec.sandbox
+                .contains(&"--env=PULSE_SINK=hermir_sink".to_string())
+        );
+        assert!(spec.env.is_empty());
+        let native = Install {
+            exe: Exe::Path("/usr/bin/dolphin-emu".into()),
+            kind: InstallKind::Native,
+            ..copy.clone()
+        };
+        let spec = launch(entry, Os::Linux, &native, &req, None).unwrap();
+        assert_eq!(
+            spec.env.get("PULSE_SINK").map(String::as_str),
+            Some("hermir_sink")
+        );
+        let spec = launch(entry, Os::Windows, &native, &req, None).unwrap();
+        assert!(spec.env.is_empty());
     }
 
     #[test]

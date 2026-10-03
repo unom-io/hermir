@@ -141,6 +141,41 @@
     },
     "note": "with -u Dolphin keeps everything in the profile, its Wii NAND and GameCube memory cards (the saves) included"
   },
+  "saves": {
+    "ngc": [
+      {
+        "kind": "memcard",
+        "path": "{data}/GC",
+        "note": "a card file per region and slot (MemoryCardA.USA.raw), or a GCI folder per region and slot (USA/Card A), whichever the slot is set to"
+      },
+      {
+        "kind": "state",
+        "path": "{data}/StateSaves",
+        "pattern": "*.s??",
+        "per_game": true
+      }
+    ],
+    "wii": [
+      {
+        "kind": "save",
+        "path": "{data}/Wii/title",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "General",
+          "key": "NANDRootPath",
+          "then": "title"
+        },
+        "note": "each game's data under its title id: 00010000/<id>/data"
+      },
+      {
+        "kind": "state",
+        "path": "{data}/StateSaves",
+        "pattern": "*.s??",
+        "per_game": true
+      }
+    ]
+  },
   "notes": "No GitHub releases; the URL is bumped by catalog PRs. `-u <dir>` selects a user directory for profiles.",
   "first_run": {
     "linux": [

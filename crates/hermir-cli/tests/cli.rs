@@ -41,6 +41,11 @@ fn every_kind_of_failure_has_its_exit_code() {
     assert_eq!(json(t, &["where", "pcsx2"]).0, 9);
     assert_eq!(json(t, &["config", "apply", "pcsx2", "--scale", "2"]).0, 9);
     assert_eq!(json(t, &["prepare", "pcsx2"]).0, 9);
+    assert_eq!(
+        json(t, &["config", "apply", "pcsx2", "--audio-latency", "40"]).0,
+        9
+    );
+    assert_eq!(json(t, &["saves", "where", "pcsx2"]).0, 9);
     // `check` refuses what `install` refuses, and leaves nothing behind.
     assert_eq!(json(t, &["check", "nosuch"]).0, 2);
     assert_eq!(json(t, &["check", "ryujinx"]).0, 2);

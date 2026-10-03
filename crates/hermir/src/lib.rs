@@ -43,6 +43,7 @@ pub mod pads;
 mod players;
 mod prepare;
 pub mod progress;
+mod saves;
 mod store;
 
 use std::path::PathBuf;
@@ -525,6 +526,22 @@ impl EmulatorHandle<'_> {
         self.mine(install)?;
         config::get_native(self.entry, self.h.os, install, file, section, key)
             .map_err(Error::Invalid)
+    }
+
+    /// Where `install` keeps the player's saves for `platform`, or for every platform the
+    /// emulator runs: each folder resolved, one the player moved in the emulator's settings
+    /// followed. hermir reads; it never copies or syncs saves. A platform the emulator does not
+    /// run is [`Error::Invalid`].
+    pub fn saves(&self, install: &Install, platform: Option<&str>) -> Result<Vec<Saves>> {
+        self.mine(install)?;
+        saves::saves(
+            self.entry,
+            self.h.os,
+            install,
+            self.h.env.as_ref(),
+            platform,
+        )
+        .map_err(Error::Invalid)
     }
 
     /// The command that starts `install` with `req`: the catalog's template rendered, the

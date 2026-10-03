@@ -65,6 +65,12 @@ pub enum Cmd {
     },
     /// The exe and config root of the best copy on this machine.
     Where { emulator: String },
+    /// Where the best copy keeps the player's saves: memory cards, save data, save states.
+    /// hermir reads them; it never copies or syncs them.
+    Saves {
+        #[command(subcommand)]
+        cmd: SavesCmd,
+    },
     /// Make every copy ready to play: answer its first-run questions, place or install
     /// `--firmware` for `--platform`.
     Prepare {
@@ -201,6 +207,13 @@ pub struct ApplyArgs {
     /// auto, jp, us or eu (also ntsc-j, ntsc-u, pal).
     #[arg(long, value_parser = clap::value_parser!(Region))]
     pub region: Option<Region>,
+    /// The sound's output device as the emulator's backend names it (on Linux a Pulse or
+    /// PipeWire sink's name, `pactl list short sinks`), or `default`.
+    #[arg(long, value_name = "NAME")]
+    pub audio_device: Option<String>,
+    /// How much sound is buffered ahead, in milliseconds.
+    #[arg(long, value_name = "MS")]
+    pub audio_latency: Option<u32>,
     /// A key the model does not cover, as `section/key=value` (`key=value` at the top
     /// level), written as given into `--file`. The section may itself contain slashes.
     #[arg(long = "set", value_name = "SECTION/KEY=VALUE")]
@@ -233,6 +246,16 @@ pub struct PadArgs {
     /// name or GUID, so the ones nobody sits at count too. `--pad auto` needs none.
     #[arg(long, value_name = "FILE")]
     pub connected: Option<PathBuf>,
+}
+
+#[derive(Subcommand)]
+pub enum SavesCmd {
+    /// Each folder, for one platform or every platform the emulator runs; one the player
+    /// moved in the emulator's settings is followed.
+    Where {
+        emulator: String,
+        platform: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -283,4 +306,8 @@ pub struct LaunchArgs {
     /// Run on this profile's settings.
     #[arg(long)]
     pub profile: Option<String>,
+    /// On Linux, play the sound on this Pulse or PipeWire sink (`PULSE_SINK`), whatever the
+    /// emulator's settings say.
+    #[arg(long, value_name = "SINK")]
+    pub audio_device: Option<String>,
 }

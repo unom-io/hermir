@@ -1,0 +1,7 @@
+{
+  "notes": "Supermodel makes NVRAM/ and Saves/ at the first game.",
+  "saves_later": [
+    "{data}/NVRAM",
+    "{data}/Saves"
+  ]
+}

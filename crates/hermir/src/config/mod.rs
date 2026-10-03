@@ -63,6 +63,22 @@ pub(crate) fn resolve(root: &Path, rel: &str) -> PathBuf {
     }
 }
 
+/// The data directory that goes with a config root, `settings_dir` the other way round:
+/// `~/.local/share/<x>` for `~/.config/<x>`, a Flatpak's `…/data/<x>` for its `…/config/<x>`,
+/// and the root itself when it is not a config root (Windows, portable copies).
+pub fn data_dir(root: &Path) -> PathBuf {
+    let Some(name) = root.file_name() else {
+        return root.to_path_buf();
+    };
+    let parent = root.parent();
+    let named = |n: &str| parent.and_then(Path::file_name).is_some_and(|d| d == n);
+    match parent.and_then(Path::parent) {
+        Some(base) if named("config") => base.join("data").join(name),
+        Some(home) if named(".config") => home.join(".local").join("share").join(name),
+        _ => root.to_path_buf(),
+    }
+}
+
 /// The settings directory that goes with a data root: `~/.config/<x>` for `~/.local/share/<x>`,
 /// `…/config/<x>` for a Flatpak's `…/data/<x>`, and the root itself when it is not a data root.
 pub fn settings_dir(root: &Path) -> PathBuf {
@@ -290,6 +306,10 @@ pub fn support(entry: &Entry) -> Vec<KnobChange> {
         .iter()
         .map(|&name| {
             let (support, note) = match cfg.and_then(|c| c.knobs.get(name)) {
+                None | Some(Knob::Unsupported { .. }) if name == "audio.device" => (
+                    Support::Partial,
+                    Some(format!("on Linux only; {}", knobs::PULSE_SINK)),
+                ),
                 None => (Support::Unsupported, not_described()),
                 Some(Knob::Unsupported { unsupported }) => {
                     (Support::Unsupported, Some(unsupported.clone()))
@@ -315,6 +335,9 @@ pub fn support(entry: &Entry) -> Vec<KnobChange> {
                         if (min, max) != (1, 8) {
                             notes.push(format!("{min}×–{max}×"));
                         }
+                    }
+                    if let Some([lo, hi]) = b.range {
+                        notes.push(format!("{lo}–{hi} ms"));
                     }
                     if notes.is_empty() {
                         (Support::Applied, None)
@@ -638,6 +661,110 @@ mod tests {
                 .all(|s| s.outcome == StepOutcome::Applied)
         );
         assert!(!tmp.path().join("melonds/melonDS.toml").exists());
+    }
+
+    fn audio(device: Option<&str>, latency_ms: Option<u32>) -> Patch {
+        Patch {
+            audio: Some(crate::model::Audio {
+                device: device.map(String::from),
+                latency_ms,
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn audio_goes_where_each_emulator_keeps_it_and_reads_back() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let snaps = tmp.path().join("snaps");
+        let sink = "alsa_output.pci-0000_00_1f.3.analog-stereo";
+        let patch = audio(Some(sink), Some(40));
+        let root = tmp.path().join("pcsx2");
+        let p = run(&c, "pcsx2", Os::Linux, &root, &patch, &snaps);
+        assert_eq!(knob(&p, "audio.device").support, Support::Applied);
+        assert_eq!(knob(&p, "audio.latency_ms").support, Support::Applied);
+        let ini = read(&root.join("inis/PCSX2.ini"));
+        assert!(ini.contains(&format!("DeviceName = {sink}\n")), "{ini}");
+        assert!(
+            ini.contains("OutputLatencyMS = 40\nOutputLatencyMinimal = false\n"),
+            "{ini}"
+        );
+        let got = get(
+            c.get("pcsx2").unwrap(),
+            Os::Linux,
+            &install("pcsx2", &root),
+            None,
+        )
+        .unwrap();
+        let value = |k: &str| got.iter().find(|v| v.knob == k).unwrap().value.clone();
+        assert_eq!(value("audio.device").as_deref(), Some(sink));
+        assert_eq!(value("audio.latency_ms").as_deref(), Some("40"));
+        // `default` is the emulator's own spelling of it.
+        run(
+            &c,
+            "pcsx2",
+            Os::Linux,
+            &root,
+            &audio(Some("default"), None),
+            &snaps,
+        );
+        assert!(read(&root.join("inis/PCSX2.ini")).contains("DeviceName = \n"));
+        let got = get(
+            c.get("pcsx2").unwrap(),
+            Os::Linux,
+            &install("pcsx2", &root),
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            got.iter()
+                .find(|v| v.knob == "audio.device")
+                .unwrap()
+                .value
+                .as_deref(),
+            Some("default")
+        );
+
+        // RetroArch quotes; RPCS3 has a range.
+        let root = tmp.path().join("retroarch");
+        run(&c, "retroarch", Os::Linux, &root, &patch, &snaps);
+        let cfg = read(&root.join("retroarch.cfg"));
+        assert!(
+            cfg.contains(&format!("audio_device = \"{sink}\"\n")),
+            "{cfg}"
+        );
+        assert!(cfg.contains("audio_latency = \"40\"\n"), "{cfg}");
+        let root = tmp.path().join("rpcs3");
+        let p = run(
+            &c,
+            "rpcs3",
+            Os::Linux,
+            &root,
+            &audio(None, Some(1000)),
+            &snaps,
+        );
+        let k = knob(&p, "audio.latency_ms");
+        assert_eq!(k.support, Support::Unsupported);
+        assert!(k.note.as_deref().unwrap().contains("4–250"), "{k:?}");
+
+        // No device setting: on Linux the launch carries it; elsewhere nothing does.
+        let root = tmp.path().join("dolphin");
+        let p = run(&c, "dolphin", Os::Linux, &root, &patch, &snaps);
+        let k = knob(&p, "audio.device");
+        assert_eq!(k.support, Support::Partial);
+        assert!(k.note.as_deref().unwrap().contains("PULSE_SINK"));
+        assert_eq!(knob(&p, "audio.latency_ms").support, Support::Unsupported);
+        let p = run(&c, "dolphin", Os::Windows, &root, &patch, &snaps);
+        assert_eq!(knob(&p, "audio.device").support, Support::Unsupported);
+    }
+
+    #[test]
+    fn an_audio_device_that_would_break_the_line_or_the_quotes_is_refused() {
+        for bad in ["", "a\nb", "say \"hi\"", "C:\\x"] {
+            assert!(audio(Some(bad), None).validate().is_err(), "{bad:?}");
+        }
+        assert!(audio(Some("default"), Some(64)).validate().is_ok());
     }
 
     /// A DualSense at SDL index 0 and an Xbox pad at 1, the Xbox pad seated alone.

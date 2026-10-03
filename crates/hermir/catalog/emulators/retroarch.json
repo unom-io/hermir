@@ -222,6 +222,19 @@
       },
       "region": {
         "unsupported": "a core option, per core"
+      },
+      "audio.device": {
+        "file": "main",
+        "key": "audio_device",
+        "values": {
+          "default": "\"\""
+        },
+        "text": "\"{value}\""
+      },
+      "audio.latency_ms": {
+        "file": "main",
+        "key": "audio_latency",
+        "text": "\"{value}\""
       }
     },
     "players": {
@@ -237,6 +250,38 @@
       "main": "retroarch.cfg"
     },
     "note": "cores, autoconfig profiles and saves stay where the player's own config points"
+  },
+  "saves": {
+    "*": [
+      {
+        "kind": "save",
+        "path": "saves",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "",
+          "key": "savefile_directory",
+          "unset": [
+            "default"
+          ]
+        },
+        "note": "in a folder per core (sort_savefiles_enable, on by default), or per content folder; each core names its files"
+      },
+      {
+        "kind": "state",
+        "path": "states",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "",
+          "key": "savestate_directory",
+          "unset": [
+            "default"
+          ]
+        },
+        "note": "in a folder per core (sort_savestates_enable, on by default), or per content folder"
+      }
+    ]
   },
   "notes": "Cores come from the buildbot through `hermir core install <core>`; the Windows 7z is portable as shipped."
 }

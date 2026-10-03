@@ -109,11 +109,33 @@
           "us": "NTSC-U",
           "eu": "PAL"
         }
+      },
+      "audio.latency_ms": {
+        "file": "main",
+        "section": "Audio",
+        "key": "Latency",
+        "text": "{value}",
+        "note": "ares takes the nearest latency its audio driver offers"
       }
     },
     "players": {
       "unsupported": "ares binds pads by its own device ids in settings.bml; not yet described"
     }
+  },
+  "saves": {
+    "*": [
+      {
+        "kind": "save",
+        "path": "{game}",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "Paths",
+          "key": "Saves"
+        },
+        "note": "beside each game unless Paths → Saves names a folder"
+      }
+    ]
   },
   "notes": "One emulator for most cartridge-era systems; `--system <name>` picks one when a file is ambiguous. Settings live in settings.bml beside the exe when that file exists (the managed install places it), else under the user's data directory (~/.local/share/ares, %LOCALAPPDATA%\\ares). The release assets are ares-windows-x64.zip and the arm64 and PDB zips beside it."
 }

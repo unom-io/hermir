@@ -102,7 +102,7 @@
     },
     "Binding": {
       "additionalProperties": false,
-      "description": "One knob bound to one key, with the spelling the emulator expects. Exactly one of `bool`,\n`values` and `scale` is present, by the knob's type: `bool` for `video.fullscreen` and\n`video.vsync`, `values` for `video.aspect` and `region`, `scale` for `video.scale`.",
+      "description": "One knob bound to one key, with the spelling the emulator expects, by the knob's type:\n`bool` for `video.fullscreen` and `video.vsync`, `values` for `video.aspect` and `region`,\n`scale` for `video.scale`, `text` for `audio.device` (with `values` for `default`) and\n`audio.latency_ms` (with a `range`).",
       "properties": {
         "also": {
           "description": "Keys written alongside every write of this knob (the renderer a scale needs, a second\naxis, a mode string beside a flag).",
@@ -138,6 +138,20 @@
             "null"
           ]
         },
+        "range": {
+          "description": "`audio.latency_ms`: the milliseconds the emulator takes, lowest and highest.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
         "scale": {
           "anyOf": [
             {
@@ -152,6 +166,13 @@
         "section": {
           "description": "The section (INI), the key path above the key (YAML, XML), or the object under the root\n(JSON); empty for the top level.",
           "type": "string"
+        },
+        "text": {
+          "description": "`audio.device` and `audio.latency_ms`: the literal, `{value}` standing for the device's\nname or the milliseconds (`\"\\\"{value}\\\"\"` where the format quotes). `values` may spell\nthe device `default` otherwise.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "values": {
           "additionalProperties": {
@@ -833,6 +854,32 @@
       },
       "type": "object"
     },
+    "PlatformSaves": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "description": "Not known yet: the note says why, in a phrase a UI shows.",
+          "properties": {
+            "unknown": {
+              "description": "Why.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "unknown"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "The folders, in the order a UI lists them.",
+          "items": {
+            "$ref": "#/$defs/SaveDir"
+          },
+          "type": "array"
+        }
+      ],
+      "description": "One platform's saves in the catalog: its folders, or why they are not known."
+    },
     "PlayersSupport": {
       "anyOf": [
         {
@@ -978,6 +1025,118 @@
           ]
         }
       },
+      "type": "object"
+    },
+    "SaveDir": {
+      "additionalProperties": false,
+      "description": "One folder of saves, as the catalog describes it.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/SaveKind",
+          "description": "What it holds."
+        },
+        "note": {
+          "description": "What to know about the layout inside, in a phrase a UI shows.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FilePath"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Relative to the config root; `{data}/` at the start is the data directory beside it\n(`~/.local/share/<x>` for `~/.config/<x>`, a Flatpak's `data/<x>` for its `config/<x>`,\nthe root itself elsewhere); `{game}` alone is beside each game file. Left out when only\n`setting` says where (a disk image the player picks)."
+        },
+        "pattern": {
+          "description": "The files in it that are saves, a glob (`*.ps2`); all of them when left out.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "per_game": {
+          "description": "One file or folder per game, rather than one every game shares (a memory card).",
+          "type": "boolean"
+        },
+        "setting": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SaveSetting"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The setting a player moves the folder with: read first, `path` when it is empty."
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "SaveKind": {
+      "description": "What a save folder holds.",
+      "oneOf": [
+        {
+          "const": "save",
+          "description": "The games' own saves: battery RAM, a console's save data, a virtual drive's.",
+          "type": "string"
+        },
+        {
+          "const": "memcard",
+          "description": "Memory card images the games save to.",
+          "type": "string"
+        },
+        {
+          "const": "state",
+          "description": "Save states: the emulator's snapshots of a running game.",
+          "type": "string"
+        }
+      ]
+    },
+    "SaveSetting": {
+      "additionalProperties": false,
+      "description": "A key of one of the entry's config files that names a save folder.",
+      "properties": {
+        "file": {
+          "description": "The catalog's name for the file.",
+          "type": "string"
+        },
+        "key": {
+          "description": "The key.",
+          "type": "string"
+        },
+        "section": {
+          "default": "",
+          "description": "The section, `\"\"` for the top level.",
+          "type": "string"
+        },
+        "then": {
+          "description": "The folder under the one the key names (Cemu's `usr/save` under its `mlc_path`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "unset": {
+          "description": "Values that mean \"the default folder\", besides an empty one (RetroArch's `default`).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "file",
+        "key"
+      ],
       "type": "object"
     },
     "Scale": {
@@ -1199,6 +1358,13 @@
       "$ref": "#/$defs/Roots",
       "default": {},
       "description": "Where the emulator keeps its config and data, per install kind. `<app>` is the exe's\ndirectory, `~` the home, `%VAR%` and `$VAR` environment variables."
+    },
+    "saves": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PlatformSaves"
+      },
+      "description": "Where the player's progress is, per platform id, or `*` for every platform the entry\nhas: each platform's folders, or why they are not known yet.",
+      "type": "object"
     }
   },
   "required": [
