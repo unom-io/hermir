@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     #[error("{0} is not in the catalog")]
     NotInCatalog(String),
@@ -30,6 +31,9 @@ pub enum Error {
     /// What was asked cannot be done as asked: a seat given twice, a newline in a value.
     #[error("{0}")]
     Invalid(String),
+    /// There is no copy of the emulator on this machine to act on.
+    #[error("{0} is not on this machine")]
+    NotInstalled(String),
     #[error("{op} {path}: {source}")]
     Io {
         op: &'static str,
@@ -41,7 +45,9 @@ pub enum Error {
 
 impl Error {
     /// The CLI exit code: 0 ok · 1 I/O · 2 catalog, policy or an impossible request · 3 network ·
-    /// 4 verification · 5 extract or place · 6 unsupported on this OS · 8 locked.
+    /// 4 verification · 5 extract or place · 6 unsupported on this OS · 7 a config file could
+    /// not be written (a failed step of `apply`, `revert` or `prepare`) · 8 locked · 9 not on
+    /// this machine.
     pub fn exit_code(&self) -> i32 {
         match self {
             Error::Io { .. } => 1,
@@ -54,6 +60,7 @@ impl Error {
             Error::Place { .. } => 5,
             Error::UnsupportedOs { .. } => 6,
             Error::Locked(_) => 8,
+            Error::NotInstalled(_) => 9,
         }
     }
 

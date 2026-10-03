@@ -46,10 +46,10 @@ type Manifest = BTreeMap<String, String>;
 
 impl Store {
     /// Opens (creating) a prefix.
+    /// The store at `root`. Nothing is created until the first write, which takes
+    /// [`Self::lock`]: reading a prefix that does not exist yet is reading an empty one.
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
-        let root = root.into();
-        fs::create_dir_all(&root).map_err(|e| Error::io("create", &root, e))?;
-        Ok(Store { root })
+        Ok(Store { root: root.into() })
     }
 
     /// `~/.local/share/hermir`, `%LOCALAPPDATA%\hermir`, `~/Library/Application Support/hermir`.
@@ -79,6 +79,7 @@ impl Store {
 
     /// Fails at once when another process holds the prefix; nothing here waits.
     pub fn lock(&self) -> Result<Lock> {
+        fs::create_dir_all(&self.root).map_err(|e| Error::io("create", &self.root, e))?;
         let path = self.root.join(".lock");
         let file = fs::OpenOptions::new()
             .create(true)

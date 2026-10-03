@@ -25,24 +25,27 @@
 //! of the catalog on this machine: install it, prepare it, `apply` a session's players and
 //! settings to it and `revert` them. Every type is serde and JSON Schema, so the CLI's
 //! `--json` is the same contract as the library.
-pub mod catalog;
-pub mod channel;
-pub mod config;
-pub mod detect;
-pub mod error;
-pub mod model;
-pub mod players;
-pub mod prepare;
+mod catalog;
+mod channel;
+mod config;
+mod detect;
+mod error;
+mod model;
+mod players;
+mod prepare;
 pub mod progress;
-pub mod store;
+mod store;
 
 use std::path::PathBuf;
 
 pub use catalog::Catalog;
+pub use channel::flatpak::{Process, Runner};
+pub use channel::http::{Http, Ureq};
+pub use detect::{Env, RealEnv};
 pub use error::{Error, Result};
 pub use model::*;
 use progress::Progress;
-pub use store::Store;
+pub use store::{Lock, Placed, Store};
 
 /// How to open hermir. Every field has a default that fits the machine it runs on.
 pub struct Options {
@@ -51,8 +54,13 @@ pub struct Options {
     /// The OS to resolve for; the running one when unset. Another OS is useful only to resolve
     /// or dry-run — an install for another OS makes files nothing here can run.
     pub os: Option<Os>,
-    pub http: Box<dyn channel::http::Http>,
-    pub runner: Box<dyn channel::flatpak::Runner>,
+    /// How hermir fetches release metadata and downloads: [`Ureq`] by default.
+    pub http: Box<dyn Http>,
+    /// How hermir runs `flatpak`: [`Process`] by default.
+    pub runner: Box<dyn Runner>,
+    /// What detection looks at (files, `PATH`, environment variables): the machine itself,
+    /// [`RealEnv`], when unset.
+    pub env: Option<Box<dyn Env>>,
     /// Refuse a download there is nothing to check against (a GitHub asset without a digest,
     /// a libretro core) with [`Error::Unverified`], before anything is fetched. Off by default:
     /// such an install then records `verified: none`.
@@ -64,20 +72,23 @@ impl Default for Options {
         Options {
             prefix: None,
             os: None,
-            http: Box::new(channel::http::Ureq::new()),
-            runner: Box::new(channel::flatpak::Process),
+            http: Box::new(Ureq::new()),
+            runner: Box::new(Process),
+            env: None,
             require_verified: false,
         }
     }
 }
 
+/// The catalog, the prefix and the machine: everything hermir does starts here. It is `Send`
+/// and `Sync`, so a host can share one behind an `Arc` and call it from `spawn_blocking`.
 pub struct Hermir {
     catalog: Catalog,
     store: Store,
     os: Os,
-    http: Box<dyn channel::http::Http>,
-    runner: Box<dyn channel::flatpak::Runner>,
-    env: Box<dyn detect::Env>,
+    http: Box<dyn Http>,
+    runner: Box<dyn Runner>,
+    env: Box<dyn Env>,
     require_verified: bool,
 }
 
@@ -90,7 +101,7 @@ impl Hermir {
             os,
             http: opts.http,
             runner: opts.runner,
-            env: Box::new(detect::RealEnv::new(os)),
+            env: opts.env.unwrap_or_else(|| Box::new(RealEnv::new(os))),
             require_verified: opts.require_verified,
         })
     }
@@ -123,11 +134,6 @@ impl Hermir {
                 (id, steps)
             })
             .collect())
-    }
-
-    /// [`Self::revert_all`] under its earlier name.
-    pub fn revert_all_players(&self) -> Result<Vec<(String, Vec<PrepareStep>)>> {
-        self.revert_all()
     }
 
     /// The knob × emulator matrix: what `apply` can do for each catalog entry.
@@ -213,14 +219,17 @@ impl Hermir {
                 continue;
             }
             let row = managed.iter().find(|r| r.emulator == e.id).cloned();
-            let update = match (&row, check_updates) {
+            let (update, update_error) = match (&row, check_updates) {
                 (Some(r), true) if r.channel != "flatpak" => {
-                    channel::resolve(e, self.os, self.http.as_ref())
-                        .ok()
-                        .filter(|res| channel::update_available(r, res))
-                        .map(|res| res.release)
+                    match channel::resolve(e, self.os, self.http.as_ref()) {
+                        Ok(res) => (
+                            channel::update_available(r, &res).then_some(res.release),
+                            None,
+                        ),
+                        Err(err) => (None, Some(err.to_string())),
+                    }
                 }
-                _ => None,
+                _ => (None, None),
             };
             out.push(Status {
                 emulator: e.id.clone(),
@@ -233,6 +242,7 @@ impl Hermir {
                     .cloned()
                     .collect(),
                 update,
+                update_error,
             });
         }
         if only.is_some() && out.is_empty() {
@@ -346,8 +356,14 @@ impl EmulatorHandle<'_> {
         let row = self.managed_row()?;
         if let Exe::FlatpakRun(id) = &row.exe {
             channel::flatpak::update(self.h.runner.as_ref(), id)?;
+            let version = channel::flatpak::version(self.h.runner.as_ref(), id);
+            // Flatpak updates in place and says nothing useful about it; the version it reports
+            // afterwards is what tells whether anything moved.
+            if version == row.version {
+                return Ok(None);
+            }
             let fresh = Installed {
-                version: channel::flatpak::version(self.h.runner.as_ref(), id),
+                version,
                 verified: Verified::Flatpak,
                 installed_at: store::now_rfc3339(),
                 ..row
@@ -435,40 +451,6 @@ impl EmulatorHandle<'_> {
         config::support(self.entry)
     }
 
-    /// [`Self::apply`] with only players, reported step by step as `prepare` is.
-    pub fn apply_players(&self, install: &Install, players: &[Player]) -> Result<Prepared> {
-        let patch = Patch {
-            players: Some(players.to_vec()),
-            ..Default::default()
-        };
-        let applied = self.apply(install, &patch)?;
-        let mut steps = applied.steps;
-        if steps.is_empty()
-            && let Some(k) = applied.knobs.iter().find(|k| k.knob == "players")
-        {
-            steps.push(PrepareStep {
-                kind: "players".into(),
-                target: install.config_root.clone().unwrap_or_default(),
-                outcome: match k.support {
-                    Support::Unsupported => StepOutcome::Skipped,
-                    Support::Failed => StepOutcome::Failed,
-                    Support::Applied | Support::Partial => StepOutcome::Present,
-                },
-                note: k.note.clone(),
-            });
-        }
-        Ok(Prepared {
-            emulator: applied.emulator,
-            steps,
-        })
-    }
-
-    /// [`Self::revert`] under its earlier name: one snapshot per emulator, so this is the
-    /// same restore.
-    pub fn revert_players(&self) -> Result<Vec<PrepareStep>> {
-        self.revert()
-    }
-
     /// Every copy of this emulator on the machine, managed first.
     pub fn copies(&self) -> Result<Vec<Install>> {
         Ok(self
@@ -502,6 +484,7 @@ mod tests {
             os: Some(Os::Windows),
             http: Box::new(FakeHttp::default()),
             runner: Box::new(FakeRunner::default()),
+            env: None,
             require_verified,
         })
         .unwrap()

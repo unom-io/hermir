@@ -1,6 +1,7 @@
 //! Progress is a callback, not a channel or a future: a CLI prints it, a host forwards it.
 /// One step of an install, as it happens.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum Event {
     Resolved {
         release: String,

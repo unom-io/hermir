@@ -610,7 +610,7 @@ mod tests {
             std::slice::from_ref(&pup),
             &runner,
         );
-        let ran = runner.calls.borrow();
+        let ran = runner.calls.lock().unwrap();
         let call = ran
             .iter()
             .find(|c| c.iter().any(|a| a == "--installfw"))

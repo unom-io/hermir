@@ -201,6 +201,7 @@ impl FilePath {
 /// How a settings file is patched. Each is a line editor that leaves everything else alone.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Format {
     /// `key = value` under `[section]`: ini, flat TOML, RetroArch's cfg. An empty section is
     /// the top of the file.
@@ -221,6 +222,7 @@ pub enum Format {
 /// Where a neutral knob lands in an emulator's files, or why it cannot.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum Knob {
     /// The emulator has no such setting; the note is what a UI shows.
     Unsupported {
@@ -281,6 +283,7 @@ pub struct Also {
 /// How `video.scale`, a multiplier `n` of the console's resolution, is spelled.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Scale {
     /// `n` itself, `min..=max`.
     Multiplier {
@@ -346,6 +349,7 @@ impl Scale {
 /// How an emulator's player bindings come to be.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum PlayersSupport {
     /// A Rust adapter writes them: `crates/hermir/src/config/adapters/<adapter>.rs`.
     Adapter {
@@ -473,6 +477,7 @@ impl Video {
 
 /// How the picture fills the window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 pub enum Aspect {
     /// The game's own.
     #[serde(rename = "auto")]
@@ -515,6 +520,7 @@ impl std::str::FromStr for Aspect {
 
 /// The console region: what the emulated system reports to the game.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[non_exhaustive]
 pub enum Region {
     /// The emulator's own choice, usually the game's.
     #[serde(rename = "auto")]
@@ -609,6 +615,7 @@ pub struct KnobChange {
 /// Whether a knob reached the emulator.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Support {
     /// Written, as asked.
     Applied,
@@ -666,6 +673,7 @@ pub struct FirmwareInstall {
 /// One answer to a first-run question, as a file under the config root.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum FirstRun {
     /// `key` in `[section]` of an ini (or flat TOML) file, set to `value` in place. The file and
     /// section are created when missing; every other line stays as it was. `{root}` in `value`
@@ -708,6 +716,7 @@ pub struct PrepareStep {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum StepOutcome {
     /// Written or installed now.
     Applied,
@@ -734,6 +743,7 @@ pub struct FirmwareNeed {
 /// One way to obtain the emulator on one OS.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum Channel {
     /// `flatpak install --user flathub <id>`.
     Flatpak { flatpak: String },
@@ -773,6 +783,7 @@ impl Channel {
 /// Which release asset: a fixed name, or substrings that must all appear and none that may.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum AssetFilter {
     Name {
         name: String,
@@ -801,6 +812,7 @@ impl AssetFilter {
 /// What makes the emulator keep its files beside the exe: a marker file or a directory.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum Portable {
     File { file: String },
     Dir { dir: String },
@@ -866,6 +878,7 @@ pub struct Platform {
 /// How an emulator got onto this machine.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum InstallKind {
     /// Ours, in the prefix.
     Managed,
@@ -879,6 +892,7 @@ pub enum InstallKind {
 /// What runs: a file, or a Flatpak app the consumer turns into `flatpak run <id>`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Exe {
     Path(PathBuf),
     FlatpakRun(String),
@@ -909,6 +923,7 @@ pub struct Install {
 /// What the bytes that arrived were checked against.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Verified {
     /// The sha256 GitHub publishes for the asset matched.
     Published,
@@ -919,6 +934,25 @@ pub enum Verified {
     /// Nothing to check against: `sha256` is what arrived, no more.
     #[default]
     None,
+}
+
+impl Install {
+    /// A copy of `emulator` that hermir did not find itself: a host that knows where its
+    /// emulator lives, or a test. `config_root` is where it reads its settings.
+    pub fn new(
+        emulator: impl Into<String>,
+        kind: InstallKind,
+        exe: Exe,
+        config_root: Option<PathBuf>,
+    ) -> Install {
+        Install {
+            emulator: emulator.into(),
+            kind,
+            exe,
+            version: None,
+            config_root,
+        }
+    }
 }
 
 /// One row of `<prefix>/installed.json`: what hermir installed and from where.
@@ -979,8 +1013,12 @@ pub struct Status {
     pub managed: Option<Installed>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub detected: Vec<Install>,
+    /// The release the channel offers now, when it is newer than the managed one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub update: Option<String>,
+    /// Why the channel could not be asked, when `status` was asked to check it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub update_error: Option<String>,
 }
 
 #[cfg(test)]

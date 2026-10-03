@@ -34,6 +34,7 @@ impl Oracle {
             Format::Bml => Oracle::Bml,
             Format::Xml => Oracle::Xml,
             Format::Json => Oracle::Json,
+            _ => Oracle::for_path(path).unwrap_or(Oracle::Ini),
         }
     }
 

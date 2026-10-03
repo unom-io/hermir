@@ -611,7 +611,7 @@ mod tests {
         assert_eq!(row.verified, Verified::Flatpak);
 
         remove(entry, &row, &store, &runner, true).unwrap();
-        let calls = runner.calls.borrow();
+        let calls = runner.calls.lock().unwrap();
         let last = calls.last().unwrap();
         assert_eq!(last[1], "uninstall");
         assert!(last.iter().any(|a| a == "--delete-data"));

@@ -2,7 +2,7 @@
 //! virtual Xbox pad in practice), so the neutral layout is SDL's: the emulators that key on a
 //! GUID get SDL's GUID computed from the USB identity, the ones that key on an index get the
 //! pad's position. Writing them into an emulator is [`crate::config`]'s business.
-pub use crate::model::{PadRef, Player};
+use crate::model::PadRef;
 
 impl PadRef {
     /// The wired Xbox 360 pad the Linux kernel's `xpad` table knows, at `index`.

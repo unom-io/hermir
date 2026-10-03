@@ -6,7 +6,7 @@ use crate::catalog::Catalog;
 use crate::model::{Detect, Entry, Exe, Install, InstallKind, Os, Roots};
 
 /// What detection may ask of the machine.
-pub trait Env {
+pub trait Env: Send + Sync {
     fn os(&self) -> Os;
     fn home(&self) -> Option<PathBuf>;
     fn var(&self, name: &str) -> Option<String>;

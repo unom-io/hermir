@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::{Error, Result};
 use crate::progress::{Event, Progress};
 
-pub trait Http {
+pub trait Http: Send + Sync {
     fn get_json(&self, url: &str) -> Result<serde_json::Value>;
     /// Downloads `url` to `part`, resuming from whatever `part` already holds. `expected_size`,
     /// when the channel knows it, sets the time budget and is what the part must add up to.

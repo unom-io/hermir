@@ -10,7 +10,7 @@ pub struct Output {
     pub stderr: String,
 }
 
-pub trait Runner {
+pub trait Runner: Send + Sync {
     fn run(&self, program: &str, args: &[&str]) -> Result<Output>;
 }
 
@@ -124,12 +124,12 @@ pub fn version(runner: &dyn Runner, id: &str) -> Option<String> {
 #[cfg(test)]
 pub(crate) mod fake {
     use super::*;
-    use std::cell::RefCell;
+    use std::sync::Mutex;
 
     /// Records every argv; answers ok, with canned stdout for `info`.
     #[derive(Default)]
     pub struct FakeRunner {
-        pub calls: RefCell<Vec<Vec<String>>>,
+        pub calls: Mutex<Vec<Vec<String>>>,
         pub info_version: Option<String>,
         pub fail_install: bool,
     }
@@ -138,7 +138,7 @@ pub(crate) mod fake {
         fn run(&self, program: &str, args: &[&str]) -> Result<Output> {
             let mut argv = vec![program.to_string()];
             argv.extend(args.iter().map(|s| s.to_string()));
-            self.calls.borrow_mut().push(argv);
+            self.calls.lock().unwrap().push(argv);
             if args.first() == Some(&"install") && self.fail_install {
                 return Ok(Output {
                     ok: false,
@@ -172,7 +172,7 @@ mod tests {
     fn install_adds_the_remote_then_installs() {
         let r = FakeRunner::default();
         install(&r, "net.pcsx2.PCSX2").unwrap();
-        let calls = r.calls.borrow();
+        let calls = r.calls.lock().unwrap();
         assert_eq!(calls[0][1..4], ["remote-add", "--user", "--if-not-exists"]);
         assert_eq!(
             calls[1],
@@ -193,7 +193,7 @@ mod tests {
         let r = FakeRunner::default();
         remove(&r, "info.cemu.Cemu", false).unwrap();
         remove(&r, "info.cemu.Cemu", true).unwrap();
-        let calls = r.calls.borrow();
+        let calls = r.calls.lock().unwrap();
         assert_eq!(
             calls[0],
             [
