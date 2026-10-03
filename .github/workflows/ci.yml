@@ -26,3 +26,10 @@ jobs:
       # from outside the crate fails here, not at publish.
       - if: matrix.os == 'ubuntu-latest'
         run: cargo package -p hermir -p hermir-cli
+
+  # Licences (permissive only), RustSec advisories, yanked crates, sources: deny.toml.
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2

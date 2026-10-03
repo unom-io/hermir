@@ -1,0 +1,35 @@
+# `cargo deny check`: what the published crates pull in. Only permissive licences, so a host
+# that gates licences (punktfunk) takes hermir as it is; dev-dependencies and the crates that
+# are never published (xtask, hermir-golden) ship nothing and are not checked.
+[graph]
+exclude-dev = true
+exclude-unpublished = true
+
+[licenses]
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.93
+
+[advisories]
+yanked = "deny"
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
