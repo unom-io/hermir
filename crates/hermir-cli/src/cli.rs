@@ -106,6 +106,18 @@ pub enum Cmd {
     },
     /// What this machine can and cannot do.
     Doctor,
+    /// Install, start, prepare, configure, start again, read back and revert an emulator in a
+    /// throwaway prefix and home: whether its catalog entry works on this machine. Needs a
+    /// display (`xvfb-run` on a server).
+    Check {
+        emulator: String,
+        /// How long each start must last.
+        #[arg(long, default_value_t = 20)]
+        seconds: u64,
+        /// Keep the throwaway folder, to look at what the emulator wrote.
+        #[arg(long)]
+        keep: bool,
+    },
 }
 
 #[derive(Subcommand)]

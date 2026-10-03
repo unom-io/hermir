@@ -312,7 +312,7 @@ fn in_a_profile(
 }
 
 /// A copy of the fixture's kind at `root`.
-fn install(fx: &Fixture, root: &Path) -> Install {
+pub fn install(fx: &Fixture, root: &Path) -> Install {
     let exe = match (fx.meta.kind, &fx.meta.source.flatpak) {
         (InstallKind::Flatpak, Some(id)) => Exe::FlatpakRun(id.clone()),
         _ => Exe::Path(root.join("emulator")),
@@ -328,7 +328,7 @@ fn install(fx: &Fixture, root: &Path) -> Install {
 }
 
 /// A machine with nothing on it but a home: where profiles of a Flatpak copy go.
-struct Home(std::path::PathBuf, hermir::Os);
+pub struct Home(pub std::path::PathBuf, pub hermir::Os);
 
 impl hermir::Env for Home {
     fn os(&self) -> hermir::Os {

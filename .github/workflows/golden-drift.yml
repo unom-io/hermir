@@ -1,0 +1,61 @@
+# Each emulator's current release, captured headless and checked against what hermir writes
+# (`cargo xtask drift`, docs/plan.md §2.3): a renamed key or a format change upstream becomes a
+# PR with the new fixtures, or an issue saying what broke, not a player's broken session.
+name: golden drift
+on:
+  schedule:
+    - cron: "37 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.96.0
+      - uses: Swatinem/rust-cache@v2
+      # Runs ci/capture's image --privileged, with the Flatpak installation in a volume.
+      - name: capture and check every emulator's current release
+        id: drift
+        continue-on-error: true
+        run: cargo xtask drift --all
+      - name: summary
+        if: always()
+        run: cat target/drift/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+      # New releases' fixtures, expectations blessed: the PR diff is the review. Needs
+      # "Allow GitHub Actions to create pull requests" in the repository's Actions settings.
+      - name: propose the new fixtures
+        if: always()
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: golden-drift
+          add-paths: fixtures
+          commit-message: "test(golden): fixtures for new emulator releases"
+          title: "test(golden): fixtures for new emulator releases"
+          body-path: target/drift/summary.md
+      - name: report what drifted
+        if: steps.drift.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="golden drift: an emulator release no longer takes what hermir writes"
+          body="$(cat target/drift/summary.md 2>/dev/null)
+
+          Run: $RUN"
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
+          exit 1

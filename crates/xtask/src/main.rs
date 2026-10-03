@@ -2,6 +2,8 @@
 //!
 //! ```text
 //! cargo xtask capture <emulator>… | --all [--host] [--settle <s>] [--force]
+//! cargo xtask capture <emulator> --interactive --session <name>
+//! cargo xtask drift <emulator>… | --all [--host]
 //! ```
 //!
 //! `capture` starts each emulator once, headless, with a fresh home, and turns what it wrote into
@@ -16,11 +18,14 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 mod capture;
+mod drift;
+mod interactive;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.first().map(String::as_str) {
         Some("capture") => capture::main(&args[1..]),
+        Some("drift") => drift::main(&args[1..]),
         _ => Err(USAGE.to_string()),
     };
     match result {
@@ -33,7 +38,9 @@ fn main() -> ExitCode {
 }
 
 const USAGE: &str =
-    "usage: cargo xtask capture <emulator>… | --all [--host] [--settle <s>] [--force]";
+    "usage: cargo xtask capture <emulator>… | --all [--host] [--settle <s>] [--force]
+       cargo xtask capture <emulator> --interactive --session <name>
+       cargo xtask drift <emulator>… | --all [--host]";
 
 /// The workspace root.
 pub fn root() -> PathBuf {

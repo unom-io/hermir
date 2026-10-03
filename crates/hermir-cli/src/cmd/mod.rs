@@ -6,6 +6,7 @@ use serde::Serialize;
 use crate::cli::{CatalogCmd, Cli, Cmd, ConfigCmd, CoreCmd, ProfileCmd};
 
 mod catalog;
+mod check;
 mod config;
 mod install;
 mod launch;
@@ -89,6 +90,11 @@ pub fn run(cli: Cli) -> Result<Outcome> {
         Cmd::Detect => Ok(machine::detect(&h)),
         Cmd::Where { emulator } => machine::where_(&h, &emulator),
         Cmd::Doctor => machine::doctor(&h),
+        Cmd::Check {
+            emulator,
+            seconds,
+            keep,
+        } => check::check(&h, &emulator, seconds, keep),
         Cmd::Install { emulator } => install::install(&h, &emulator, cli.json),
         Cmd::Update { emulator, all } => install::update(&h, emulator, all),
         Cmd::Remove { emulator, purge } => install::remove(&h, &emulator, purge),

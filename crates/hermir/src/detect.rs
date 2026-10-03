@@ -27,12 +27,53 @@ pub trait Env: Send + Sync {
 /// The real machine.
 pub struct RealEnv {
     os: Os,
+    home: Option<PathBuf>,
 }
 
 impl RealEnv {
     /// This machine, detected as `os`.
     pub fn new(os: Os) -> RealEnv {
-        RealEnv { os }
+        RealEnv { os, home: None }
+    }
+
+    /// This machine with another home: config roots under `~`, and the per-user variables
+    /// (`HOME`, `%USERPROFILE%`, `%APPDATA%`, `%LOCALAPPDATA%`, the `XDG_*_HOME`s) resolve there,
+    /// so a copy can be set up and run without touching the player's own (`hermir check`, a
+    /// host's sandbox). [`RealEnv::home_vars`] are the same values, for the child process.
+    pub fn with_home(os: Os, home: PathBuf) -> RealEnv {
+        RealEnv {
+            os,
+            home: Some(home),
+        }
+    }
+}
+
+impl RealEnv {
+    /// The per-user variables a process started in this env's home needs, so it finds its
+    /// settings where this env looks for them: empty for the real home.
+    pub fn home_vars(&self) -> Vec<(&'static str, PathBuf)> {
+        self.home
+            .as_deref()
+            .map(|h| home_vars(self.os, h))
+            .unwrap_or_default()
+    }
+}
+
+/// Where each per-user variable points for a home of `home`.
+fn home_vars(os: Os, home: &Path) -> Vec<(&'static str, PathBuf)> {
+    match os {
+        Os::Windows => vec![
+            ("USERPROFILE", home.to_path_buf()),
+            ("APPDATA", home.join("AppData").join("Roaming")),
+            ("LOCALAPPDATA", home.join("AppData").join("Local")),
+        ],
+        _ => vec![
+            ("HOME", home.to_path_buf()),
+            ("XDG_CONFIG_HOME", home.join(".config")),
+            ("XDG_DATA_HOME", home.join(".local/share")),
+            ("XDG_CACHE_HOME", home.join(".cache")),
+            ("XDG_STATE_HOME", home.join(".local/state")),
+        ],
     }
 }
 
@@ -41,11 +82,19 @@ impl Env for RealEnv {
         self.os
     }
     fn home(&self) -> Option<PathBuf> {
-        std::env::var_os("HOME")
-            .or_else(|| std::env::var_os("USERPROFILE"))
-            .map(PathBuf::from)
+        self.home.clone().or_else(|| {
+            std::env::var_os("HOME")
+                .or_else(|| std::env::var_os("USERPROFILE"))
+                .map(PathBuf::from)
+        })
     }
     fn var(&self, name: &str) -> Option<String> {
+        if let Some(home) = &self.home {
+            let moved = home_vars(self.os, home);
+            if let Some((_, v)) = moved.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)) {
+                return Some(v.to_string_lossy().into_owned());
+            }
+        }
         std::env::var(name).ok()
     }
     fn exists(&self, path: &Path) -> bool {
@@ -332,6 +381,39 @@ pub(crate) mod fake {
 mod tests {
     use super::fake::FakeEnv;
     use super::*;
+
+    #[test]
+    fn another_home_moves_the_per_user_variables_with_it() {
+        let home = PathBuf::from("/tmp/check/home");
+        let env = RealEnv::with_home(Os::Windows, home.clone());
+        assert_eq!(env.home(), Some(home.clone()));
+        assert_eq!(
+            expand("%APPDATA%/Dolphin Emulator", &env, None),
+            home.join("AppData")
+                .join("Roaming")
+                .join("Dolphin Emulator")
+        );
+        assert_eq!(
+            env.var("localappdata"),
+            Some(
+                home.join("AppData")
+                    .join("Local")
+                    .to_string_lossy()
+                    .into_owned()
+            )
+        );
+        let env = RealEnv::with_home(Os::Linux, home.clone());
+        assert_eq!(
+            env.var("XDG_CONFIG_HOME"),
+            Some("/tmp/check/home/.config".into())
+        );
+        assert!(
+            env.home_vars()
+                .iter()
+                .any(|(k, v)| *k == "HOME" && *v == home)
+        );
+        assert!(RealEnv::new(Os::Linux).home_vars().is_empty());
+    }
 
     #[test]
     fn expands_home_and_variables() {

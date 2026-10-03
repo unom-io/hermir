@@ -9,6 +9,10 @@
 # clean quit. Leaves in <out-dir>: `home/` (what it wrote under ~/.var/app), `info`
 # (`flatpak info`), `log` and `exit` (124 or 143: still running when stopped; 0: it quit).
 #
+# $SEED_HOME, when set, is copied into the fresh home first: the emulator starts on those files
+# (a smoke test of a patched config). With INTERACTIVE=1 it runs on this desktop's own display
+# and session, with no time limit, until the person at it quits it (an `after/` capture).
+#
 # Runs the same inside the capture image (ci/capture/Dockerfile, --privileged: bubblewrap cannot
 # make its namespaces otherwise) and on a Linux host with flatpak, xvfb-run and dbus-run-session.
 set -eu
@@ -35,10 +39,23 @@ fi
 # A fresh home, and a runtime directory of our own with a short path: unix socket paths are
 # limited to 108 bytes, and the sockets Flatpak's helpers make under it fail beyond that.
 home=$(mktemp -d)
-rt=$(mktemp -d /tmp/hc.XXXXXX)
-chmod 700 "$rt"
+if [ -n "${SEED_HOME:-}" ] && [ -d "$SEED_HOME" ]; then
+    cp -a "$SEED_HOME/." "$home/"
+fi
 
 status=0
+if [ "${INTERACTIVE:-}" = 1 ]; then
+    HOME=$home flatpak run --user "$app" "$@" >"$out/log" 2>&1 || status=$?
+    echo "$status" >"$out/exit"
+    rm -rf "$out/home"
+    mkdir -p "$out/home"
+    [ -d "$home/.var" ] && cp -a "$home/.var" "$out/home/"
+    rm -rf "$home"
+    exit 0
+fi
+
+rt=$(mktemp -d /tmp/hc.XXXXXX)
+chmod 700 "$rt"
 HOME=$home XDG_RUNTIME_DIR=$rt APP=$app SETTLE=$settle WAIT_FOR=${WAIT_FOR:-} \
     CLOSE_AFTER=${CLOSE_AFTER:-} CLOSE="$here/close-windows.py" \
     dbus-run-session -- xvfb-run -a -s "-screen 0 1280x720x24" sh -c '

@@ -1588,6 +1588,7 @@ dependencies = [
  "hermir-golden",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
