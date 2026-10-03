@@ -12,7 +12,12 @@ pub enum Event {
         done: u64,
         total: Option<u64>,
     },
+    /// Checking the download against a published or pinned sha256.
     Verifying,
+    /// Nothing to check the download against; `why` says so.
+    NotVerified {
+        why: String,
+    },
     Extracting,
     Placed,
 }

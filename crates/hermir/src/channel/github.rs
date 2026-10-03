@@ -1,6 +1,7 @@
 //! The latest GitHub release of a repository, one asset of it. Digests come from the API
-//! (`sha256:<hex>` on every asset since 2025-06); rolling tags (`latest`, `continuous`,
-//! `build-<sha>`) carry no version, so the release id includes the publish date.
+//! (`sha256:<hex>` on assets uploaded since 2025-06); rolling tags (`latest`, `continuous`,
+//! `build-<sha>`) carry no version, so the release id is the asset's: its upload time, id and
+//! digest.
 use crate::channel::http::Http;
 use crate::error::{Error, Result};
 use crate::model::{AssetFilter, Resolved};
@@ -58,9 +59,24 @@ pub fn resolve(
         file_name: asset["name"].as_str().map(str::to_string),
         size: asset["size"].as_u64(),
         version: version_from_tag(&tag),
-        release: format!("{tag}@{date}"),
+        release: release_id(&tag, &date, asset, digest.as_deref()),
         digest,
     })
+}
+
+/// `<tag>@<asset updated_at>#<asset id>:<digest prefix>`. The tag and its publish date are
+/// not enough: a rolling asset (Vita3K's `windows-latest.zip`) is rebuilt in place, the same
+/// day, and only the asset says so.
+fn release_id(tag: &str, date: &str, asset: &serde_json::Value, digest: Option<&str>) -> String {
+    let mut id = format!("{tag}@{}", asset["updated_at"].as_str().unwrap_or(date));
+    if let Some(n) = asset["id"].as_u64() {
+        id.push_str(&format!("#{n}"));
+    }
+    if let Some(d) = digest {
+        id.push(':');
+        id.extend(d.chars().take(16));
+    }
+    id
 }
 
 /// Checksums and signatures published beside an asset are never the asset.
@@ -130,7 +146,8 @@ mod tests {
         };
         let r = resolve(&http, "pcsx2", "PCSX2/pcsx2", &f).unwrap();
         assert_eq!(r.version.as_deref(), Some("2.8.2"));
-        assert_eq!(r.release, "v2.8.2@2026-09-20");
+        assert_eq!(r.release, "v2.8.2@2026-09-20:ab");
+        assert_eq!(r.size, Some(10));
         assert_eq!(r.digest.as_deref(), Some("ab"));
         assert_eq!(
             r.file_name.as_deref(),
@@ -152,6 +169,38 @@ mod tests {
             resolve(&http, "pcsx2", "PCSX2/pcsx2", &f),
             Err(Error::Catalog { .. })
         ));
+    }
+
+    /// Vita3K's `windows-latest.zip`: the same tag, published the same day, rebuilt in place.
+    #[test]
+    fn a_rolling_asset_rebuilt_the_same_day_is_a_new_release() {
+        let rel = |updated: &str, id: u64, digest: &str| {
+            json!({
+                "tag_name": "continuous",
+                "published_at": "2026-09-20T01:00:00Z",
+                "assets": [{
+                    "name": "windows-latest.zip", "size": 10, "id": id, "updated_at": updated,
+                    "browser_download_url": "https://x/windows-latest.zip",
+                    "digest": format!("sha256:{digest}"),
+                }]
+            })
+        };
+        let f = AssetFilter::Name {
+            name: "windows-latest.zip".into(),
+        };
+        let url = "https://api.github.com/repos/Vita3K/Vita3K/releases/latest";
+        let mut http = FakeHttp::default();
+        http.json
+            .insert(url.into(), rel("2026-09-20T02:00:00Z", 7, &"a".repeat(64)));
+        let morning = resolve(&http, "vita3k", "Vita3K/Vita3K", &f).unwrap();
+        assert_eq!(
+            morning.release,
+            "continuous@2026-09-20T02:00:00Z#7:aaaaaaaaaaaaaaaa"
+        );
+        http.json
+            .insert(url.into(), rel("2026-09-20T18:00:00Z", 8, &"b".repeat(64)));
+        let evening = resolve(&http, "vita3k", "Vita3K/Vita3K", &f).unwrap();
+        assert_ne!(morning.release, evening.release);
     }
 
     #[test]

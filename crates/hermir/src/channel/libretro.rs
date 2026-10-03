@@ -8,6 +8,9 @@ use crate::error::{Error, Result};
 use crate::model::Os;
 use crate::progress::{Event, Progress};
 
+/// Why a core is never verified.
+pub const UNVERIFIED: &str = "the libretro buildbot publishes no checksums";
+
 pub fn core_url(os: Os, core: &str) -> Option<String> {
     let (dir, ext) = match os {
         Os::Linux => ("linux/x86_64", "so"),
@@ -46,7 +49,10 @@ pub fn install_core(
         file_name: Some(format!("{core}_libretro.zip")),
         size: None,
     });
-    http.download(&url, &part, progress)?;
+    http.download(&url, &part, None, progress)?;
+    progress.on(Event::NotVerified {
+        why: UNVERIFIED.into(),
+    });
     let zip = tmp.join(format!("{core}.zip"));
     std::fs::rename(&part, &zip).map_err(|e| Error::io("rename", &zip, e))?;
     progress.on(Event::Extracting);

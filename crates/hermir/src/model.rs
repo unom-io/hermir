@@ -872,6 +872,21 @@ pub struct Install {
     pub config_root: Option<PathBuf>,
 }
 
+/// What the bytes that arrived were checked against.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum Verified {
+    /// The sha256 GitHub publishes for the asset matched.
+    Published,
+    /// The sha256 the catalog pins matched.
+    Pinned,
+    /// `flatpak` checked it: Flathub signs what it serves.
+    Flatpak,
+    /// Nothing to check against: `sha256` is what arrived, no more.
+    #[default]
+    None,
+}
+
 /// One row of `<prefix>/installed.json`: what hermir installed and from where.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Installed {
@@ -880,12 +895,21 @@ pub struct Installed {
     pub exe: Exe,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
-    /// The release as the channel identifies it (tag, or tag plus publish date for rolling
-    /// tags); an update is due when it changes.
+    /// The release as the channel identifies it (for GitHub, the tag plus the asset's upload
+    /// time, id and digest, so a rolling asset rebuilt in place is a new release); an update is
+    /// due when it changes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub release: Option<String>,
+    /// Hex sha256 of the archive that arrived; none for a Flatpak.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub digest: Option<String>,
+    pub sha256: Option<String>,
+    /// What `sha256` was checked against. A row from before this field reads as `none`.
+    #[serde(default)]
+    pub verified: Verified,
+    /// Shipped files the user had edited (or made at a shipped path), kept as they were; the
+    /// new ones are beside them as `<file>.new`. Relative to the copy's directory.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kept: Vec<String>,
     /// RFC 3339, UTC.
     pub installed_at: String,
 }
@@ -899,12 +923,14 @@ pub struct Resolved {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_name: Option<String>,
+    /// Bytes, when the channel says; it sets the download's time budget and checks a resume.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub size: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    /// What an update compares: it changes whenever the bytes behind `url` do.
     pub release: String,
-    /// Hex sha256 when the channel publishes one.
+    /// Hex sha256 the download must match: published by GitHub, or pinned by the catalog.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub digest: Option<String>,
 }

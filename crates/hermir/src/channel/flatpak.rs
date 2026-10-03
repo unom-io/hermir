@@ -94,13 +94,16 @@ pub fn update(runner: &dyn Runner, id: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn remove(runner: &dyn Runner, id: &str) -> Result<()> {
+/// `flatpak uninstall --user`; with `purge`, the app's data in `~/.var/app/<id>` too.
+pub fn remove(runner: &dyn Runner, id: &str, purge: bool) -> Result<()> {
+    let mut args = vec!["uninstall", "--user", "-y", "--noninteractive"];
+    if purge {
+        args.push("--delete-data");
+    }
+    args.push(id);
     check(
         &format!("flatpak uninstall {id}"),
-        runner.run(
-            "flatpak",
-            &["uninstall", "--user", "-y", "--noninteractive", id],
-        )?,
+        runner.run("flatpak", &args)?,
     )?;
     Ok(())
 }
@@ -181,6 +184,37 @@ mod tests {
                 "--noninteractive",
                 "flathub",
                 "net.pcsx2.PCSX2"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_purge_deletes_the_data_too() {
+        let r = FakeRunner::default();
+        remove(&r, "info.cemu.Cemu", false).unwrap();
+        remove(&r, "info.cemu.Cemu", true).unwrap();
+        let calls = r.calls.borrow();
+        assert_eq!(
+            calls[0],
+            [
+                "flatpak",
+                "uninstall",
+                "--user",
+                "-y",
+                "--noninteractive",
+                "info.cemu.Cemu"
+            ]
+        );
+        assert_eq!(
+            calls[1],
+            [
+                "flatpak",
+                "uninstall",
+                "--user",
+                "-y",
+                "--noninteractive",
+                "--delete-data",
+                "info.cemu.Cemu"
             ]
         );
     }
