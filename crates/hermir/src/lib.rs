@@ -654,7 +654,8 @@ impl EmulatorHandle<'_> {
         .map_err(Error::Invalid)
     }
 
-    /// Puts the unit in the file `from` where this copy keeps it; what was there is kept under
+    /// Puts the unit in the file `from` where this copy keeps it, in the first folder of `kinds`
+    /// that has a place for its name; what was there is kept under
     /// the prefix's `.save-backups`. `others` are the names a server holds for the same game.
     /// A unit this copy has no place for yet is a step that says so, not an error. Holds the
     /// prefix lock.
@@ -664,7 +665,7 @@ impl EmulatorHandle<'_> {
         install: &Install,
         platform: &str,
         game: Option<&Path>,
-        kind: SaveKind,
+        kinds: &[SaveKind],
         name: &str,
         from: &Path,
         others: &[String],
@@ -678,7 +679,7 @@ impl EmulatorHandle<'_> {
             self.h.env.as_ref(),
             platform,
             game,
-            kind,
+            kinds,
             name,
             from,
             others,

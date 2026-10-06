@@ -209,9 +209,9 @@ pub fn status(entry: &Entry, install: &Install, platform: &str) -> Option<Firmwa
     let fw = entry.firmware.as_ref()?;
     let need = fw.platforms.get(platform)?;
     let root = install.config_root.as_deref();
-    let dir =
-        root.zip(fw.dir.as_ref())
-            .map(|(r, d)| if d == "." { r.to_path_buf() } else { r.join(d) });
+    let dir = root
+        .zip(fw.dir.as_ref())
+        .map(|(r, d)| if d == "." { r.to_path_buf() } else { r.join(d) });
     let mut found = Vec::new();
     if let Some(dir) = &dir
         && let Ok(rd) = std::fs::read_dir(dir)

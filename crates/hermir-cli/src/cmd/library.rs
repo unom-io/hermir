@@ -83,9 +83,15 @@ pub fn import(
     others: &[String],
 ) -> Result<Outcome> {
     let copy = best(h, emulator)?;
-    let step =
-        h.emulator(emulator)?
-            .import_unit(&copy, platform, game, kind(k)?, name, file, others)?;
+    let step = h.emulator(emulator)?.import_unit(
+        &copy,
+        platform,
+        game,
+        &[kind(k)?],
+        name,
+        file,
+        others,
+    )?;
     let human = format!(
         "{:?} {}{}",
         step.outcome,

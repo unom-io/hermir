@@ -261,7 +261,8 @@ fn safe_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Puts the unit in `from` (a file export wrote, or a server's copy) where this copy keeps it.
+/// Puts the unit in `from` (a file export wrote, or a server's copy) where this copy keeps it,
+/// in the first folder of `kinds` that has a place for its name.
 /// What was there is moved to `backups` first; a folder unit's files beside the save (`keep`)
 /// stay. `others` are the names a server holds for the same game, which a Switch emulator with
 /// one profile uses to take over a save made under another. Nothing is written when this copy
@@ -274,7 +275,7 @@ pub fn import(
     env: &dyn Env,
     platform: &str,
     game: Option<&Path>,
-    kind: SaveKind,
+    kinds: &[SaveKind],
     name: &str,
     from: &Path,
     others: &[String],
@@ -282,7 +283,11 @@ pub fn import(
 ) -> Result<PrepareStep, String> {
     safe_name(name)?;
     let roots = roots(entry, os, install, env, platform, game)?;
-    let candidates: Vec<&Root> = roots.iter().filter(|r| r.kind == kind).collect();
+    // In the order asked: a server slot does not say whether it was a save or a game's card.
+    let candidates: Vec<&Root> = kinds
+        .iter()
+        .flat_map(|k| roots.iter().filter(move |r| r.kind == *k))
+        .collect();
     let shaped = |r: &Root| match r.units.shape {
         UnitShape::Folders => name.ends_with(".tar"),
         UnitShape::Files => !name.ends_with(".tar"),
