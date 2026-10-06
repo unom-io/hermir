@@ -12,7 +12,10 @@
         "Ryujinx",
         "ryujinx"
       ],
-      "flatpak": "io.github.ryubing.Ryujinx"
+      "flatpak": "io.github.ryubing.Ryujinx",
+      "flatpak_also": [
+        "org.ryujinx.Ryujinx"
+      ]
     },
     "windows": {
       "paths": [

@@ -323,6 +323,15 @@ impl Catalog {
                         ),
                     ));
                 }
+                if let Some(d) = e.detect.get(os)
+                    && !d.flatpak_also.is_empty()
+                    && d.flatpak.is_none()
+                {
+                    return Err(bad(
+                        &e.id,
+                        format!("detect on {os}: flatpak_also without a flatpak to stand beside"),
+                    ));
+                }
             }
             validate_saves(e).map_err(|why| bad(&e.id, why))?;
         }

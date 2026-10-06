@@ -1432,6 +1432,10 @@ pub struct Detect {
     /// A Flathub app id, looked for in the user and system installations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flatpak: Option<String>,
+    /// Older app ids of the same emulator, still found where they are installed. A copy under
+    /// one keeps its config root under that id: `roots.flatpak` with `flatpak` swapped for it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flatpak_also: Vec<String>,
     /// Absolute paths of the executable, with `~`, `%VAR%` and `$VAR`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub paths: Vec<String>,

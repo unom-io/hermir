@@ -410,6 +410,13 @@
             "null"
           ]
         },
+        "flatpak_also": {
+          "description": "Older app ids of the same emulator, still found where they are installed. A copy under\none keeps its config root under that id: `roots.flatpak` with `flatpak` swapped for it.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "path": {
           "description": "Program names looked up on `PATH`.",
           "items": {
