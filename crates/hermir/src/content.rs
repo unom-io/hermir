@@ -70,10 +70,35 @@ pub fn install(
             .map(|f| run(install, args, f, runner))
             .collect()),
         ContentMethod::Adapter { adapter } => match adapter.as_str() {
-            "cemu" => Ok(files
-                .iter()
-                .flat_map(|f| cemu(entry, os, install, root, f))
-                .collect()),
+            "cemu" => {
+                // Each title folder once, however many of its files were handed in.
+                let mut titles: Vec<PathBuf> = Vec::new();
+                let mut missing = Vec::new();
+                for f in files {
+                    let found = title_folders(f);
+                    if found.is_empty() {
+                        missing.push(f);
+                    }
+                    for t in found {
+                        if !titles.contains(&t) {
+                            titles.push(t);
+                        }
+                    }
+                }
+                let mut steps: Vec<ContentStep> = missing
+                    .into_iter()
+                    .map(|f| {
+                        step(
+                            f,
+                            f,
+                            StepOutcome::Failed,
+                            Some("no title folder (with meta/meta.xml) in it".into()),
+                        )
+                    })
+                    .collect();
+                steps.extend(cemu(entry, os, install, root, &titles));
+                Ok(steps)
+            }
             "ryujinx" => Ok(files.iter().map(|f| ryujinx(root, kind, f)).collect()),
             "rpcs3" => Ok(files
                 .iter()
@@ -129,7 +154,13 @@ fn run(install: &Install, args: &[String], file: &Path, runner: &dyn Runner) -> 
 // ── Cemu: an update or DLC is a folder (code/, content/, meta/) copied into the MLC under its
 // title id, as Cemu's own "Install game title, update or DLC" lays it out. ──
 
-fn cemu(entry: &Entry, os: Os, install: &Install, root: &Path, file: &Path) -> Vec<ContentStep> {
+fn cemu(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    root: &Path,
+    titles: &[PathBuf],
+) -> Vec<ContentStep> {
     let mlc = config::get_native(entry, os, install, "main", "", "mlc_path")
         .ok()
         .flatten()
@@ -137,25 +168,16 @@ fn cemu(entry: &Entry, os: Os, install: &Install, root: &Path, file: &Path) -> V
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| config::data_dir(root).join("mlc01"));
-    let titles = find_meta(file, 3);
-    if titles.is_empty() {
-        return vec![step(
-            file,
-            file,
-            StepOutcome::Failed,
-            Some("no title folder (with meta/meta.xml) in it".into()),
-        )];
-    }
     titles
-        .into_iter()
+        .iter()
         .map(|dir| {
             let Some(id) = fs::read_to_string(dir.join("meta/meta.xml"))
                 .ok()
                 .and_then(|x| cemu_title_id(&x))
             else {
                 return step(
-                    &dir,
-                    &dir,
+                    dir,
+                    dir,
                     StepOutcome::Failed,
                     Some("its meta.xml names no title id".into()),
                 );
@@ -164,12 +186,25 @@ fn cemu(entry: &Entry, os: Os, install: &Install, root: &Path, file: &Path) -> V
                 .join("usr/title")
                 .join(id[..8].to_ascii_lowercase())
                 .join(id[8..].to_ascii_lowercase());
-            match copy_tree(&dir, &target) {
-                Ok(()) => step(&dir, &target, StepOutcome::Applied, None),
-                Err(e) => step(&dir, &target, StepOutcome::Failed, Some(e)),
+            match copy_tree(dir, &target) {
+                Ok(()) => step(dir, &target, StepOutcome::Applied, None),
+                Err(e) => step(dir, &target, StepOutcome::Failed, Some(e)),
             }
         })
         .collect()
+}
+
+/// The title folders a path is or holds: below a folder, or above one of its files.
+fn title_folders(path: &Path) -> Vec<PathBuf> {
+    if path.is_dir() {
+        return find_meta(path, 3);
+    }
+    path.ancestors()
+        .skip(1)
+        .take(4)
+        .find(|a| a.join("meta/meta.xml").is_file())
+        .map(|a| vec![a.to_path_buf()])
+        .unwrap_or_default()
 }
 
 /// Folders under `path` (itself included) that hold `meta/meta.xml`, at most `depth` down.
@@ -561,6 +596,19 @@ mod tests {
                 .join("data/Cemu/mlc01/usr/title/0005000e/101c9500/code/app.xml")
                 .is_file()
         );
+        // Its files handed in one by one: the title is copied once.
+        let steps = install(
+            c.get("cemu").unwrap(),
+            Os::Linux,
+            &copy,
+            "wiiu",
+            "update",
+            &[upd.join("code/app.xml"), upd.join("meta/meta.xml")],
+            &FakeRunner::default(),
+        )
+        .unwrap();
+        assert_eq!(steps.len(), 1, "{steps:?}");
+        assert_eq!(steps[0].outcome, StepOutcome::Applied);
     }
 
     #[test]
