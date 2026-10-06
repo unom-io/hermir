@@ -51,7 +51,7 @@ mod units;
 use std::path::{Path, PathBuf};
 
 pub use catalog::Catalog;
-pub use channel::flatpak::{Process, Runner};
+pub use channel::flatpak::{Output, Process, Runner};
 pub use channel::http::{Http, Ureq};
 pub use detect::{Env, RealEnv};
 pub use error::{Error, Result};
@@ -68,7 +68,8 @@ pub struct Options {
     pub os: Option<Os>,
     /// How hermir fetches release metadata and downloads: [`Ureq`] by default.
     pub http: Box<dyn Http>,
-    /// How hermir runs `flatpak`: [`Process`] by default.
+    /// How hermir runs a program (`flatpak`, an emulator's own installer): [`Process`] by
+    /// default. A consumer's own [`Runner`] chooses the account it runs as.
     pub runner: Box<dyn Runner>,
     /// What detection looks at (files, `PATH`, environment variables): the machine itself,
     /// [`RealEnv`], when unset.

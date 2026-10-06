@@ -4,9 +4,13 @@ use std::process::Command;
 
 use crate::error::{Error, Result};
 
+/// How a [`Runner`]'s program went.
 pub struct Output {
+    /// Whether it exited with success.
     pub ok: bool,
+    /// What it wrote to stdout; empty when the runner can't capture it.
     pub stdout: String,
+    /// What it wrote to stderr; empty when the runner can't capture it. Shown when a step fails.
     pub stderr: String,
 }
 

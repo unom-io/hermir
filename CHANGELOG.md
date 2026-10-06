@@ -85,6 +85,8 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   `catalog list|show|validate|schema|resolve`, `doctor`; `--json` on every verb (one document
   per run, usage errors included) and an exit code per kind of failure, 0 to 9.
 - `unsafe` is forbidden across the workspace, as a lint the build enforces.
+- `Output` is public, so a consumer can pass its own `Runner` in `Options::runner`: an
+  emulator's installer then runs as whichever account the consumer chooses.
 
 ### Changed
 
