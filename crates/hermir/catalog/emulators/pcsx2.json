@@ -179,7 +179,13 @@
           "section": "Folders",
           "key": "MemoryCards"
         },
-        "note": "two 8 MB cards every game shares (Mcd001.ps2, Mcd002.ps2), or folder cards"
+        "note": "two 8 MB cards every game shares (Mcd001.ps2, Mcd002.ps2), or folder cards",
+        "units": {
+          "shape": "files",
+          "shared": [
+            "Mcd00?.ps2"
+          ]
+        }
       },
       {
         "kind": "state",
@@ -190,6 +196,9 @@
           "file": "main",
           "section": "Folders",
           "key": "Savestates"
+        },
+        "units": {
+          "shape": "files"
         }
       }
     ]

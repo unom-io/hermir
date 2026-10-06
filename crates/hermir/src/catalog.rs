@@ -9,8 +9,8 @@ use crate::channel::extract::is_safe_relative;
 use crate::config::adapters;
 use crate::error::{Error, Result};
 use crate::model::{
-    Channel, Config, Entry, FilePath, FirstRun, Format, KNOBS, Knob, Os, Platform, PlatformSaves,
-    PlayersSupport, Scale,
+    Channel, Config, ContentMethod, Entry, FilePath, FirstRun, Format, KNOBS, Knob, Os, Platform,
+    PlatformSaves, PlayersSupport, Registry, RegistryEmulator, Scale, UnitShape,
 };
 
 /// `(id, json)` for every file under `catalog/emulators/`. A test checks the directory listing
@@ -129,6 +129,47 @@ impl Catalog {
     /// The platform with this id.
     pub fn platform(&self, id: &str) -> Option<&Platform> {
         self.platforms.iter().find(|p| p.id == id)
+    }
+
+    /// The platform a name means in any vocabulary: its id, an alias (RomM slug, ES-DE folder,
+    /// libretro name) or another spelling, case aside.
+    pub fn find_platform(&self, name: &str) -> Option<&Platform> {
+        let name = name.trim();
+        self.platform(name).or_else(|| {
+            self.platforms.iter().find(|p| {
+                p.id.eq_ignore_ascii_case(name)
+                    || p.aliases.values().any(|a| a.eq_ignore_ascii_case(name))
+                    || p.also.iter().any(|a| a.eq_ignore_ascii_case(name))
+            })
+        })
+    }
+
+    /// What a library needs to know: every platform, and every emulator by what it plays,
+    /// whether `os` can install it, and what of saves, add-ons and firmware it handles.
+    pub fn registry(&self, os: Os) -> Registry {
+        Registry {
+            platforms: self.platforms.clone(),
+            emulators: self
+                .entries
+                .iter()
+                .map(|e| RegistryEmulator {
+                    id: e.id.clone(),
+                    name: e.name.clone(),
+                    platforms: e.platforms.clone(),
+                    archives: e.archives,
+                    offered: e.channels.get(os).is_some(),
+                    no_install: e.no_install.clone(),
+                    cores: e.launch.cores.clone(),
+                    saves: crate::units::platforms_with_units(e),
+                    content: crate::content::kinds(e),
+                    firmware: e
+                        .firmware
+                        .as_ref()
+                        .map(|f| f.platforms.clone())
+                        .unwrap_or_default(),
+                })
+                .collect(),
+        }
     }
 
     /// Entries with an install channel on `os`.
@@ -282,13 +323,53 @@ impl Catalog {
                         ),
                     ));
                 }
+                if let Some(d) = e.detect.get(os)
+                    && !d.flatpak_also.is_empty()
+                    && d.flatpak.is_none()
+                {
+                    return Err(bad(
+                        &e.id,
+                        format!("detect on {os}: flatpak_also without a flatpak to stand beside"),
+                    ));
+                }
             }
             validate_saves(e).map_err(|why| bad(&e.id, why))?;
         }
+        let mut names = std::collections::BTreeMap::new();
         for p in &self.platforms {
             for id in &p.emulators {
                 if self.get(id).is_none() {
                     return Err(bad(&p.id, format!("unknown emulator {id}")));
+                }
+            }
+            if let Some(e) = p
+                .extensions
+                .iter()
+                .find(|e| !e.starts_with('.') || e.to_ascii_lowercase() != **e || e.len() < 2)
+            {
+                return Err(bad(&p.id, format!("extension {e} is not `.lowercase`")));
+            }
+            if let Some(f) = &p.folder
+                && (f.markers.is_empty()
+                    || f.markers.iter().any(|m| {
+                        m.is_empty() || m.starts_with('/') || m.split('/').any(|s| s == "..")
+                    }))
+            {
+                return Err(bad(
+                    &p.id,
+                    "folder markers are globs inside the game".into(),
+                ));
+            }
+            // One name, one platform: a source's word must never mean two.
+            let words = std::iter::once(&p.id)
+                .chain(p.aliases.values())
+                .chain(p.also.iter());
+            for w in words {
+                let w = w.to_ascii_lowercase();
+                if let Some(other) = names.insert(w.clone(), p.id.clone())
+                    && other != p.id
+                {
+                    return Err(bad(&p.id, format!("{w} also names {other}")));
                 }
             }
         }
@@ -352,6 +433,61 @@ fn validate_saves(e: &Entry) -> std::result::Result<(), String> {
                 return Err(format!(
                     "saves for {platform}: the setting's file {} is not described",
                     set.file
+                ));
+            }
+            if let Some(u) = &d.units {
+                if let Some(a) = u.adapter.as_deref()
+                    && !crate::units::ADAPTERS.contains(&a)
+                {
+                    return Err(format!("saves for {platform}: no save adapter {a}"));
+                }
+                let folders = u.shape == UnitShape::Folders;
+                if !folders && (u.depth.is_some() || !u.keep.is_empty() || u.adapter.is_some()) {
+                    return Err(format!(
+                        "saves for {platform}: depth, keep and adapter are for folder units"
+                    ));
+                }
+                if u.depth.is_some_and(|n| n == 0 || n > 6) {
+                    return Err(format!(
+                        "saves for {platform}: a unit sits 1 to 6 levels down"
+                    ));
+                }
+                if u.under
+                    .as_deref()
+                    .is_some_and(|x| x.is_empty() || x.contains(['/', '\\']) || x.contains("__"))
+                {
+                    return Err(format!("saves for {platform}: `under` is one plain name"));
+                }
+                if d.path.iter().flat_map(FilePath::all).any(|p| p == "{game}")
+                    && d.pattern.is_none()
+                {
+                    return Err(format!(
+                        "saves for {platform}: units beside the game need a pattern, or every \
+                         game file would be one"
+                    ));
+                }
+            }
+        }
+    }
+    for (platform, c) in &e.content {
+        if !e.platforms.contains(platform) {
+            return Err(format!(
+                "content for {platform}, a platform it does not run"
+            ));
+        }
+        for m in [&c.update, &c.dlc] {
+            if let ContentMethod::Adapter { adapter } = m
+                && !crate::content::ADAPTERS.contains(&adapter.as_str())
+            {
+                return Err(format!(
+                    "content for {platform}: no content adapter {adapter}"
+                ));
+            }
+            if let ContentMethod::Installer { install } = m
+                && !install.iter().any(|a| a.contains("{file}"))
+            {
+                return Err(format!(
+                    "content for {platform}: the installer has no {{file}}"
                 ));
             }
         }

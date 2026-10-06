@@ -12,7 +12,10 @@
         "Ryujinx",
         "ryujinx"
       ],
-      "flatpak": "io.github.ryubing.Ryujinx"
+      "flatpak": "io.github.ryubing.Ryujinx",
+      "flatpak_also": [
+        "org.ryujinx.Ryujinx"
+      ]
     },
     "windows": {
       "paths": [
@@ -104,9 +107,25 @@
         "kind": "save",
         "path": "bis/user/save",
         "per_game": true,
-        "note": "each save under an index of its own, not the title id; Ryujinx maps them in bis/system/save"
+        "note": "each save under an index of its own, not the title id; Ryujinx maps them in bis/system/save",
+        "units": {
+          "shape": "folders",
+          "depth": 2,
+          "adapter": "ryujinx",
+          "written_at_start": true
+        }
       }
     ]
+  },
+  "content": {
+    "switch": {
+      "update": {
+        "adapter": "ryujinx"
+      },
+      "dlc": {
+        "adapter": "ryujinx"
+      }
+    }
   },
   "notes": "The Ryubing fork keeps the Ryujinx binary and folder names. org.ryujinx.Ryujinx left Flathub; the Flatpak looked for is Ryubing's community package, io.github.ryubing.Ryujinx."
 }

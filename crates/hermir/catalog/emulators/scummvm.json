@@ -103,6 +103,9 @@
           "file": "main",
           "section": "scummvm",
           "key": "savepath"
+        },
+        "units": {
+          "shape": "files"
         }
       }
     ]

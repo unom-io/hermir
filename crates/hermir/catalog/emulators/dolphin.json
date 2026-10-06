@@ -146,35 +146,78 @@
       {
         "kind": "memcard",
         "path": "{data}/GC",
-        "note": "a card file per region and slot (MemoryCardA.USA.raw), or a GCI folder per region and slot (USA/Card A), whichever the slot is set to"
+        "note": "a card file per region and slot (MemoryCardA.USA.raw), or a GCI folder per region and slot (USA/Card A), whichever the slot is set to",
+        "units": {
+          "shape": "files",
+          "shared": [
+            "*/Card ?.raw",
+            "*/MemoryCard?.*.raw",
+            "MemoryCard?.*.raw"
+          ]
+        }
       },
       {
         "kind": "state",
         "path": "{data}/StateSaves",
         "pattern": "*.s??",
-        "per_game": true
+        "per_game": true,
+        "units": {
+          "shape": "files"
+        }
       }
     ],
     "wii": [
       {
         "kind": "save",
-        "path": "{data}/Wii/title",
+        "path": "{data}/Wii/title/00010000",
         "per_game": true,
         "setting": {
           "file": "main",
           "section": "General",
           "key": "NANDRootPath",
-          "then": "title"
+          "then": "title/00010000"
         },
-        "note": "each game's data under its title id: 00010000/<id>/data"
+        "note": "each disc game's data under its title id: <id>/data",
+        "units": {
+          "shape": "folders"
+        }
+      },
+      {
+        "kind": "save",
+        "path": "{data}/Wii/title/00010004",
+        "per_game": true,
+        "setting": {
+          "file": "main",
+          "section": "General",
+          "key": "NANDRootPath",
+          "then": "title/00010004"
+        },
+        "note": "the channel a disc game installs (Mario Kart Wii, Wii Fit)",
+        "units": {
+          "shape": "folders",
+          "under": "00010004"
+        }
       },
       {
         "kind": "state",
         "path": "{data}/StateSaves",
         "pattern": "*.s??",
-        "per_game": true
+        "per_game": true,
+        "units": {
+          "shape": "files"
+        }
       }
     ]
+  },
+  "content": {
+    "wii": {
+      "update": {
+        "unsupported": "a Wii game takes no update; WiiWare DLC installs through Tools → Install WAD"
+      },
+      "dlc": {
+        "unsupported": "Dolphin installs DLC through Tools → Install WAD to the NAND"
+      }
+    }
   },
   "notes": "No GitHub releases; the URL is bumped by catalog PRs. `-u <dir>` selects a user directory for profiles.",
   "first_run": {

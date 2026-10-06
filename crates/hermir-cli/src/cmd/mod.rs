@@ -3,13 +3,16 @@
 use hermir::{Catalog, Error, Hermir, Install, Options, Result};
 use serde::Serialize;
 
-use crate::cli::{CatalogCmd, Cli, Cmd, ConfigCmd, CoreCmd, ProfileCmd, SavesCmd};
+use crate::cli::{
+    CatalogCmd, Cli, Cmd, ConfigCmd, ContentCmd, CoreCmd, FirmwareCmd, ProfileCmd, SavesCmd,
+};
 
 mod catalog;
 mod check;
 mod config;
 mod install;
 mod launch;
+mod library;
 mod machine;
 mod pads;
 mod profile;
@@ -88,12 +91,79 @@ pub fn run(cli: Cli) -> Result<Outcome> {
             CatalogCmd::List => Ok(catalog::list(&h)),
             CatalogCmd::Show { emulator } => catalog::show(&h, &emulator),
             CatalogCmd::Resolve { emulator, all } => catalog::resolve(&h, emulator, all),
+            CatalogCmd::Registry => Ok(library::registry(&h)),
             CatalogCmd::Schema | CatalogCmd::Validate { .. } => unreachable!("handled above"),
         },
         Cmd::Pads { .. } => unreachable!("handled above"),
         Cmd::Status { emulator, check } => machine::status(&h, emulator, check),
         Cmd::Detect => Ok(machine::detect(&h)),
         Cmd::Where { emulator } => machine::where_(&h, &emulator),
+        Cmd::Saves {
+            cmd:
+                SavesCmd::List {
+                    emulator,
+                    platform,
+                    game,
+                },
+        } => library::units(&h, &emulator, &platform, game.as_deref()),
+        Cmd::Saves {
+            cmd:
+                SavesCmd::Export {
+                    emulator,
+                    platform,
+                    kind,
+                    name,
+                    out,
+                    game,
+                },
+        } => library::export(
+            &h,
+            &emulator,
+            &platform,
+            game.as_deref(),
+            &kind,
+            &name,
+            &out,
+        ),
+        Cmd::Saves {
+            cmd:
+                SavesCmd::Import {
+                    emulator,
+                    platform,
+                    kind,
+                    name,
+                    file,
+                    others,
+                    game,
+                },
+        } => library::import(
+            &h,
+            &emulator,
+            &platform,
+            game.as_deref(),
+            &kind,
+            &name,
+            &file,
+            &others,
+        ),
+        Cmd::Content {
+            cmd:
+                ContentCmd::Install {
+                    emulator,
+                    platform,
+                    kind,
+                    files,
+                },
+        } => library::content(&h, &emulator, &platform, &kind, &files),
+        Cmd::Firmware {
+            cmd: FirmwareCmd::Status { emulator, platform },
+        } => library::firmware(&h, &emulator, &platform),
+        Cmd::Adopt {
+            emulator,
+            exe,
+            forget,
+        } => library::adopt(&h, &emulator, &exe, forget),
+        Cmd::Core { cmd: CoreCmd::List } => library::cores(&h),
         Cmd::Saves {
             cmd: SavesCmd::Where { emulator, platform },
         } => machine::saves(&h, &emulator, platform.as_deref()),

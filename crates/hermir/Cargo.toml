@@ -19,6 +19,7 @@ serde_json.workspace = true
 schemars.workspace = true
 thiserror.workspace = true
 sha2 = "0.11"
+md-5 = "0.11"
 ureq = { version = "3", features = ["platform-verifier"] }
 zip = { version = "8", default-features = false, features = ["deflate", "zstd", "lzma"] }
 sevenz-rust2 = { version = "0.23", default-features = false, features = ["ppmd", "util"] }

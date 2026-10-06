@@ -197,15 +197,24 @@ pub fn detect_entry(entry: &Entry, env: &dyn Env) -> Vec<Install> {
         return Vec::new();
     };
     let mut found = Vec::new();
-    if let Some(id) = &rules.flatpak
-        && flatpak_present(id, env)
+    let primary = rules.flatpak.as_deref();
+    for id in primary
+        .into_iter()
+        .chain(rules.flatpak_also.iter().map(String::as_str))
     {
+        if !flatpak_present(id, env) {
+            continue;
+        }
+        let root = entry.roots.flatpak.as_deref().map(|r| match primary {
+            Some(p) if p != id => r.replace(p, id),
+            _ => r.to_string(),
+        });
         found.push(Install {
             emulator: entry.id.clone(),
             kind: InstallKind::Flatpak,
-            exe: Exe::FlatpakRun(id.clone()),
+            exe: Exe::FlatpakRun(id.to_string()),
             version: None,
-            config_root: entry.roots.flatpak.as_deref().map(|r| expand(r, env, None)),
+            config_root: root.map(|r| expand(&r, env, None)),
         });
     }
     for name in &rules.path {
@@ -269,6 +278,13 @@ fn join_for(os: Os, dir: &Path, name: &str) -> PathBuf {
     } else {
         dir.join(name)
     }
+}
+
+/// A copy the operator pointed at, read as detection reads one it found: portable when its
+/// marker is beside it.
+pub fn adopted(entry: &Entry, exe: PathBuf, env: &dyn Env) -> Install {
+    let rules = entry.detect.get(env.os()).cloned().unwrap_or_default();
+    native(entry, &rules, exe, env)
 }
 
 fn native(entry: &Entry, rules: &Detect, exe: PathBuf, env: &dyn Env) -> Install {
@@ -482,6 +498,38 @@ mod tests {
         assert_eq!(detect_entry(pcsx2, &env).len(), 1);
         let env = FakeEnv::new(Os::Linux, "/home/u").file("/var/lib/flatpak/app/net.pcsx2.PCSX2");
         assert_eq!(detect_entry(pcsx2, &env).len(), 1);
+    }
+
+    #[test]
+    fn an_older_flatpak_id_is_found_with_its_own_config_root() {
+        let entry = crate::Catalog::embedded()
+            .unwrap()
+            .get("ryujinx")
+            .unwrap()
+            .clone();
+        let env = FakeEnv::new(Os::Linux, "/home/u")
+            .file("/home/u/.local/share/flatpak/app/org.ryujinx.Ryujinx");
+        let found = detect_entry(&entry, &env);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].exe, Exe::FlatpakRun("org.ryujinx.Ryujinx".into()));
+        assert_eq!(
+            found[0].config_root.as_deref(),
+            Some(Path::new(
+                "/home/u/.var/app/org.ryujinx.Ryujinx/config/Ryujinx"
+            ))
+        );
+        let both = env.file("/home/u/.local/share/flatpak/app/io.github.ryubing.Ryujinx");
+        let ids: Vec<_> = detect_entry(&entry, &both)
+            .into_iter()
+            .map(|i| i.exe)
+            .collect();
+        assert_eq!(
+            ids,
+            [
+                Exe::FlatpakRun("io.github.ryubing.Ryujinx".into()),
+                Exe::FlatpakRun("org.ryujinx.Ryujinx".into()),
+            ]
+        );
     }
 
     #[test]

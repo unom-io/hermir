@@ -5,6 +5,7 @@
     "psx"
   ],
   "license": "PolyForm-Strict-1.0.0",
+  "archives": true,
   "channels": {
     "linux": {
       "flatpak": "org.duckstation.DuckStation"
@@ -157,7 +158,13 @@
           "section": "MemoryCards",
           "key": "Directory"
         },
-        "note": "a card per game by default (MemoryCards → Card1Type = PerGameTitle)"
+        "note": "a card per game by default (MemoryCards → Card1Type = PerGameTitle)",
+        "units": {
+          "shape": "files",
+          "shared": [
+            "shared_card_?.mcd"
+          ]
+        }
       },
       {
         "kind": "state",
@@ -168,6 +175,9 @@
           "file": "main",
           "section": "Folders",
           "key": "SaveStates"
+        },
+        "units": {
+          "shape": "files"
         }
       }
     ]

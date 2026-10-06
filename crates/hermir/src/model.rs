@@ -110,6 +110,9 @@ pub struct Entry {
     /// Why this entry carries no install channel, when that is deliberate.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub no_install: Option<String>,
+    /// It opens a game inside a `.zip` or `.7z` itself.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub archives: bool,
     /// Where to get it, per OS. Empty means detect-and-configure only.
     #[serde(default)]
     pub channels: PerOs<Channel>,
@@ -143,9 +146,90 @@ pub struct Entry {
     /// has: each platform's folders, or why they are not known yet.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub saves: BTreeMap<String, PlatformSaves>,
+    /// How a game's add-ons reach the emulator, per platform id: its updates and its DLC.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub content: BTreeMap<String, PlatformContent>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// What to know about it that fits no other field.
     pub notes: Option<String>,
+}
+
+/// One platform's add-ons: how an update and a DLC are installed.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct PlatformContent {
+    /// A game update (a patch the publisher released).
+    pub update: ContentMethod,
+    /// Downloadable content.
+    pub dlc: ContentMethod,
+}
+
+/// How one kind of add-on is installed.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
+pub enum ContentMethod {
+    /// Not installable by hermir; the reason, in a phrase a UI shows.
+    Unsupported {
+        /// Why, and what the player does instead.
+        unsupported: String,
+    },
+    /// The emulator's own installer: the file goes on its command line, and its exit status is
+    /// the verdict.
+    Installer {
+        /// Arguments, `{file}` the add-on.
+        install: Vec<String>,
+    },
+    /// Code that reads the add-on and puts or registers it where the emulator looks: an adapter
+    /// in `content.rs`.
+    Adapter {
+        /// The adapter's name.
+        adapter: String,
+    },
+}
+
+/// What installing one add-on did (`EmulatorHandle::install_content`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ContentStep {
+    /// The file or folder handed in.
+    pub source: PathBuf,
+    /// Where it went, or what was registered.
+    pub target: PathBuf,
+    /// What happened.
+    pub outcome: StepOutcome,
+    /// Why, when it did not apply.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// One platform's firmware on a copy (`EmulatorHandle::firmware_status`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct FirmwareStatus {
+    /// The platform.
+    pub platform: String,
+    /// What the catalog says the platform needs.
+    pub need: FirmwareNeed,
+    /// Where the emulator reads it on this copy, when it is a folder.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dir: Option<PathBuf>,
+    /// The files there that match, each with whether its MD5 is a known good dump.
+    pub found: Vec<FirmwareFile>,
+    /// The need is met: a file matches and none of the known hashes rules it out, or it is
+    /// optional.
+    pub ok: bool,
+}
+
+/// One firmware file on a copy.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct FirmwareFile {
+    /// Its path.
+    pub path: PathBuf,
+    /// MD5, hex.
+    pub md5: String,
+    /// `Some(true)` a known good dump, `Some(false)` named right but not a dump the catalog
+    /// knows, `None` the catalog lists no hashes for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub known: Option<bool>,
 }
 
 /// One platform's saves in the catalog: its folders, or why they are not known.
@@ -199,6 +283,91 @@ pub struct SaveDir {
     /// What to know about the layout inside, in a phrase a UI shows.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// How the folder splits into units a sync client moves one at a time. Absent: hermir only
+    /// says where the folder is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub units: Option<Units>,
+}
+
+/// How a save folder splits into units. A unit is named for what it is, so the same save keeps
+/// its name on every machine: a file by its path (`USA/Card A/x.gci` → `USA__Card A__x.gci`),
+/// a folder by its path and `.tar`, or as the folder's adapter names it.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Units {
+    /// Each file is a unit, or each folder `depth` levels down.
+    pub shape: UnitShape,
+    /// Folders only: how many levels below the save folder a unit's folder sits; 1 when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub depth: Option<u8>,
+    /// Folders only: globs of the paths inside a unit that are the save; the rest beside it (a
+    /// title's DLC in Xenia's content folder) is neither packed nor touched.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keep: Vec<String>,
+    /// Leads every unit name of this folder (`00010004`), so two folders of one shape keep
+    /// their units apart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub under: Option<String>,
+    /// Globs of the files that hold every game's data at once (a shared memory card).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shared: Vec<String>,
+    /// The adapter that names this folder's units, where a folder is not named for its save
+    /// (`ryujinx`, `eden`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adapter: Option<String>,
+    /// The emulator writes an empty save the first time a game starts: a unit this machine has
+    /// never synced is that empty save, not the player's progress.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub written_at_start: bool,
+}
+
+/// What one unit is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum UnitShape {
+    /// One file.
+    #[default]
+    Files,
+    /// One folder, moved as a tar.
+    Folders,
+}
+
+/// One unit of saves on a copy (`EmulatorHandle::units`).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct SaveUnit {
+    /// What it holds.
+    pub kind: SaveKind,
+    /// Its name, the same on every machine; `.tar` ends a folder's.
+    pub name: String,
+    /// It holds every game's data at once (a shared memory card), not one game's.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub shared: bool,
+    /// The emulator writes an empty one when a game first starts (see [`Units`]).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub written_at_start: bool,
+    /// Bytes in it.
+    pub size: u64,
+    /// Files in it.
+    pub files: u32,
+    /// Its newest file's modification time, milliseconds since 1970: with `size` and `files`, a
+    /// stamp that changes when the save does.
+    pub modified: u64,
+    /// Where it is on this machine.
+    pub path: PathBuf,
+}
+
+/// What exporting a unit wrote.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ExportedUnit {
+    /// The unit.
+    pub name: String,
+    /// The file written: the save itself, or a tar of the folder. A tar's headers carry no time,
+    /// owner or mode, so the same save is the same bytes on every machine.
+    pub file: PathBuf,
+    /// Its size.
+    pub size: u64,
+    /// MD5 of the file, hex: what RomM compares saves by.
+    pub md5: String,
 }
 
 /// A key of one of the entry's config files that names a save folder.
@@ -1144,6 +1313,10 @@ pub struct FirmwareNeed {
     /// The emulator also runs without it (an HLE BIOS); its absence is no failure.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
+    /// File name → MD5s of the good dumps of that file, where the name fixes the file
+    /// (`dc_boot.bin`). A file of that name with another hash is not placed.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub md5: BTreeMap<String, Vec<String>>,
 }
 
 /// One way to obtain the emulator on one OS.
@@ -1259,6 +1432,10 @@ pub struct Detect {
     /// A Flathub app id, looked for in the user and system installations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub flatpak: Option<String>,
+    /// Older app ids of the same emulator, still found where they are installed. A copy under
+    /// one keeps its config root under that id: `roots.flatpak` with `flatpak` swapped for it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub flatpak_also: Vec<String>,
     /// Absolute paths of the executable, with `~`, `%VAR%` and `$VAR`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub paths: Vec<String>,
@@ -1386,15 +1563,110 @@ pub struct Platform {
     pub id: String,
     /// Its name.
     pub name: String,
+    /// A badge-length name (`PS2`, `SNES`), where it differs from `name`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub short_name: Option<String>,
     /// The same platform in other vocabularies, so a consumer maps once at its edge.
     #[serde(default)]
     pub aliases: BTreeMap<String, String>,
+    /// Further spellings sources use (RomM's older slugs, a folder name), matched like an alias.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub also: Vec<String>,
     #[serde(default)]
-    /// File extensions its games come in, without the dot.
+    /// What a game file in a library is called: lowercase extensions with the dot.
     pub extensions: Vec<String>,
+    /// Its games come on discs: a set is folded into one game through its `.m3u`, `.cue` or
+    /// `.gdi`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub disc: bool,
+    /// Present when a game is a folder rather than a file (a PS3 or Wii U dump).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<FolderShape>,
     /// Emulator ids in order of preference.
     #[serde(default)]
     pub emulators: Vec<String>,
+}
+
+/// How a game that is a folder is found: the first marker that matches inside a folder makes
+/// it one game.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct FolderShape {
+    /// Globs relative to a candidate folder (`PS3_GAME/USRDIR/EBOOT.BIN`, `code/*.rpx`): `*` and
+    /// `?` within a segment, `**` across segments.
+    pub markers: Vec<String>,
+    /// What the emulator is handed: the matched file, or the folder itself.
+    #[serde(default)]
+    pub launch: FolderLaunch,
+    /// The deepest a game folder sits below a library folder; 4 when unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u8>,
+    /// The shallowest; 0 (the library folder itself) when unset. 1 where every subfolder is a
+    /// game and the marker is any file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_depth: Option<u8>,
+}
+
+/// What a folder game hands its emulator.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum FolderLaunch {
+    /// The file the marker matched (RPCS3's `EBOOT.BIN`, Cemu's `.rpx`).
+    #[default]
+    Marker,
+    /// The folder (DOSBox, ScummVM).
+    Folder,
+}
+
+/// What a consumer needs of the catalog to list games and choose emulators, without the
+/// install, detect and config detail: `Catalog::registry`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct Registry {
+    /// Every platform.
+    pub platforms: Vec<Platform>,
+    /// Every emulator, as far as a library is concerned.
+    pub emulators: Vec<RegistryEmulator>,
+}
+
+/// One emulator in [`Registry`].
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct RegistryEmulator {
+    /// The catalog id.
+    pub id: String,
+    /// Its name.
+    pub name: String,
+    /// Platform ids it plays.
+    pub platforms: Vec<String>,
+    /// It opens a game inside a `.zip` or `.7z`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub archives: bool,
+    /// The registry's OS has an install channel for it.
+    pub offered: bool,
+    /// Why it is never installed, when that is policy.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub no_install: Option<String>,
+    /// RetroArch: platform id → the core it loads for it.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub cores: BTreeMap<String, String>,
+    /// Platforms whose saves hermir can list, export and import.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub saves: Vec<String>,
+    /// Platform id → add-on kinds (`update`, `dlc`) it can install for that platform.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub content: BTreeMap<String, Vec<String>>,
+    /// Platform id → the firmware it needs there, and where it comes from.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub firmware: BTreeMap<String, FirmwareNeed>,
+}
+
+/// A copy the operator pointed hermir at: one no detect rule finds (a portable zip unpacked
+/// anywhere). `adopted.json` in the prefix.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Adopted {
+    /// The catalog id.
+    pub emulator: String,
+    /// Its program.
+    pub exe: PathBuf,
 }
 
 /// How an emulator got onto this machine.

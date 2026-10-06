@@ -55,7 +55,9 @@ is none (an older GitHub asset, a libretro core) hermir says `not verified` and 
 The design — the model, the facade, how configuration is patched and reverted, what is
 still open — is in [`docs/design.md`](https://github.com/unom-io/hermir/blob/main/docs/design.md).
 Done: get, find, update, remove, prepare (first-run answers and firmware), a session's settings
-in and out again, profiles, launch, pads, saves. What hermir writes is checked against each
+in and out again, profiles, launch, pads, saves, save units a sync client moves, game updates and
+DLC, firmware checked against known dumps, a copy the operator points at, and a registry for game
+libraries. What hermir writes is checked against each
 emulator's own files, captured from its Flathub build (`fixtures/`), and a weekly job does it
 again for every new release. There is no `unsafe` anywhere in the workspace; the build forbids
 it.
@@ -160,6 +162,8 @@ let done = pcsx2.apply(&copy, &Patch {   // Ok(Applied { knobs: [{ knob, support
 pcsx2.revert(false)?;                    // the player's files back, byte for byte
 let spec = pcsx2.launch(&copy, &LaunchRequest { file: Some("game.iso".into()), ..Default::default() })?;
 let saves = pcsx2.saves(&copy, Some("ps2"))?;   // memory cards and states, resolved
+let units = pcsx2.units(&copy, "ps2", None)?;    // what a sync client moves, each with a stamp
+let registry = h.registry();                     // platforms and emulators, for a game library
 ```
 
 Every type is serde and JSON Schema, so the CLI's `--json` is the same contract as the library.

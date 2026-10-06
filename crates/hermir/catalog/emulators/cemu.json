@@ -112,16 +112,29 @@
     "wiiu": [
       {
         "kind": "save",
-        "path": "{data}/mlc01/usr/save",
+        "path": "{data}/mlc01/usr/save/00050000",
         "per_game": true,
         "setting": {
           "file": "main",
           "section": "",
           "key": "mlc_path",
-          "then": "usr/save"
+          "then": "usr/save/00050000"
         },
-        "note": "per title id: 00050000/<low>/user"
+        "note": "per title: <low>/user, <low>/meta",
+        "units": {
+          "shape": "folders"
+        }
       }
     ]
+  },
+  "content": {
+    "wiiu": {
+      "update": {
+        "adapter": "cemu"
+      },
+      "dlc": {
+        "adapter": "cemu"
+      }
+    }
   }
 }

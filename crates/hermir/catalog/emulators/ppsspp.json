@@ -122,13 +122,19 @@
       {
         "kind": "save",
         "path": "PSP/SAVEDATA",
-        "per_game": true
+        "per_game": true,
+        "units": {
+          "shape": "folders"
+        }
       },
       {
         "kind": "state",
         "path": "PSP/PPSSPP_STATE",
         "pattern": "*.ppst",
-        "per_game": true
+        "per_game": true,
+        "units": {
+          "shape": "files"
+        }
       }
     ]
   }

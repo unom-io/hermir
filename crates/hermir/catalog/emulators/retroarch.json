@@ -41,6 +41,7 @@
     "scummvm"
   ],
   "license": "GPL-3.0-or-later",
+  "archives": true,
   "channels": {
     "linux": {
       "flatpak": "org.libretro.RetroArch"
@@ -134,7 +135,15 @@
         "any_of": [
           "sega_101.bin",
           "mpr-17933.bin"
-        ]
+        ],
+        "md5": {
+          "sega_101.bin": [
+            "85ec9ca47d8f6807718151cbcca8b964"
+          ],
+          "mpr-17933.bin": [
+            "3240872c70984b6cbfda1586cab68dbe"
+          ]
+        }
       },
       "segacd": {
         "any_of": [
@@ -148,30 +157,58 @@
           "firmware.bin"
         ],
         "note": "optional",
-        "optional": true
+        "optional": true,
+        "md5": {
+          "bios7.bin": [
+            "df692a80a5b1bc90728bc3dfc76cd948"
+          ],
+          "bios9.bin": [
+            "a392174eb3e572fed6447e956bde4b25"
+          ]
+        }
       },
       "gba": {
         "any_of": [
           "gba_bios.bin"
         ],
         "note": "optional",
-        "optional": true
+        "optional": true,
+        "md5": {
+          "gba_bios.bin": [
+            "a860e8c0b6d573d191e4ec7db1b1e4f6"
+          ]
+        }
       },
       "tg16": {
         "any_of": [
           "syscard3.pce"
         ],
-        "note": "for CD games"
+        "note": "for CD games",
+        "md5": {
+          "syscard3.pce": [
+            "38179df8f4ac870017db21ebcbf53114"
+          ]
+        }
       },
       "3do": {
         "any_of": [
           "panafz10.bin"
-        ]
+        ],
+        "md5": {
+          "panafz10.bin": [
+            "51f2f43ae2f3508a14d9f56597e2d3ce"
+          ]
+        }
       },
       "lynx": {
         "any_of": [
           "lynxboot.img"
-        ]
+        ],
+        "md5": {
+          "lynxboot.img": [
+            "fcd403db69f54290b51035d82f835e7b"
+          ]
+        }
       },
       "dc": {
         "any_of": [
@@ -179,7 +216,12 @@
           "dc/dc_flash.bin"
         ],
         "note": "optional",
-        "optional": true
+        "optional": true,
+        "md5": {
+          "dc_boot.bin": [
+            "e10c53c2f8b90bab96ead2d368858623"
+          ]
+        }
       }
     }
   },
@@ -265,7 +307,10 @@
             "default"
           ]
         },
-        "note": "in a folder per core (sort_savefiles_enable, on by default), or per content folder; each core names its files"
+        "note": "in a folder per core (sort_savefiles_enable, on by default), or per content folder; each core names its files",
+        "units": {
+          "shape": "files"
+        }
       },
       {
         "kind": "state",
@@ -279,7 +324,10 @@
             "default"
           ]
         },
-        "note": "in a folder per core (sort_savestates_enable, on by default), or per content folder"
+        "note": "in a folder per core (sort_savestates_enable, on by default), or per content folder",
+        "units": {
+          "shape": "files"
+        }
       }
     ]
   },

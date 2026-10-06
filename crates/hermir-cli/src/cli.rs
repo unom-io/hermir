@@ -105,6 +105,23 @@ pub enum Cmd {
         #[command(subcommand)]
         cmd: ProfileCmd,
     },
+    /// Add-ons: a game's updates and DLC.
+    Content {
+        #[command(subcommand)]
+        cmd: ContentCmd,
+    },
+    /// Firmware: what a platform needs and whether it is there.
+    Firmware {
+        #[command(subcommand)]
+        cmd: FirmwareCmd,
+    },
+    /// Point hermir at a copy no rule finds, so it is detected from now on; `--forget` undoes it.
+    Adopt {
+        emulator: String,
+        exe: PathBuf,
+        #[arg(long)]
+        forget: bool,
+    },
     /// libretro cores for the RetroArch on this machine.
     Core {
         #[command(subcommand)]
@@ -145,6 +162,9 @@ pub enum CatalogCmd {
     Validate { dir: PathBuf },
     /// The JSON Schema of an entry.
     Schema,
+    /// What a game library needs: every platform (names, aliases, extensions, folder shapes)
+    /// and every emulator by what it plays, saves, installs and needs on this OS.
+    Registry,
     /// Where each channel points right now, without downloading. `--all` walks the catalog.
     Resolve {
         #[arg(required_unless_present = "all", conflicts_with = "all")]
@@ -256,6 +276,59 @@ pub enum SavesCmd {
         emulator: String,
         platform: Option<String>,
     },
+    /// Every save unit on the best copy, each with a stamp that changes with it.
+    List {
+        emulator: String,
+        platform: String,
+        /// The game's folder, for an emulator that saves beside its games.
+        #[arg(long)]
+        game: Option<PathBuf>,
+    },
+    /// Write one unit into a folder: the save file, or a tar of the save folder.
+    Export {
+        emulator: String,
+        platform: String,
+        /// `save`, `memcard` or `state`.
+        kind: String,
+        name: String,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long)]
+        game: Option<PathBuf>,
+    },
+    /// Put a unit back where the best copy keeps it; what was there is kept under the prefix.
+    Import {
+        emulator: String,
+        platform: String,
+        /// `save`, `memcard` or `state`.
+        kind: String,
+        name: String,
+        file: PathBuf,
+        /// A name the server holds for the same game (a Switch save under another profile).
+        #[arg(long = "other")]
+        others: Vec<String>,
+        #[arg(long)]
+        game: Option<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ContentCmd {
+    /// Install a game's updates or DLC into the best copy, the way that emulator takes them.
+    Install {
+        emulator: String,
+        platform: String,
+        /// `update` or `dlc`.
+        kind: String,
+        #[arg(required = true)]
+        files: Vec<PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum FirmwareCmd {
+    /// Whether the best copy has a platform's firmware, each file checked against good dumps.
+    Status { emulator: String, platform: String },
 }
 
 #[derive(Subcommand)]
@@ -286,6 +359,8 @@ pub enum ProfileCmd {
 pub enum CoreCmd {
     /// Fetch `<core>_libretro` from the buildbot into RetroArch's cores directory.
     Install { core: String },
+    /// The cores the best RetroArch has.
+    List,
 }
 
 #[derive(Args)]

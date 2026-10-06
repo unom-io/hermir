@@ -55,7 +55,13 @@ pub fn saves(
         .collect())
 }
 
-fn locate(entry: &Entry, os: Os, install: &Install, env: &dyn Env, d: &SaveDir) -> SaveLocation {
+pub(crate) fn locate(
+    entry: &Entry,
+    os: Os,
+    install: &Install,
+    env: &dyn Env,
+    d: &SaveDir,
+) -> SaveLocation {
     let root = install.config_root.as_deref();
     let mut loc = SaveLocation {
         kind: d.kind,
@@ -257,7 +263,11 @@ mod tests {
         std::fs::create_dir_all(&root).unwrap();
         assert_eq!(
             at("cemu", &root, "wiiu")[0].path.as_deref(),
-            Some(tmp.path().join("data/Cemu/mlc01/usr/save").as_path())
+            Some(
+                tmp.path()
+                    .join("data/Cemu/mlc01/usr/save/00050000")
+                    .as_path()
+            )
         );
         std::fs::write(
             root.join("settings.xml"),
@@ -265,7 +275,10 @@ mod tests {
         )
         .unwrap();
         let l = at("cemu", &root, "wiiu");
-        assert_eq!(l[0].path.as_deref(), Some(Path::new("/games/mlc/usr/save")));
+        assert_eq!(
+            l[0].path.as_deref(),
+            Some(Path::new("/games/mlc/usr/save/00050000"))
+        );
         assert!(l[0].from_setting);
         // DuckStation: a relative folder is under its root; the folder exists.
         let root = tmp.path().join("duckstation");

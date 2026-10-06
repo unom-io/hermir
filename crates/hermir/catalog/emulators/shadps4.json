@@ -104,7 +104,11 @@
         "kind": "save",
         "path": "savedata",
         "per_game": true,
-        "note": "per user, 1 the first, and game id (CUSA…)"
+        "note": "per user, 1 the first, and game id (CUSA…)",
+        "units": {
+          "shape": "folders",
+          "depth": 2
+        }
       }
     ]
   },

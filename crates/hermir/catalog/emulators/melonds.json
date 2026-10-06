@@ -59,7 +59,15 @@
           "firmware.bin"
         ],
         "note": "optional; melonDS also runs without",
-        "optional": true
+        "optional": true,
+        "md5": {
+          "bios7.bin": [
+            "df692a80a5b1bc90728bc3dfc76cd948"
+          ],
+          "bios9.bin": [
+            "a392174eb3e572fed6447e956bde4b25"
+          ]
+        }
       }
     }
   },
@@ -116,15 +124,31 @@
     "nds": [
       {
         "kind": "save",
-        "path": "{game}",
+        "path": "saves",
+        "pattern": "*.sav",
         "per_game": true,
-        "note": "beside each game (<game>.sav) unless a save folder is set in its path settings"
+        "setting": {
+          "file": "main",
+          "section": "Instance0",
+          "key": "SaveFilePath"
+        },
+        "note": "in its saves folder, which prepare sets unless the player chose one",
+        "units": {
+          "shape": "files"
+        }
       },
       {
         "kind": "state",
-        "path": "{game}",
+        "path": "states",
         "per_game": true,
-        "note": "beside each game (<game>.ml1 and on)"
+        "setting": {
+          "file": "main",
+          "section": "Instance0",
+          "key": "SavestatePath"
+        },
+        "units": {
+          "shape": "files"
+        }
       }
     ]
   },

@@ -9,8 +9,8 @@ use crate::channel::flatpak::Runner;
 pub use crate::config::ini::{get as ini_get, set as ini_set};
 use crate::config::write_atomic;
 use crate::model::{
-    Entry, Exe, FirmwareInstall, FirmwareKey, FirstRun, Install, Os, PrepareStep, Prepared,
-    StepOutcome,
+    Entry, Exe, FirmwareFile, FirmwareInstall, FirmwareKey, FirmwareNeed, FirmwareStatus, FirstRun,
+    Install, Os, PrepareStep, Prepared, StepOutcome,
 };
 
 /// Answers `install`'s first-run questions for `os`, then places `firmware` for `platform`:
@@ -56,7 +56,15 @@ pub fn prepare(
             };
             if fw.keys.is_empty() {
                 for file in firmware.iter().filter(|f| !archive(f)) {
-                    steps.push(place(file, &dir));
+                    steps.push(match known_dump(need, file) {
+                        Some(false) => step(
+                            "firmware",
+                            &dir.join(file.file_name().unwrap_or_default()),
+                            StepOutcome::Failed,
+                            Some("not a dump this emulator is known to start with".into()),
+                        ),
+                        _ => place(file, &dir),
+                    });
                 }
                 if !need.optional && !any_match(&dir, &need.any_of) {
                     steps.push(missing(&dir, need.note.as_deref()));
@@ -181,6 +189,62 @@ fn first_run(root: &Path, install: &Install, answer: &FirstRun) -> PrepareStep {
             }
         }
     }
+}
+
+/// Whether `file` is a good dump by the need's hashes: `None` when it lists none for that name.
+fn known_dump(need: &FirmwareNeed, file: &Path) -> Option<bool> {
+    let name = file.file_name()?.to_string_lossy().to_ascii_lowercase();
+    let good = need
+        .md5
+        .iter()
+        .find(|(n, _)| n.to_ascii_lowercase() == name)?
+        .1;
+    let (_, md5) = crate::units::md5_file(file).ok()?;
+    Some(good.iter().any(|g| g.eq_ignore_ascii_case(&md5)))
+}
+
+/// What `platform` needs on this copy and whether it is there: each matching file, hashed and
+/// checked. `None` when the emulator needs no firmware for it.
+pub fn status(entry: &Entry, install: &Install, platform: &str) -> Option<FirmwareStatus> {
+    let fw = entry.firmware.as_ref()?;
+    let need = fw.platforms.get(platform)?;
+    let root = install.config_root.as_deref();
+    let dir = root
+        .zip(fw.dir.as_ref())
+        .map(|(r, d)| if d == "." { r.to_path_buf() } else { r.join(d) });
+    let mut found = Vec::new();
+    if let Some(dir) = &dir
+        && let Ok(rd) = std::fs::read_dir(dir)
+    {
+        let mut files: Vec<PathBuf> = rd
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_file() && name_matches(p, &need.any_of))
+            .collect();
+        files.sort();
+        for path in files {
+            let Ok((_, md5)) = crate::units::md5_file(&path) else {
+                continue;
+            };
+            found.push(FirmwareFile {
+                known: known_dump(need, &path),
+                path,
+                md5,
+            });
+        }
+    }
+    // An installer leaves its own mark; that is the firmware being there.
+    let installed = root
+        .zip(fw.install.as_ref())
+        .is_some_and(|(r, i)| r.join(&i.done).is_file());
+    let ok = need.optional || installed || found.iter().any(|f| f.known != Some(false));
+    Some(FirmwareStatus {
+        platform: platform.to_string(),
+        need: need.clone(),
+        dir,
+        found,
+        ok,
+    })
 }
 
 /// Copies `file` into `dir` unless a file of that name and size is there.

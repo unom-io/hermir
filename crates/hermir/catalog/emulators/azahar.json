@@ -114,13 +114,33 @@
         "kind": "save",
         "path": "{data}/sdmc/Nintendo 3DS",
         "per_game": true,
-        "note": "each title's data under the console's ids: <id0>/<id1>/title/<high>/<low>/data"
+        "note": "each title's data under the console's ids: <id0>/<id1>/title/<high>/<low>/data",
+        "units": {
+          "shape": "folders",
+          "depth": 5,
+          "keep": [
+            "data/**"
+          ]
+        }
       },
       {
         "kind": "state",
         "path": "{data}/states",
-        "per_game": true
+        "per_game": true,
+        "units": {
+          "shape": "files"
+        }
       }
     ]
+  },
+  "content": {
+    "3ds": {
+      "update": {
+        "unsupported": "Azahar installs an update CIA through File → Install CIA"
+      },
+      "dlc": {
+        "unsupported": "Azahar installs a DLC CIA through File → Install CIA"
+      }
+    }
   }
 }

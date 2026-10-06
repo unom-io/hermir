@@ -2,15 +2,20 @@
   {
     "id": "nes",
     "name": "Nintendo Entertainment System",
+    "short_name": "NES",
     "aliases": {
       "romm": "nes",
       "esde": "nes",
       "libretro": "Nintendo - Nintendo Entertainment System"
     },
+    "also": [
+      "famicom"
+    ],
     "extensions": [
       ".nes",
       ".unf",
-      ".unif"
+      ".unif",
+      ".fds"
     ],
     "emulators": [
       "retroarch",
@@ -36,14 +41,19 @@
   {
     "id": "snes",
     "name": "Super Nintendo",
+    "short_name": "SNES",
     "aliases": {
       "romm": "snes",
       "esde": "snes",
       "libretro": "Nintendo - Super Nintendo Entertainment System"
     },
+    "also": [
+      "sfam"
+    ],
     "extensions": [
       ".sfc",
-      ".smc"
+      ".smc",
+      ".bs"
     ],
     "emulators": [
       "retroarch",
@@ -54,6 +64,7 @@
   {
     "id": "n64",
     "name": "Nintendo 64",
+    "short_name": "N64",
     "aliases": {
       "romm": "n64",
       "esde": "n64",
@@ -78,6 +89,9 @@
       "esde": "gc",
       "libretro": "Nintendo - GameCube"
     },
+    "also": [
+      "gamecube"
+    ],
     "extensions": [
       ".iso",
       ".gcm",
@@ -85,6 +99,7 @@
       ".rvz",
       ".ciso"
     ],
+    "disc": true,
     "emulators": [
       "dolphin",
       "retroarch"
@@ -102,8 +117,11 @@
       ".iso",
       ".wbfs",
       ".rvz",
-      ".wad"
+      ".wad",
+      ".gcz",
+      ".ciso"
     ],
+    "disc": true,
     "emulators": [
       "dolphin",
       "retroarch"
@@ -123,6 +141,11 @@
       ".rpx",
       ".wua"
     ],
+    "folder": {
+      "markers": [
+        "code/*.rpx"
+      ]
+    },
     "emulators": [
       "cemu"
     ]
@@ -130,6 +153,7 @@
   {
     "id": "switch",
     "name": "Nintendo Switch",
+    "short_name": "Switch",
     "aliases": {
       "romm": "switch",
       "esde": "switch"
@@ -140,6 +164,12 @@
       ".nca",
       ".nro"
     ],
+    "folder": {
+      "markers": [
+        "base/*.nsp",
+        "base/*.xci"
+      ]
+    },
     "emulators": [
       "ryujinx",
       "eden"
@@ -165,6 +195,7 @@
   {
     "id": "gbc",
     "name": "Game Boy Color",
+    "short_name": "GBC",
     "aliases": {
       "romm": "gbc",
       "esde": "gbc",
@@ -182,13 +213,15 @@
   {
     "id": "gba",
     "name": "Game Boy Advance",
+    "short_name": "GBA",
     "aliases": {
       "romm": "gba",
       "esde": "gba",
       "libretro": "Nintendo - Game Boy Advance"
     },
     "extensions": [
-      ".gba"
+      ".gba",
+      ".srl"
     ],
     "emulators": [
       "mgba",
@@ -199,13 +232,15 @@
   {
     "id": "nds",
     "name": "Nintendo DS",
+    "short_name": "DS",
     "aliases": {
       "romm": "nds",
       "esde": "nds",
       "libretro": "Nintendo - Nintendo DS"
     },
     "extensions": [
-      ".nds"
+      ".nds",
+      ".dsi"
     ],
     "emulators": [
       "melonds",
@@ -215,11 +250,15 @@
   {
     "id": "3ds",
     "name": "Nintendo 3DS",
+    "short_name": "3DS",
     "aliases": {
       "romm": "3ds",
       "esde": "n3ds",
       "libretro": "Nintendo - Nintendo 3DS"
     },
+    "also": [
+      "nintendo-3ds"
+    ],
     "extensions": [
       ".3ds",
       ".cci",
@@ -249,19 +288,27 @@
   {
     "id": "psx",
     "name": "PlayStation",
+    "short_name": "PS1",
     "aliases": {
       "romm": "psx",
       "esde": "psx",
       "libretro": "Sony - PlayStation"
     },
+    "also": [
+      "ps",
+      "ps1"
+    ],
     "extensions": [
       ".cue",
       ".chd",
       ".pbp",
       ".m3u",
       ".bin",
-      ".img"
+      ".img",
+      ".ecm",
+      ".iso"
     ],
+    "disc": true,
     "emulators": [
       "duckstation",
       "retroarch",
@@ -271,6 +318,7 @@
   {
     "id": "ps2",
     "name": "PlayStation 2",
+    "short_name": "PS2",
     "aliases": {
       "romm": "ps2",
       "esde": "ps2",
@@ -282,8 +330,11 @@
       ".cso",
       ".zso",
       ".gz",
-      ".bin"
+      ".bin",
+      ".cue",
+      ".m3u"
     ],
+    "disc": true,
     "emulators": [
       "pcsx2"
     ]
@@ -291,16 +342,22 @@
   {
     "id": "ps3",
     "name": "PlayStation 3",
+    "short_name": "PS3",
     "aliases": {
       "romm": "ps3",
       "esde": "ps3",
       "libretro": "Sony - PlayStation 3"
     },
     "extensions": [
-      ".iso",
-      ".pkg",
-      ".bin"
+      ".iso"
     ],
+    "folder": {
+      "markers": [
+        "PS3_GAME/USRDIR/EBOOT.BIN",
+        "USRDIR/EBOOT.BIN",
+        "PS3_GAME/USRDIR/*.self"
+      ]
+    },
     "emulators": [
       "rpcs3"
     ]
@@ -308,14 +365,17 @@
   {
     "id": "ps4",
     "name": "PlayStation 4",
+    "short_name": "PS4",
     "aliases": {
       "romm": "ps4",
       "esde": "ps4"
     },
-    "extensions": [
-      ".bin",
-      ".zar"
-    ],
+    "extensions": [],
+    "folder": {
+      "markers": [
+        "eboot.bin"
+      ]
+    },
     "emulators": [
       "shadps4"
     ]
@@ -323,6 +383,7 @@
   {
     "id": "psp",
     "name": "PlayStation Portable",
+    "short_name": "PSP",
     "aliases": {
       "romm": "psp",
       "esde": "psp",
@@ -334,6 +395,7 @@
       ".chd",
       ".pbp"
     ],
+    "disc": true,
     "emulators": [
       "ppsspp",
       "retroarch"
@@ -342,15 +404,23 @@
   {
     "id": "psvita",
     "name": "PlayStation Vita",
+    "short_name": "Vita",
     "aliases": {
       "romm": "psvita",
       "esde": "psvita",
       "libretro": "Sony - PlayStation Vita"
     },
-    "extensions": [
-      ".vpk",
-      ".zip"
+    "also": [
+      "vita"
     ],
+    "extensions": [
+      ".vpk"
+    ],
+    "folder": {
+      "markers": [
+        "eboot.bin"
+      ]
+    },
     "emulators": [
       "vita3k"
     ]
@@ -358,16 +428,21 @@
   {
     "id": "genesis",
     "name": "Mega Drive / Genesis",
+    "short_name": "Genesis",
     "aliases": {
       "romm": "genesis",
       "esde": "megadrive",
       "libretro": "Sega - Mega Drive - Genesis"
     },
+    "also": [
+      "genesis-slash-megadrive"
+    ],
     "extensions": [
       ".md",
       ".gen",
       ".bin",
-      ".smd"
+      ".smd",
+      ".sgd"
     ],
     "emulators": [
       "retroarch",
@@ -417,8 +492,12 @@
     "extensions": [
       ".cue",
       ".chd",
-      ".iso"
+      ".iso",
+      ".bin",
+      ".ccd",
+      ".m3u"
     ],
+    "disc": true,
     "emulators": [
       "retroarch",
       "ares"
@@ -427,13 +506,15 @@
   {
     "id": "sega32x",
     "name": "Sega 32X",
+    "short_name": "32X",
     "aliases": {
       "romm": "sega32",
       "esde": "sega32x",
       "libretro": "Sega - 32X"
     },
     "extensions": [
-      ".32x"
+      ".32x",
+      ".bin"
     ],
     "emulators": [
       "retroarch",
@@ -451,8 +532,13 @@
     "extensions": [
       ".cue",
       ".chd",
-      ".iso"
+      ".iso",
+      ".bin",
+      ".ccd",
+      ".mds",
+      ".m3u"
     ],
+    "disc": true,
     "emulators": [
       "retroarch"
     ]
@@ -469,8 +555,10 @@
       ".gdi",
       ".cdi",
       ".chd",
-      ".cue"
+      ".cue",
+      ".m3u"
     ],
+    "disc": true,
     "emulators": [
       "flycast",
       "retroarch"
@@ -486,8 +574,10 @@
     },
     "extensions": [
       ".iso",
-      ".xiso"
+      ".xiso",
+      ".xbe"
     ],
+    "disc": true,
     "emulators": [
       "xemu"
     ]
@@ -505,6 +595,12 @@
       ".xex",
       ".zar"
     ],
+    "folder": {
+      "markers": [
+        "default.xex",
+        "*/default.xex"
+      ]
+    },
     "emulators": [
       "xenia-canary"
     ]
@@ -512,16 +608,25 @@
   {
     "id": "tg16",
     "name": "TurboGrafx-16 / PC Engine",
+    "short_name": "PC Engine",
     "aliases": {
       "romm": "tg16",
       "esde": "pcengine",
       "libretro": "NEC - PC Engine - TurboGrafx 16"
     },
+    "also": [
+      "turbografx16--1",
+      "turbografx-16"
+    ],
     "extensions": [
       ".pce",
       ".cue",
-      ".chd"
+      ".chd",
+      ".sgx",
+      ".ccd",
+      ".m3u"
     ],
+    "disc": true,
     "emulators": [
       "retroarch",
       "ares"
@@ -533,8 +638,13 @@
     "aliases": {
       "romm": "neo-geo-pocket",
       "esde": "ngp",
-      "libretro": "SNK - Neo Geo Pocket"
+      "libretro": "SNK - Neo Geo Pocket Color"
     },
+    "also": [
+      "SNK - Neo Geo Pocket",
+      "neo-geo-pocket-color",
+      "ngpc"
+    ],
     "extensions": [
       ".ngp",
       ".ngc"
@@ -550,8 +660,12 @@
     "aliases": {
       "romm": "wonderswan",
       "esde": "wonderswan",
-      "libretro": "Bandai - WonderSwan"
+      "libretro": "Bandai - WonderSwan Color"
     },
+    "also": [
+      "Bandai - WonderSwan",
+      "wonderswan-color"
+    ],
     "extensions": [
       ".ws",
       ".wsc"
@@ -564,6 +678,7 @@
   {
     "id": "lynx",
     "name": "Atari Lynx",
+    "short_name": "Lynx",
     "aliases": {
       "romm": "lynx",
       "esde": "atarilynx",
@@ -610,6 +725,7 @@
   {
     "id": "jaguar",
     "name": "Atari Jaguar",
+    "short_name": "Jaguar",
     "aliases": {
       "romm": "jaguar",
       "esde": "atarijaguar",
@@ -617,7 +733,10 @@
     },
     "extensions": [
       ".j64",
-      ".jag"
+      ".jag",
+      ".abs",
+      ".cof",
+      ".rom"
     ],
     "emulators": [
       "retroarch"
@@ -634,8 +753,11 @@
     "extensions": [
       ".cue",
       ".chd",
-      ".iso"
+      ".iso",
+      ".bin",
+      ".m3u"
     ],
+    "disc": true,
     "emulators": [
       "retroarch"
     ]
@@ -658,6 +780,7 @@
   {
     "id": "c64",
     "name": "Commodore 64",
+    "short_name": "C64",
     "aliases": {
       "romm": "c64",
       "esde": "c64",
@@ -667,7 +790,11 @@
       ".d64",
       ".t64",
       ".prg",
-      ".crt"
+      ".crt",
+      ".d71",
+      ".d81",
+      ".tap",
+      ".g64"
     ],
     "emulators": [
       "retroarch"
@@ -684,7 +811,12 @@
     "extensions": [
       ".adf",
       ".hdf",
-      ".lha"
+      ".lha",
+      ".adz",
+      ".dms",
+      ".ipf",
+      ".hdz",
+      ".uae"
     ],
     "emulators": [
       "retroarch"
@@ -701,7 +833,10 @@
     "extensions": [
       ".rom",
       ".dsk",
-      ".cas"
+      ".cas",
+      ".mx1",
+      ".mx2",
+      ".ri"
     ],
     "emulators": [
       "retroarch",
@@ -720,7 +855,9 @@
       ".tzx",
       ".tap",
       ".z80",
-      ".sna"
+      ".sna",
+      ".szx",
+      ".dsk"
     ],
     "emulators": [
       "retroarch"
@@ -767,12 +904,15 @@
       "esde": "dos",
       "libretro": "DOS"
     },
-    "extensions": [
-      ".exe",
-      ".com",
-      ".bat",
-      ".conf"
-    ],
+    "extensions": [],
+    "folder": {
+      "markers": [
+        "dosbox*.conf",
+        "*.conf"
+      ],
+      "max_depth": 2,
+      "min_depth": 1
+    },
     "emulators": [
       "dosbox-staging",
       "retroarch"
@@ -788,6 +928,14 @@
     "extensions": [
       ".scummvm"
     ],
+    "folder": {
+      "markers": [
+        "*"
+      ],
+      "launch": "folder",
+      "max_depth": 1,
+      "min_depth": 1
+    },
     "emulators": [
       "scummvm",
       "retroarch"
@@ -796,6 +944,7 @@
   {
     "id": "model3",
     "name": "Sega Model 3",
+    "short_name": "Model 3",
     "aliases": {
       "romm": "model3",
       "esde": "model3"
