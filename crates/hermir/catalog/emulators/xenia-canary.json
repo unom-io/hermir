@@ -113,9 +113,28 @@
         "kind": "save",
         "path": "content",
         "per_game": true,
-        "note": "per profile and title: content/<profile>/<title id>/00000001"
+        "note": "per profile and title: content/<profile>/<title id>/00000001",
+        "units": {
+          "shape": "folders",
+          "depth": 2,
+          "keep": [
+            "00000001/**",
+            "Headers/00000001/**",
+            "00010000/**"
+          ]
+        }
       }
     ]
+  },
+  "content": {
+    "xbox360": {
+      "update": {
+        "unsupported": "Xenia Canary installs a title update through File → Install Content"
+      },
+      "dlc": {
+        "unsupported": "Xenia Canary installs DLC through File → Install Content"
+      }
+    }
   },
   "notes": "Linux gets Canary's own AppImage, unpacked; it outran the Windows build under Proton. The Windows build asks for a disclaimer once, remembered in HKCU\\SOFTWARE\\Xenia XEFLAGS."
 }

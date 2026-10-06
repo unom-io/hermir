@@ -7,6 +7,7 @@
     "gbc"
   ],
   "license": "MPL-2.0",
+  "archives": true,
   "channels": {
     "linux": {
       "flatpak": "io.mgba.mGBA"
@@ -112,7 +113,11 @@
           "section": "ports.qt",
           "key": "savegamePath"
         },
-        "note": "beside each game (<game>.sav) unless a save folder is set"
+        "note": "beside each game (<game>.sav) unless a save folder is set",
+        "pattern": "*.sav",
+        "units": {
+          "shape": "files"
+        }
       },
       {
         "kind": "state",
@@ -123,7 +128,11 @@
           "section": "ports.qt",
           "key": "savestatePath"
         },
-        "note": "beside each game (<game>.ss1 and on) unless a state folder is set"
+        "note": "beside each game (<game>.ss1 and on) unless a state folder is set",
+        "pattern": "*.ss?",
+        "units": {
+          "shape": "files"
+        }
       }
     ]
   }

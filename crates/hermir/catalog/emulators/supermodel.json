@@ -5,6 +5,7 @@
     "model3"
   ],
   "license": "GPL-3.0-or-later",
+  "archives": true,
   "channels": {
     "linux": {
       "github": "trzy/Supermodel",
@@ -109,13 +110,19 @@
         "path": "{data}/NVRAM",
         "pattern": "*.nv",
         "per_game": true,
-        "note": "each game's backup RAM"
+        "note": "each game's backup RAM",
+        "units": {
+          "shape": "files"
+        }
       },
       {
         "kind": "state",
         "path": "{data}/Saves",
         "pattern": "*.st?",
-        "per_game": true
+        "per_game": true,
+        "units": {
+          "shape": "files"
+        }
       }
     ]
   },

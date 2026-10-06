@@ -129,6 +129,26 @@ impl Store {
         write_json(&self.installed_path(), &rows)
     }
 
+    fn adopted_path(&self) -> PathBuf {
+        self.root.join("adopted.json")
+    }
+
+    /// Copies the operator pointed hermir at, as `adopted.json` lists them.
+    pub fn adopted(&self) -> Result<Vec<crate::model::Adopted>> {
+        Ok(read_json(&self.adopted_path())?.unwrap_or_default())
+    }
+
+    /// Adds `row`, or drops it with `keep: false`. Hold the lock.
+    pub fn set_adopted(&self, row: crate::model::Adopted, keep: bool) -> Result<()> {
+        let mut rows = self.adopted()?;
+        rows.retain(|r| r != &row);
+        if keep {
+            rows.push(row);
+        }
+        rows.sort_by(|a, b| (&a.emulator, &a.exe).cmp(&(&b.emulator, &b.exe)));
+        write_json(&self.adopted_path(), &rows)
+    }
+
     fn manifest_path(&self, id: &str) -> PathBuf {
         self.root.join(id).join("manifest.json")
     }

@@ -349,6 +349,56 @@
       ],
       "type": "object"
     },
+    "ContentMethod": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "description": "Not installable by hermir; the reason, in a phrase a UI shows.",
+          "properties": {
+            "unsupported": {
+              "description": "Why, and what the player does instead.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "unsupported"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "The emulator's own installer: the file goes on its command line, and its exit status is\nthe verdict.",
+          "properties": {
+            "install": {
+              "description": "Arguments, `{file}` the add-on.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "install"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Code that reads the add-on and puts or registers it where the emulator looks: an adapter\nin `content.rs`.",
+          "properties": {
+            "adapter": {
+              "description": "The adapter's name.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "adapter"
+          ],
+          "type": "object"
+        }
+      ],
+      "description": "How one kind of add-on is installed."
+    },
     "Detect": {
       "additionalProperties": false,
       "description": "Detection rules for one OS. Every list is tried; every hit is an `Install`.",
@@ -528,6 +578,16 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "md5": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": "File name → MD5s of the good dumps of that file, where the name fixes the file\n(`dc_boot.bin`). A file of that name with another hash is not placed.",
+          "type": "object"
         },
         "note": {
           "description": "Where the files come from, in a phrase a UI can show.",
@@ -909,6 +969,25 @@
       },
       "type": "object"
     },
+    "PlatformContent": {
+      "additionalProperties": false,
+      "description": "One platform's add-ons: how an update and a DLC are installed.",
+      "properties": {
+        "dlc": {
+          "$ref": "#/$defs/ContentMethod",
+          "description": "Downloadable content."
+        },
+        "update": {
+          "$ref": "#/$defs/ContentMethod",
+          "description": "A game update (a patch the publisher released)."
+        }
+      },
+      "required": [
+        "update",
+        "dlc"
+      ],
+      "type": "object"
+    },
     "PlatformSaves": {
       "anyOf": [
         {
@@ -1129,6 +1208,17 @@
             }
           ],
           "description": "The setting a player moves the folder with: read first, `path` when it is empty."
+        },
+        "units": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Units"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "How the folder splits into units a sync client moves one at a time. Absent: hermir only\nsays where the folder is."
         }
       },
       "required": [
@@ -1309,6 +1399,77 @@
         }
       ]
     },
+    "UnitShape": {
+      "description": "What one unit is.",
+      "oneOf": [
+        {
+          "const": "files",
+          "description": "One file.",
+          "type": "string"
+        },
+        {
+          "const": "folders",
+          "description": "One folder, moved as a tar.",
+          "type": "string"
+        }
+      ]
+    },
+    "Units": {
+      "additionalProperties": false,
+      "description": "How a save folder splits into units. A unit is named for what it is, so the same save keeps\nits name on every machine: a file by its path (`USA/Card A/x.gci` → `USA__Card A__x.gci`),\na folder by its path and `.tar`, or as the folder's adapter names it.",
+      "properties": {
+        "adapter": {
+          "description": "The adapter that names this folder's units, where a folder is not named for its save\n(`ryujinx`, `eden`).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "depth": {
+          "description": "Folders only: how many levels below the save folder a unit's folder sits; 1 when unset.",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "keep": {
+          "description": "Folders only: globs of the paths inside a unit that are the save; the rest beside it (a\ntitle's DLC in Xenia's content folder) is neither packed nor touched.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "shape": {
+          "$ref": "#/$defs/UnitShape",
+          "description": "Each file is a unit, or each folder `depth` levels down."
+        },
+        "shared": {
+          "description": "Globs of the files that hold every game's data at once (a shared memory card).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "under": {
+          "description": "Leads every unit name of this folder (`00010004`), so two folders of one shape keep\ntheir units apart.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "written_at_start": {
+          "description": "The emulator writes an empty save the first time a game starts: a unit this machine has\nnever synced is that empty save, not the player's progress.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "shape"
+      ],
+      "type": "object"
+    },
     "Via": {
       "description": "Where a knob that is not in a file goes.",
       "oneOf": [
@@ -1324,6 +1485,10 @@
   "additionalProperties": false,
   "description": "A catalog entry: one emulator, as `catalog/emulators/<id>.json` spells it.",
   "properties": {
+    "archives": {
+      "description": "It opens a game inside a `.zip` or `.7z` itself.",
+      "type": "boolean"
+    },
     "channels": {
       "$ref": "#/$defs/PerOs",
       "default": {},
@@ -1339,6 +1504,13 @@
         }
       ],
       "description": "How a copy is configured: its settings files, where each neutral knob lands in them,\nhow its player bindings are written. Absent while nothing is described yet."
+    },
+    "content": {
+      "additionalProperties": {
+        "$ref": "#/$defs/PlatformContent"
+      },
+      "description": "How a game's add-ons reach the emulator, per platform id: its updates and its DLC.",
+      "type": "object"
     },
     "detect": {
       "$ref": "#/$defs/PerOs2",

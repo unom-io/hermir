@@ -34,6 +34,7 @@
 mod catalog;
 mod channel;
 mod config;
+mod content;
 mod detect;
 mod error;
 mod launch;
@@ -45,8 +46,9 @@ mod prepare;
 pub mod progress;
 mod saves;
 mod store;
+mod units;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub use catalog::Catalog;
 pub use channel::flatpak::{Process, Runner};
@@ -123,6 +125,11 @@ impl Hermir {
         &self.catalog
     }
 
+    /// What a library needs of the catalog on this machine's OS.
+    pub fn registry(&self) -> Registry {
+        self.catalog.registry(self.os)
+    }
+
     /// The prefix: managed installs, snapshots, the lock.
     pub fn store(&self) -> &Store {
         &self.store
@@ -170,9 +177,23 @@ impl Hermir {
         Ok(EmulatorHandle { h: self, entry })
     }
 
-    /// Copies the user installed, fresh from the machine.
+    /// Copies the user installed, fresh from the machine, and the ones the operator adopted.
     pub fn detect(&self) -> Vec<Install> {
-        detect::detect(&self.catalog, self.env.as_ref())
+        let env = self.env.as_ref();
+        let mut found = detect::detect(&self.catalog, env);
+        for a in self.store.adopted().unwrap_or_default() {
+            let Some(entry) = self.catalog.get(&a.emulator) else {
+                continue;
+            };
+            let known = found.iter().any(|i| {
+                i.emulator == a.emulator
+                    && matches!(&i.exe, Exe::Path(p) if env.canonical(p) == env.canonical(&a.exe))
+            });
+            if !known && env.exists(&a.exe) {
+                found.push(detect::adopted(entry, a.exe, env));
+            }
+        }
+        found
     }
 
     /// Managed rows as `Install`s plus detected copies, managed first, one row per exe.
@@ -542,6 +563,168 @@ impl EmulatorHandle<'_> {
             platform,
         )
         .map_err(Error::Invalid)
+    }
+
+    /// Points hermir at a copy no rule finds (a portable build unpacked anywhere), so it is
+    /// detected like any other from now on; `keep: false` forgets it again. The program must be
+    /// an absolute path to a file that is there.
+    pub fn adopt(&self, exe: &Path, keep: bool) -> Result<Option<Install>> {
+        let env = self.h.env.as_ref();
+        if keep && (!exe.is_absolute() || !env.exists(exe)) {
+            return Err(Error::Invalid(format!(
+                "{} is not a program on this machine",
+                exe.display()
+            )));
+        }
+        let _lock = self.h.store.lock()?;
+        let row = Adopted {
+            emulator: self.entry.id.clone(),
+            exe: exe.to_path_buf(),
+        };
+        self.h.store.set_adopted(row, keep)?;
+        Ok(keep.then(|| detect::adopted(self.entry, exe.to_path_buf(), env)))
+    }
+
+    /// The libretro cores a RetroArch copy has, by the name a launch asks for (`snes9x`).
+    pub fn cores(&self, install: &Install) -> Vec<String> {
+        let Some(dir) = install.config_root.as_ref().map(|r| r.join("cores")) else {
+            return Vec::new();
+        };
+        let mut out: Vec<String> = std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| {
+                let name = e.file_name().to_string_lossy().into_owned();
+                let stem = name
+                    .strip_suffix(".so")
+                    .or_else(|| name.strip_suffix(".dll"))
+                    .or_else(|| name.strip_suffix(".dylib"))?;
+                stem.strip_suffix("_libretro").map(str::to_string)
+            })
+            .collect();
+        out.sort();
+        out
+    }
+
+    /// Every save unit of `platform` on this copy, each with a stamp that changes with it.
+    /// `game` is the game's folder, for an emulator that saves beside its games.
+    pub fn units(
+        &self,
+        install: &Install,
+        platform: &str,
+        game: Option<&Path>,
+    ) -> Result<Vec<SaveUnit>> {
+        self.mine(install)?;
+        units::list(
+            self.entry,
+            self.h.os,
+            install,
+            self.h.env.as_ref(),
+            platform,
+            game,
+        )
+        .map_err(Error::Invalid)
+    }
+
+    /// Writes one unit into the folder `out`, named for the unit: the save file, or a tar of
+    /// the folder with nothing in its headers that differs between machines.
+    #[allow(clippy::too_many_arguments)]
+    pub fn export_unit(
+        &self,
+        install: &Install,
+        platform: &str,
+        game: Option<&Path>,
+        kind: SaveKind,
+        name: &str,
+        out: &Path,
+    ) -> Result<ExportedUnit> {
+        self.mine(install)?;
+        units::export(
+            self.entry,
+            self.h.os,
+            install,
+            self.h.env.as_ref(),
+            platform,
+            game,
+            kind,
+            name,
+            out,
+        )
+        .map_err(Error::Invalid)
+    }
+
+    /// Puts the unit in the file `from` where this copy keeps it; what was there is kept under
+    /// the prefix's `.save-backups`. `others` are the names a server holds for the same game.
+    /// A unit this copy has no place for yet is a step that says so, not an error. Holds the
+    /// prefix lock.
+    #[allow(clippy::too_many_arguments)]
+    pub fn import_unit(
+        &self,
+        install: &Install,
+        platform: &str,
+        game: Option<&Path>,
+        kind: SaveKind,
+        name: &str,
+        from: &Path,
+        others: &[String],
+    ) -> Result<PrepareStep> {
+        self.mine(install)?;
+        let _lock = self.h.store.lock()?;
+        units::import(
+            self.entry,
+            self.h.os,
+            install,
+            self.h.env.as_ref(),
+            platform,
+            game,
+            kind,
+            name,
+            from,
+            others,
+            &self
+                .h
+                .store
+                .root()
+                .join(".save-backups")
+                .join(&self.entry.id),
+        )
+        .map_err(Error::Invalid)
+    }
+
+    /// Installs a game's add-ons (`kind` `update` or `dlc`) the way this emulator takes them;
+    /// one step per add-on. An emulator with no way says why ([`Error::Invalid`]). Holds the
+    /// prefix lock.
+    pub fn install_content(
+        &self,
+        install: &Install,
+        platform: &str,
+        kind: &str,
+        files: &[PathBuf],
+    ) -> Result<Vec<ContentStep>> {
+        self.mine(install)?;
+        let _lock = self.h.store.lock()?;
+        content::install(
+            self.entry,
+            self.h.os,
+            install,
+            platform,
+            kind,
+            files,
+            self.h.runner.as_ref(),
+        )
+        .map_err(Error::Invalid)
+    }
+
+    /// Whether this copy has `platform`'s firmware, each file hashed against the good dumps the
+    /// catalog knows. `None` when the platform needs none.
+    pub fn firmware_status(
+        &self,
+        install: &Install,
+        platform: &str,
+    ) -> Result<Option<FirmwareStatus>> {
+        self.mine(install)?;
+        Ok(prepare::status(self.entry, install, platform))
     }
 
     /// The command that starts `install` with `req`: the catalog's template rendered, the
@@ -1045,5 +1228,87 @@ mod tests {
                 .unwrap()
                 .contains("PAL")
         );
+    }
+
+    #[test]
+    fn an_adopted_copy_is_detected_until_it_is_forgotten() {
+        let tmp = tempfile::tempdir().unwrap();
+        let exe = tmp.path().join("Eden-portable/eden");
+        let env =
+            crate::detect::fake::FakeEnv::new(Os::Linux, "/home/u").file(exe.to_str().unwrap());
+        let h = Hermir::open(Options {
+            prefix: Some(tmp.path().join("prefix")),
+            os: Some(Os::Linux),
+            http: Box::new(FakeHttp::default()),
+            runner: Box::new(FakeRunner::default()),
+            env: Some(Box::new(env)),
+            require_verified: false,
+        })
+        .unwrap();
+        let e = h.emulator("eden").unwrap();
+        assert!(e.copies().unwrap().is_empty());
+        let copy = e.adopt(&exe, true).unwrap().unwrap();
+        assert_eq!(copy.exe, Exe::Path(exe.clone()));
+        assert_eq!(e.copies().unwrap().len(), 1);
+        assert!(e.adopt(Path::new("relative/eden"), true).is_err());
+        e.adopt(&exe, false).unwrap();
+        assert!(e.copies().unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_retroarch_copy_lists_its_cores_by_name() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = on_linux(tmp.path());
+        let root = tmp.path().join("retroarch");
+        std::fs::create_dir_all(root.join("cores")).unwrap();
+        for f in ["snes9x_libretro.so", "mgba_libretro.dll", "readme.txt"] {
+            std::fs::write(root.join("cores").join(f), b"").unwrap();
+        }
+        let copy = Install::new(
+            "retroarch",
+            InstallKind::Native,
+            Exe::Path("/usr/bin/retroarch".into()),
+            Some(root),
+        );
+        assert_eq!(
+            h.emulator("retroarch").unwrap().cores(&copy),
+            ["mgba", "snes9x"]
+        );
+    }
+
+    #[test]
+    fn firmware_status_hashes_what_is_there_and_a_wrong_dump_is_not_placed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = on_linux(tmp.path());
+        let e = h.emulator("retroarch").unwrap();
+        let root = tmp.path().join("retroarch");
+        let copy = Install::new(
+            "retroarch",
+            InstallKind::Native,
+            Exe::Path("/usr/bin/retroarch".into()),
+            Some(root.clone()),
+        );
+        let src = tmp.path().join("bios");
+        std::fs::create_dir_all(&src).unwrap();
+        let bad = src.join("sega_101.bin");
+        std::fs::write(&bad, b"not a saturn bios").unwrap();
+        let done = e.prepare(&copy, Some("saturn"), &[bad]).unwrap();
+        let fw = done.steps.iter().find(|s| s.kind == "firmware").unwrap();
+        assert_eq!(fw.outcome, StepOutcome::Failed);
+        assert!(!root.join("system/sega_101.bin").exists());
+        let s = e.firmware_status(&copy, "saturn").unwrap().unwrap();
+        assert!(!s.ok && s.found.is_empty());
+        // Placed by hand anyway: found, hashed, and not taken as good.
+        std::fs::create_dir_all(root.join("system")).unwrap();
+        std::fs::write(root.join("system/sega_101.bin"), b"not a saturn bios").unwrap();
+        let s = e.firmware_status(&copy, "saturn").unwrap().unwrap();
+        assert_eq!(s.found.len(), 1);
+        assert_eq!(s.found[0].known, Some(false));
+        assert!(!s.ok);
+        // A family of names with no hashes: there is enough.
+        std::fs::write(root.join("system/scph5501.bin"), b"x").unwrap();
+        let s = e.firmware_status(&copy, "psx").unwrap().unwrap();
+        assert!(s.ok && s.found[0].known.is_none());
+        assert!(e.firmware_status(&copy, "snes").unwrap().is_none());
     }
 }

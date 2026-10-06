@@ -271,6 +271,13 @@ fn join_for(os: Os, dir: &Path, name: &str) -> PathBuf {
     }
 }
 
+/// A copy the operator pointed at, read as detection reads one it found: portable when its
+/// marker is beside it.
+pub fn adopted(entry: &Entry, exe: PathBuf, env: &dyn Env) -> Install {
+    let rules = entry.detect.get(env.os()).cloned().unwrap_or_default();
+    native(entry, &rules, exe, env)
+}
+
 fn native(entry: &Entry, rules: &Detect, exe: PathBuf, env: &dyn Env) -> Install {
     let app_dir = dir_of(env.os(), &exe);
     let portable = rules

@@ -162,14 +162,30 @@
         "kind": "save",
         "path": "dev_hdd0/home/00000001/savedata",
         "per_game": true,
-        "note": "per user, 00000001 the first, and per save id"
+        "note": "per user, 00000001 the first, and per save id",
+        "units": {
+          "shape": "folders"
+        }
       },
       {
         "kind": "state",
         "path": "savestates",
-        "per_game": true
+        "per_game": true,
+        "units": {
+          "shape": "files"
+        }
       }
     ]
+  },
+  "content": {
+    "ps3": {
+      "update": {
+        "adapter": "rpcs3"
+      },
+      "dlc": {
+        "adapter": "rpcs3"
+      }
+    }
   },
   "notes": "Linux gets RPCS3's own AppImage (x86_64), unpacked: the Flathub build asks on every launch whether to run an unofficial build. Keeps dev_hdd0 and dev_flash beside the exe on Windows, and config.yml, GuiConfigs and input_configs under config/ there. Firmware installs headless with `--installfw <PS3UPDAT.PUP>`; the exit code is not the verdict, dev_flash is.",
   "firmware": {

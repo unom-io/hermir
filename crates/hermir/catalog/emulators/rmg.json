@@ -94,6 +94,9 @@
           "file": "main",
           "section": "Core",
           "key": "SaveSRAMPath"
+        },
+        "units": {
+          "shape": "files"
         }
       },
       {
@@ -104,6 +107,9 @@
           "file": "main",
           "section": "Core",
           "key": "SaveStatePath"
+        },
+        "units": {
+          "shape": "files"
         }
       }
     ]

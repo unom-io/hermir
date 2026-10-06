@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | P0–P3 implemented (§10): install, detect, `prepare`, `apply`/`revert`/`get`/`support` for players, video, region, audio and native keys, profiles, launch, saves, pad enumeration. Golden fixtures from the Flathub builds of 17 emulators (§8). Windows fixtures, and the Windows pad forms they decide, are what remains (§12). |
-| **Date** | 2026-10-03 |
+| **Status** | P0–P3 implemented (§10): install, detect, `prepare`, `apply`/`revert`/`get`/`support` for players, video, region, audio and native keys, profiles, launch, saves, pad enumeration. P4's library side (§7, §7.1): the registry, adopted copies, save units, add-ons, firmware status. Golden fixtures from the Flathub builds of 17 emulators (§8). Windows fixtures, and the Windows pad forms they decide, are what remains (§12). |
+| **Date** | 2026-10-06 |
 | **Name** | Icelandic *hermir*: emulator, simulator; from *herma*, "to mimic". |
 | **One line** | One multi-platform interface for managing emulators: install them, find them, configure them (controllers, video, audio, paths), build their launch, know where their firmware and saves live. A Rust library, and a CLI that is the same thing for every other language. |
 
@@ -39,7 +39,11 @@ Four questions, in the order a launcher asks them:
 1. **Is there an emulator for this platform on this machine?** — `detect`, `status`. If not: **can I get one?** — `install`, on the operator's say-so.
 2. **Before I start it, make it right for this session.** Player 1 is this pad, player 2 that one; 1440p, fullscreen, v-sync on; audio into this device; BIOS in place. — `apply`, `firmware`.
 3. **Start this file.** — `launch` → a command the consumer runs its own way.
-4. **Afterwards, put things back** (a streaming host that borrowed the emulator for a session) and **where did the saves go** (a client that syncs them). — `revert`, `saves`.
+4. **Afterwards, put things back** (a streaming host that borrowed the emulator for a session) and **where did the saves go** (a client that syncs them). — `revert`, `saves`, `units`.
+
+A library asks two more before any of that: **what is this file, and which emulators play
+it** (`registry`), and **what else does the game need** — its updates and DLC (`install_content`),
+its firmware (`firmware_status`).
 
 Everything hermir exposes is one of those four; anything that isn't, it doesn't do.
 
@@ -109,6 +113,11 @@ pub struct LaunchSpec { exe: Exe, args: Vec<String>, env: BTreeMap<String, Strin
 pub struct Saves { platform, locations: Vec<SaveLocation>, unknown: Option<String> }
 pub struct SaveLocation { kind: SaveKind /* Save | Memcard | State */, path, beside_game, pattern,
                           per_game, from_setting, exists, note }
+pub struct SaveUnit { kind, name, shared, written_at_start, size, files, modified, path }
+
+pub struct Registry { platforms: Vec<Platform>, emulators: Vec<RegistryEmulator> }
+pub struct Platform { id, name, short_name, aliases, also, extensions, disc, folder: Option<FolderShape>, emulators }
+pub struct RegistryEmulator { id, name, platforms, archives, offered, no_install, cores, saves, content, firmware }
 ```
 
 Three properties hold everywhere: every optional field means "leave as is"; every result says
@@ -133,6 +142,10 @@ e.revert(false)?;                                   // byte-identical, or a conf
 let p = e.profile(&copy, "punktfunk")?;  p.apply(&patch)?;          // isolated where the emulator allows it
 e.launch(&copy, &LaunchRequest { file: Some(game), profile: Some("punktfunk".into()), ..Default::default() })?;
 e.saves(&copy, Some("ps2"))?;
+e.units(&copy, "ps2", None)?;  e.export_unit(..)?;  e.import_unit(..)?;   // §7
+e.install_content(&copy, "wiiu", "update", &[folder])?;               // §7.1
+e.firmware_status(&copy, "ps2")?;  e.adopt(&exe, true)?;  e.cores(&copy);
+h.registry();  h.catalog().find_platform("gamecube");
 ```
 
 `Hermir` is `Send + Sync`; a handle is cheap. Every write holds the prefix lock (`Error::Locked`,
@@ -150,6 +163,11 @@ hermir detect
 hermir install   <emu>        hermir update <emu> | --all        hermir remove <emu> [--purge]
 hermir where     <emu>                          exe and config root of the best copy
 hermir saves     where <emu> [<platform>]       each save folder, resolved, and whether it is there
+                 list | export | import <emu> <platform> …   save units (§7)
+hermir content   install <emu> <platform> update|dlc <file>…
+hermir firmware  status <emu> <platform>        each file hashed against the good dumps
+hermir adopt     <emu> <exe> [--forget]         a copy no rule finds, detected from now on
+hermir catalog   registry                        what a library needs: platforms and emulators
 hermir prepare   <emu> [--platform p] [--firmware <file>…]
 hermir players   <emu> [--pad VID:PID[:NAME][@INDEX]… | --pad auto | --players FILE] [--connected FILE] [--revert]
 hermir config    apply <emu> [--fullscreen] [--scale n] [--vsync] [--aspect a] [--region r]
@@ -391,6 +409,35 @@ Two views of catalog knowledge, resolved against an `Install`:
   it), or beside each game (`{game}`); a setting that moves a folder (PCSX2's `[Folders]`, Cemu's
   `mlc_path`, RetroArch's `savefile_directory`) is read first. So a sync client knows what to
   watch. hermir does not sync.
+- `units(install, platform, game)` splits those folders into what a sync client moves one at a
+  time, as each folder's `units` block says: each file, or each folder `depth` levels down
+  (`keep` the paths inside that are the save, `shared` the files every game shares, `under` a
+  lead for a second folder of one shape), or what an adapter names (Ryujinx's save index, Eden's
+  profile folders: `<TITLE>.account.<user>`, the same name in both). A unit's name is the same on
+  every machine; its stamp (size, files, newest change) moves with it. `export_unit` writes one
+  as a file, a folder as a tar with no time, owner or mode in its headers, so a save is the same
+  bytes everywhere; `import_unit` puts one back, what was there kept under the prefix's
+  `.save-backups`, and a unit the copy has no place for yet (a Switch title that never ran) is a
+  step that says so. `written_at_start` marks an emulator that writes an empty save at a game's
+  first start, which a sync client must not mistake for progress. Which side wins stays the
+  client's call.
+- `firmware_status(install, platform)` lists the files that match a need, each MD5-hashed;
+  where a name fixes the file (`dc_boot.bin`), the need lists the good dumps, and `prepare`
+  refuses one that is not.
+
+### 7.1 Add-ons
+
+`content` in an entry says, per platform, how an `update` and a `dlc` reach the emulator: an
+adapter that reads the add-on (Cemu: the title folder, copied into the MLC under the id its
+`meta.xml` names; Ryujinx: the NSP registered in `games/<base>/updates.json` or `dlc.json`, the
+title from its ticket, no keys needed; RPCS3: a `.pkg` through `--headless --installpkg`, a
+`.rap` into `exdata`), the emulator's own installer, or `unsupported` with the sentence a UI
+shows (Eden, Xenia, Azahar, Vita3K install through their own menus).
+
+### 7.2 Adopted copies
+
+`adopt(exe)` records a copy no detect rule finds (a portable zip unpacked anywhere) in the
+prefix's `adopted.json`; `detect` returns it like any other from then on.
 
 ## 8. Testing
 
@@ -450,7 +497,7 @@ links it in (the release binaries; CMake and a C compiler). Every one permissive
 | **P1 — set** | formats, data knobs, the transaction, `config apply/revert/support/get`, `launch`/`run` **(done; Linux fixtures)** | `apply --scale 3 --fullscreen` on PCSX2, Dolphin, DuckStation, RPCS3, RetroArch; `revert` byte-identical; support matrix generated |
 | **P2 — players** | `PadRef`, adapters, `connected` ordinals, `enumerate` feature, `hermir pads`, `--pad auto` **(done; Windows forms open)** | two pads in a chosen seat order land as player 1 and 2 in all five, on both OSes, from a real machine |
 | **P3 — the rest** | the other adapters; profiles; firmware + saves views; audio **(done)** | every catalog emulator has fixtures and a green `hermir check` on one real box per OS |
-| **P4 — consumers** | punktfunk links the crate (installs on approval, `prepare` → `apply`/`revert`); ROM Manager's registry generated from `catalog/`; a `docs/consumers.md` recipe for a script and for a RomM client | the Discord case: a PS2 title on a RomM server plays through punktfunk with pads in seat order and no hand-edited file |
+| **P4 — consumers** | punktfunk links the crate (installs on approval, `prepare` → `apply`/`revert`, launches through `launch`); ROM Manager reads the registry from the host instead of keeping its own tables, and moves saves and add-ons through it **(library side done)** | the Discord case: a PS2 title on a RomM server plays through punktfunk with pads in seat order and no hand-edited file |
 P0 is the [emu-get scope from the punktfunk design](https://git.unom.io/unom/punktfunk-planning)
 and can ship alone. P1 and P2 are independent of each other.
 

@@ -116,9 +116,22 @@
         "kind": "save",
         "path": "ux0/user/00/savedata",
         "per_game": true,
-        "note": "per title id (PCSE…)"
+        "note": "per title id (PCSE…)",
+        "units": {
+          "shape": "folders"
+        }
       }
     ]
+  },
+  "content": {
+    "psvita": {
+      "update": {
+        "unsupported": "Vita3K installs a patch package through File → Install .pkg"
+      },
+      "dlc": {
+        "unsupported": "Vita3K installs DLC through File → Install .pkg"
+      }
+    }
   },
   "notes": "Not on Flathub. Linux and Windows take its continuous build, rebuilt in place under one tag: an update is told by the release's id, not its name."
 }

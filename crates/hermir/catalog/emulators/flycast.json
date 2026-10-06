@@ -5,6 +5,7 @@
     "dc"
   ],
   "license": "GPL-2.0-or-later",
+  "archives": true,
   "channels": {
     "linux": {
       "flatpak": "org.flycast.Flycast"
@@ -55,7 +56,12 @@
           "dc_flash.bin"
         ],
         "note": "optional; Flycast also runs without",
-        "optional": true
+        "optional": true,
+        "md5": {
+          "dc_boot.bin": [
+            "e10c53c2f8b90bab96ead2d368858623"
+          ]
+        }
       }
     }
   },
@@ -139,13 +145,22 @@
         "kind": "memcard",
         "path": "{data}",
         "pattern": "vmu_save_*.bin",
-        "note": "a VMU image per port and slot (vmu_save_A1.bin), shared by every game unless per-game VMUs are on"
+        "note": "a VMU image per port and slot (vmu_save_A1.bin), shared by every game unless per-game VMUs are on",
+        "units": {
+          "shape": "files",
+          "shared": [
+            "vmu_save_*.bin"
+          ]
+        }
       },
       {
         "kind": "state",
         "path": "{data}",
         "pattern": "*.state",
-        "per_game": true
+        "per_game": true,
+        "units": {
+          "shape": "files"
+        }
       }
     ]
   },

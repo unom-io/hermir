@@ -111,11 +111,27 @@
     "switch": [
       {
         "kind": "save",
-        "path": "nand/user/save",
+        "path": "nand/user/save/0000000000000000",
         "per_game": true,
-        "note": "per user and title id: 0000000000000000/<user>/<title>"
+        "note": "per profile and title: <profile>/<title>, the profile folder in Eden's own spelling",
+        "units": {
+          "shape": "folders",
+          "depth": 2,
+          "adapter": "eden",
+          "written_at_start": true
+        }
       }
     ]
+  },
+  "content": {
+    "switch": {
+      "update": {
+        "unsupported": "Eden installs updates into its own storage: File → Install Files to NAND"
+      },
+      "dlc": {
+        "unsupported": "Eden installs DLC into its own storage: File → Install Files to NAND"
+      }
+    }
   },
   "notes": "The root is Eden's data folder, where keys and system firmware live; its settings are under ~/.config/eden. System firmware comes as a zip of NCAs and is unpacked only while none is installed.",
   "firmware": {
