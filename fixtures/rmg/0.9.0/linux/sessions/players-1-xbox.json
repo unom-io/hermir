@@ -15,7 +15,12 @@
     ]
   },
   "expect": {
-    "players": "partial"
+    "players": "applied"
   },
-  "may_touch": []
+  "may_touch": [
+    "mupen64plus.cfg:Rosalie's Mupen GUI - Input Plugin Profile 0",
+    "mupen64plus.cfg:Rosalie's Mupen GUI - Input Plugin Profile 1",
+    "mupen64plus.cfg:Rosalie's Mupen GUI - Input Plugin Profile 2",
+    "mupen64plus.cfg:Rosalie's Mupen GUI - Input Plugin Profile 3"
+  ]
 }

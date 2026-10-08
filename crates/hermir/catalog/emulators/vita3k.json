@@ -107,7 +107,7 @@
       }
     },
     "players": {
-      "automatic": "Vita3K maps SDL pads itself, in the order they appear"
+      "automatic": "Vita3K reads every SDL pad as the one Vita"
     }
   },
   "saves": {

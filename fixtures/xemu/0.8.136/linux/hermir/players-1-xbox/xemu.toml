@@ -2,5 +2,8 @@
 eeprom_path = 'masked'
 
 
+[input]
+background_input_capture = true
+
 [input.bindings]
 port1 = "030081b85e0400008e02000010010000"

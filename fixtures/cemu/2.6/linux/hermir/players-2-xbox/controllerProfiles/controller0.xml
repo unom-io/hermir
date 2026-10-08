@@ -6,6 +6,7 @@
 		<uuid>0_030081b85e0400008e02000010010000</uuid>
 		<display_name>Xbox 360 Controller</display_name>
 		<rumble>0</rumble>
+		<motion>true</motion>
 		<axis>
 			<deadzone>0.25</deadzone>
 			<range>1</range>

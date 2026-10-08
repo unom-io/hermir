@@ -25,12 +25,24 @@ pub(crate) enum Edit {
     },
     /// The whole file, ours.
     Whole { file: PathBuf, content: String },
+    /// No such file: an emulator that reads one as a plugged-in controller loses it. Every
+    /// other edit of the same file is moot.
+    Remove { file: PathBuf },
+    /// A root member of a JSON file replaced whole, an array or object included.
+    JsonValue {
+        file: PathBuf,
+        key: String,
+        value: serde_json::Value,
+    },
 }
 
 impl Edit {
     pub fn file(&self) -> &Path {
         match self {
-            Edit::Set { file, .. } | Edit::Whole { file, .. } => file,
+            Edit::Set { file, .. }
+            | Edit::Whole { file, .. }
+            | Edit::Remove { file }
+            | Edit::JsonValue { file, .. } => file,
         }
     }
 
@@ -61,6 +73,8 @@ impl Edit {
     fn patch(&self, text: &str) -> Result<Option<String>, String> {
         match self {
             Edit::Whole { content, .. } => Ok((text != content).then(|| content.clone())),
+            Edit::Remove { .. } => Ok(None),
+            Edit::JsonValue { key, value, .. } => json::set_value(text, key, value),
             Edit::Set {
                 format,
                 case_insensitive,
@@ -153,6 +167,22 @@ pub(crate) fn apply_edits(snapshots: &Path, entry_id: &str, edits: &[Edit]) -> V
     }
     'files: for file in files {
         let failed = |why: String| step("config", file, StepOutcome::Failed, Some(why));
+        if edits
+            .iter()
+            .any(|e| e.file() == file && matches!(e, Edit::Remove { .. }))
+        {
+            steps.push(if !file.exists() {
+                step("config", file, StepOutcome::Present, None)
+            } else if let Err(e) = snap.keep(file) {
+                failed(e)
+            } else {
+                match std::fs::remove_file(file) {
+                    Ok(()) => step("config", file, StepOutcome::Applied, None),
+                    Err(e) => failed(io_note(&e)),
+                }
+            });
+            continue;
+        }
         let before = match std::fs::read(file) {
             Ok(bytes) => match String::from_utf8(bytes) {
                 Ok(t) => t,

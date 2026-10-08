@@ -98,7 +98,7 @@
       }
     },
     "players": {
-      "unsupported": "Ryujinx keys pads by its own controller id in Config.json; not yet described"
+      "adapter": "ryujinx"
     }
   },
   "saves": {

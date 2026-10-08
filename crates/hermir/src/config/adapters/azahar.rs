@@ -1,34 +1,28 @@
-//! Azahar (Citra's lineage): one 3DS, so one player, in profile 1 of `qt-config.ini`, each
-//! control `api:controller,…,engine:sdl,guid:<guid>,port:<n>`, n counting pads of the same
-//! GUID from 0.
-use super::{Bindings, Cx, Plan, Seating, beyond, guid_note, join, set};
+//! Azahar (Citra's lineage): one 3DS, so one player, in the first profile of `qt-config.ini`,
+//! made the current one. Each control is `api:controller,…,engine:sdl,maptype:all`, which
+//! reads SDL's game-controller numbers off every pad, so no GUID has to match the SDL Azahar
+//! is built on. The motion device without a GUID is the first pad's gyro.
+use super::{Bindings, Cx, Plan, Seating, beyond, set};
 use crate::config::ini::qt_value;
 
 pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
     let players = &s.seats[..];
-    let Some(p) = players.iter().find(|p| p.seat == 1) else {
+    let note = beyond(players, 1, "a 3DS");
+    if !players.iter().any(|p| p.seat == 1) {
         return Ok(Bindings {
             edits: Vec::new(),
-            note: beyond(players, 1, "a 3DS"),
+            note,
         });
-    };
-    let g = p.pad.sdl_guid(true);
-    let i = s.ordinal(&p.pad, |q| q.sdl_guid(true));
-    let btn = |b: u32| {
-        qt_value(&format!(
-            "api:controller,button:{b},engine:sdl,guid:{g},port:{i}"
-        ))
-    };
+    }
+    let any = "engine:sdl,maptype:all";
+    let btn = |b: u32| qt_value(&format!("api:controller,button:{b},{any}"));
     let axis = |a: u32| {
         qt_value(&format!(
-            "api:controller,axis:{a},direction:+,engine:sdl,guid:{g},port:{i},threshold:0.500000"
+            "api:controller,axis:{a},direction:+,{any},threshold:0.500000"
         ))
     };
-    let stick = |x: u32, y: u32| {
-        qt_value(&format!(
-            "api:controller,axis_x:{x},axis_y:{y},engine:sdl,guid:{g},port:{i}"
-        ))
-    };
+    let stick = |x: u32, y: u32| qt_value(&format!("api:controller,axis_x:{x},axis_y:{y},{any}"));
+    // 3DS buttons by position: A east, B south, X north, Y west.
     let binds = [
         ("button_a", btn(1)),
         ("button_b", btn(0)),
@@ -47,8 +41,10 @@ pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
         ("button_right", btn(14)),
         ("circle_pad", stick(0, 1)),
         ("c_stick", stick(2, 3)),
+        ("motion_device", qt_value("engine:sdl")),
     ];
-    let mut edits = Vec::new();
+    let mut edits = set(cx, "main", "Controls", "profile", "0")?;
+    edits.extend(set(cx, "main", "Controls", "profiles\\size", "1")?);
     for (key, value) in binds {
         edits.extend(set(
             cx,
@@ -58,11 +54,5 @@ pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
             &value,
         )?);
     }
-    Ok(Bindings {
-        edits,
-        note: join(
-            join(beyond(players, 1, "a 3DS"), guid_note(cx.os, s)),
-            s.guessed("Azahar", "GUID"),
-        ),
-    })
+    Ok(Bindings { edits, note })
 }

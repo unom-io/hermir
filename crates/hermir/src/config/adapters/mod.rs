@@ -9,16 +9,23 @@
 //! RY 3, LT 4, RT 5. Raw evdev/joystick order of the same pad: buttons A 0, B 1, X 2, Y 3,
 //! LB 4, RB 5, Back 6, Start 7, Guide 8, LS 9, RS 10; axes X 0, Y 1, LT 2, RX 3, RY 4, RT 5,
 //! hat X 6, hat Y 7. Nintendo layouts are mapped by position, so a face button keeps its place.
+mod ares;
 mod azahar;
 mod cemu;
 mod dolphin;
 mod duckstation;
 mod eden;
+mod flycast;
 mod melonds;
+mod mgba;
 mod pad_ini;
 mod pcsx2;
 mod retroarch;
+mod rmg;
 mod rpcs3;
+mod ryujinx;
+mod shadps4;
+mod snes9x;
 mod supermodel;
 mod xemu;
 
@@ -100,6 +107,10 @@ impl<'a> Seating<'a> {
 
 pub(crate) const ADAPTERS: &[Adapter] = &[
     Adapter {
+        name: "ares",
+        players: ares::players,
+    },
+    Adapter {
         name: "azahar",
         players: azahar::players,
     },
@@ -118,6 +129,30 @@ pub(crate) const ADAPTERS: &[Adapter] = &[
     Adapter {
         name: "eden",
         players: eden::players,
+    },
+    Adapter {
+        name: "flycast",
+        players: flycast::players,
+    },
+    Adapter {
+        name: "mgba",
+        players: mgba::players,
+    },
+    Adapter {
+        name: "rmg",
+        players: rmg::players,
+    },
+    Adapter {
+        name: "ryujinx",
+        players: ryujinx::players,
+    },
+    Adapter {
+        name: "shadps4",
+        players: shadps4::players,
+    },
+    Adapter {
+        name: "snes9x",
+        players: snes9x::players,
     },
     Adapter {
         name: "melonds",
@@ -248,25 +283,6 @@ fn guid_note(os: Os, s: &Seating) -> Option<String> {
         "on Windows SDL derives a pad's GUID from the driver it comes through; the USB-derived \
          GUID is a best effort"
             .into()
-    })
-}
-
-/// The caveat for an emulator that binds a pad's raw button and axis numbers, laid out as the
-/// Xbox 360 pad's: a seated pad that is not one may number them otherwise (a DualSense SDL
-/// drives through HIDAPI does). Seats past `ports` are left out anyway.
-fn layout_note(emulator: &str, s: &Seating, ports: u8) -> Option<String> {
-    let other: Vec<String> = s
-        .seats
-        .iter()
-        .filter(|p| p.seat <= ports && !p.pad.xbox_layout())
-        .map(|p| p.seat.to_string())
-        .collect();
-    (!other.is_empty()).then(|| {
-        format!(
-            "{emulator} binds raw button numbers, laid out as the Xbox 360 pad's; the pad in \
-             seat {} may number them otherwise",
-            other.join(", ")
-        )
     })
 }
 

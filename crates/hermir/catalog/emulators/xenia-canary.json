@@ -104,7 +104,7 @@
       }
     },
     "players": {
-      "automatic": "Xenia takes XInput pads in slot order"
+      "automatic": "Xenia seats SDL pads in the order they appear"
     }
   },
   "saves": {

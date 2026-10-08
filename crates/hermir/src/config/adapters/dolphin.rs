@@ -1,117 +1,60 @@
 //! Dolphin: a GameCube pad on the sticks and face buttons, a Wii Remote with Nunchuk, pointer
-//! on the right stick and B on the right trigger, per seat. On Linux through its evdev
-//! backend, which names a device `evdev/<id>/<kernel name>`, the id counting same-named
-//! devices from 0, and a pad's controls by position (`Button 0`, `Axis 1-`); on Windows
-//! through XInput, which names them (`Button A`, `Left Y+`).
-use super::{Bindings, Cx, Plan, Seating, beyond, join, layout_note, set};
-use crate::model::Os;
+//! on the right stick, B on the right trigger and the pad's gyro and accelerometer as its
+//! motion, per seat. Through its SDL backend, which names a device `SDL/<id>/<SDL name>`, the
+//! id counting same-named pads from 0, and a pad's controls by SDL's game-controller names,
+//! so every pad kind binds alike. An Xbox pad on Windows goes through XInput; the face
+//! buttons are spelled its way (`Button A` south), which SDL's backend matches by position.
+//! A seat is plugged in by `SIDevice<n>` and the remote's `Source`, so every seat without a
+//! pad is unplugged.
+use super::{Bindings, Cx, Plan, Seating, beyond, join, set};
+use crate::model::{Os, PadRef};
 
 type Binds = &'static [(&'static str, &'static str)];
 
 pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
     let players = &s.seats[..];
     let mut edits = Vec::new();
-    for p in players.iter().filter(|p| p.seat <= 4) {
-        let gc = format!("GCPad{}", p.seat);
-        let wii = format!("Wiimote{}", p.seat);
-        let (dev, gc_binds, wii_binds): (String, Binds, Binds) = match cx.os {
-            Os::Windows => (
-                format!("XInput/{}/Gamepad", p.pad.index),
-                GC_XINPUT,
-                WII_XINPUT,
-            ),
-            _ => (
-                format!(
-                    "evdev/{}/{}",
-                    s.ordinal(&p.pad, |q| q.name.clone()),
-                    p.pad.name
-                ),
-                GC_EVDEV,
-                WII_EVDEV,
-            ),
+    for seat in 1..=4u8 {
+        let (gc, wii) = (format!("GCPad{seat}"), format!("Wiimote{seat}"));
+        let si = format!("SIDevice{}", seat - 1);
+        let Some(p) = players.iter().find(|p| p.seat == seat) else {
+            edits.extend(set(cx, "main", "Core", &si, "0")?);
+            edits.extend(set(cx, "wiimote", &wii, "Source", "0")?);
+            continue;
         };
+        let dev = device(cx.os, s, &p.pad);
+        // 6: a standard controller.
+        edits.extend(set(cx, "main", "Core", &si, "6")?);
         edits.extend(set(cx, "gcpad", &gc, "Device", &dev)?);
-        for (k, v) in gc_binds {
+        for (k, v) in GC {
             edits.extend(set(cx, "gcpad", &gc, k, v)?);
         }
         edits.extend(set(cx, "wiimote", &wii, "Source", "1")?);
         edits.extend(set(cx, "wiimote", &wii, "Device", &dev)?);
         edits.extend(set(cx, "wiimote", &wii, "Extension", "Nunchuk")?);
-        for (k, v) in wii_binds {
+        for (k, v) in WII {
             edits.extend(set(cx, "wiimote", &wii, k, v)?);
         }
     }
     Ok(Bindings {
         edits,
-        note: if cx.os == Os::Windows {
-            beyond(players, 4, "Dolphin")
-        } else {
-            join(
-                join(beyond(players, 4, "Dolphin"), s.guessed("Dolphin", "name")),
-                layout_note("Dolphin's evdev backend", s, 4),
-            )
-        },
+        note: join(beyond(players, 4, "Dolphin"), s.guessed("Dolphin", "name")),
     })
 }
 
-const GC_EVDEV: &[(&str, &str)] = &[
-    ("Buttons/A", "`Button 0`"),
-    ("Buttons/B", "`Button 2`"),
-    ("Buttons/X", "`Button 1`"),
-    ("Buttons/Y", "`Button 3`"),
-    ("Buttons/Z", "`Button 5`"),
-    ("Buttons/Start", "`Button 7`"),
-    ("Main Stick/Up", "`Axis 1-`"),
-    ("Main Stick/Down", "`Axis 1+`"),
-    ("Main Stick/Left", "`Axis 0-`"),
-    ("Main Stick/Right", "`Axis 0+`"),
-    ("C-Stick/Up", "`Axis 4-`"),
-    ("C-Stick/Down", "`Axis 4+`"),
-    ("C-Stick/Left", "`Axis 3-`"),
-    ("C-Stick/Right", "`Axis 3+`"),
-    ("Triggers/L", "`Axis 2+`"),
-    ("Triggers/R", "`Axis 5+`"),
-    ("Triggers/L-Analog", "`Axis 2+`"),
-    ("Triggers/R-Analog", "`Axis 5+`"),
-    ("D-Pad/Up", "`Axis 7-`"),
-    ("D-Pad/Down", "`Axis 7+`"),
-    ("D-Pad/Left", "`Axis 6-`"),
-    ("D-Pad/Right", "`Axis 6+`"),
-    ("Rumble/Motor", "`Motor`"),
-];
+/// The pad as Dolphin names it: XInput's slot for an Xbox pad on Windows, else SDL's.
+fn device(os: Os, s: &Seating, pad: &PadRef) -> String {
+    if os == Os::Windows && !pad.hidapi() {
+        return format!("XInput/{}/Gamepad", pad.index);
+    }
+    format!(
+        "SDL/{}/{}",
+        s.ordinal(pad, PadRef::sdl_name),
+        pad.sdl_name()
+    )
+}
 
-const WII_EVDEV: &[(&str, &str)] = &[
-    ("Buttons/A", "`Button 0`"),
-    ("Buttons/B", "`Axis 5+`"),
-    ("Buttons/1", "`Button 2`"),
-    ("Buttons/2", "`Button 3`"),
-    ("Buttons/-", "`Button 6`"),
-    ("Buttons/+", "`Button 7`"),
-    ("Buttons/Home", "`Button 8`"),
-    ("IR/Up", "`Axis 4-`"),
-    ("IR/Down", "`Axis 4+`"),
-    ("IR/Left", "`Axis 3-`"),
-    ("IR/Right", "`Axis 3+`"),
-    ("Shake/X", "`Button 1`"),
-    ("Shake/Y", "`Button 1`"),
-    ("Shake/Z", "`Button 1`"),
-    ("Nunchuk/Buttons/C", "`Button 4`"),
-    ("Nunchuk/Buttons/Z", "`Axis 2+`"),
-    ("Nunchuk/Stick/Up", "`Axis 1-`"),
-    ("Nunchuk/Stick/Down", "`Axis 1+`"),
-    ("Nunchuk/Stick/Left", "`Axis 0-`"),
-    ("Nunchuk/Stick/Right", "`Axis 0+`"),
-    ("Nunchuk/Shake/X", "`Button 10`"),
-    ("Nunchuk/Shake/Y", "`Button 10`"),
-    ("Nunchuk/Shake/Z", "`Button 10`"),
-    ("D-Pad/Up", "`Axis 7-`"),
-    ("D-Pad/Down", "`Axis 7+`"),
-    ("D-Pad/Left", "`Axis 6-`"),
-    ("D-Pad/Right", "`Axis 6+`"),
-    ("Rumble/Motor", "`Motor`"),
-];
-
-const GC_XINPUT: &[(&str, &str)] = &[
+const GC: Binds = &[
     ("Buttons/A", "`Button A`"),
     ("Buttons/B", "`Button X`"),
     ("Buttons/X", "`Button B`"),
@@ -137,7 +80,7 @@ const GC_XINPUT: &[(&str, &str)] = &[
     ("Rumble/Motor", "`Motor L`|`Motor R`"),
 ];
 
-const WII_XINPUT: &[(&str, &str)] = &[
+const WII: Binds = &[
     ("Buttons/A", "`Button A`"),
     ("Buttons/B", "`Trigger R`"),
     ("Buttons/1", "`Button X`"),
@@ -166,4 +109,17 @@ const WII_XINPUT: &[(&str, &str)] = &[
     ("D-Pad/Left", "`Pad W`"),
     ("D-Pad/Right", "`Pad E`"),
     ("Rumble/Motor", "`Motor L`|`Motor R`"),
+    // A pad without the sensors leaves these idle; XInput has none.
+    ("IMUAccelerometer/Up", "`Accel Up`"),
+    ("IMUAccelerometer/Down", "`Accel Down`"),
+    ("IMUAccelerometer/Left", "`Accel Left`"),
+    ("IMUAccelerometer/Right", "`Accel Right`"),
+    ("IMUAccelerometer/Forward", "`Accel Forward`"),
+    ("IMUAccelerometer/Backward", "`Accel Backward`"),
+    ("IMUGyroscope/Pitch Up", "`Gyro Pitch Up`"),
+    ("IMUGyroscope/Pitch Down", "`Gyro Pitch Down`"),
+    ("IMUGyroscope/Roll Left", "`Gyro Roll Left`"),
+    ("IMUGyroscope/Roll Right", "`Gyro Roll Right`"),
+    ("IMUGyroscope/Yaw Left", "`Gyro Yaw Left`"),
+    ("IMUGyroscope/Yaw Right", "`Gyro Yaw Right`"),
 ];

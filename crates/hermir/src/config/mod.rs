@@ -572,7 +572,8 @@ mod tests {
         run(&c, "retroarch", Os::Linux, &ra, &players(one()), &snaps);
         let text = read(&ra.join("retroarch.cfg"));
         assert!(text.contains("input_player1_joypad_index = \"0\"\nvideo_fullscreen = \"true\"\n"));
-        assert!(text.contains("input_player1_up_btn = \"h0up\"\n"));
+        assert!(text.contains("input_joypad_driver = \"sdl2\"\n"));
+        assert!(text.contains("input_player1_up_btn = \"11\"\n"));
         assert!(!text.contains('['));
 
         let sm = tmp.path().join("supermodel");
@@ -621,13 +622,13 @@ mod tests {
             let root = tmp.path().join(id);
             let p = run(&c, id, Os::Linux, &root, &players(two.clone()), &snaps);
             assert!(
-                p.steps.iter().all(|s| s.outcome == StepOutcome::Applied),
+                p.steps.iter().all(|s| s.outcome != StepOutcome::Failed),
                 "{id}: {p:?}"
             );
             assert_ne!(knob(&p, "players").support, Support::Unsupported, "{id}");
         }
         let gc = read(&tmp.path().join("dolphin/GCPadNew.ini"));
-        assert!(gc.contains("[GCPad2]\nDevice = evdev/1/Microsoft X-Box 360 pad\n"));
+        assert!(gc.contains("[GCPad2]\nDevice = SDL/1/Xbox 360 Controller\n"));
         let wii = read(&tmp.path().join("dolphin/WiimoteNew.ini"));
         assert!(wii.contains("[Wiimote1]\nSource = 1\n"));
         let c1 = read(&tmp.path().join("cemu/controllerProfiles/controller1.xml"));
@@ -643,8 +644,10 @@ mod tests {
         assert!(ds.contains("Cross = SDL-1/A\n"));
         let az = read(&az_cfg);
         assert!(az.contains(
-            "profiles\\1\\button_a=\"api:controller,button:1,engine:sdl,guid:030081b85e0400008e02000010010000,port:0\"\n"
+            "profiles\\1\\button_a=\"api:controller,button:1,engine:sdl,maptype:all\"\n"
         ));
+        assert!(az.contains("profiles\\size=1\n"));
+        assert!(az.contains("profiles\\1\\motion_device=engine:sdl\n"));
         let ds_toml = read(&tmp.path().join("melonds/melonDS.toml"));
         assert!(ds_toml.contains("[Instance0.Joystick]\nA = 1\nB = 0\n"));
         assert!(ds_toml.contains("Up = 257\n"));
@@ -814,13 +817,12 @@ mod tests {
             "{yml}"
         );
         let gc = read(&tmp.path().join("dolphin/GCPadNew.ini"));
-        assert!(gc.contains("[GCPad1]\nDevice = evdev/0/Microsoft X-Box 360 pad\n"));
+        assert!(gc.contains("[GCPad1]\nDevice = SDL/0/Xbox 360 Controller\n"));
         let eden = read(&tmp.path().join("eden/qt-config.ini"));
         assert!(
             eden.contains("guid:030000005e0400008e02000010010000,port:0,button:1"),
             "{eden}"
         );
-        assert!(read(&az_cfg).contains("guid:030081b85e0400008e02000010010000,port:0"));
         let cemu = read(&tmp.path().join("cemu/controllerProfiles/controller0.xml"));
         assert!(cemu.contains("<uuid>0_030081b85e0400008e02000010010000</uuid>"));
         // The emulators that take SDL's index still take it.
@@ -930,6 +932,158 @@ mod tests {
             ..ok
         };
         assert!(bad.validate().unwrap_err().contains("32 hex digits"));
+    }
+
+    #[test]
+    fn a_dualsense_and_an_xbox_pad_seat_three_players_in_every_adapter() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let snaps = tmp.path().join("snaps");
+        // SDL drives the DualSense through HIDAPI, as its GUID says.
+        let ds = |index| PadRef {
+            name: "Punktfunk DualSense 0".into(),
+            vendor: 0x054c,
+            product: 0x0ce6,
+            guid: Some("030057564c050000e60c000000006800".into()),
+            gamepad_name: Some("DualSense Wireless Controller".into()),
+            ..PadRef::xbox360(index)
+        };
+        let three = vec![
+            Player {
+                seat: 1,
+                pad: ds(0),
+            },
+            Player {
+                seat: 2,
+                pad: PadRef::xbox360(1),
+            },
+            Player {
+                seat: 3,
+                pad: ds(2),
+            },
+        ];
+        let ryu = tmp.path().join("ryujinx/Config.json");
+        std::fs::create_dir_all(ryu.parent().unwrap()).unwrap();
+        std::fs::write(&ryu, "{\n  \"version\": 70,\n  \"input_config\": []\n}\n").unwrap();
+        // Last time's player 4 has to go.
+        let stale = tmp.path().join("cemu/controllerProfiles/controller3.xml");
+        std::fs::create_dir_all(stale.parent().unwrap()).unwrap();
+        std::fs::write(&stale, "<emulated_controller/>").unwrap();
+        for id in [
+            "eden",
+            "dolphin",
+            "cemu",
+            "pcsx2",
+            "duckstation",
+            "flycast",
+            "rmg",
+            "ryujinx",
+            "melonds",
+            "mgba",
+            "retroarch",
+            "shadps4",
+            "azahar",
+            "ares",
+        ] {
+            let p = run(
+                &c,
+                id,
+                Os::Linux,
+                &tmp.path().join(id),
+                &players(three.clone()),
+                &snaps,
+            );
+            assert!(
+                p.steps.iter().all(|s| s.outcome != StepOutcome::Failed),
+                "{id}: {p:?}"
+            );
+            assert_ne!(
+                knob(&p, "players").support,
+                Support::Unsupported,
+                "{id}: {p:?}"
+            );
+        }
+        // Eden binds SDL 3's raw numbers: a HIDAPI pad's LB is 9 and its d-pad a hat, an
+        // Xbox pad's LB 4; the fourth seat is unplugged and the first has motion.
+        let eden = read(&tmp.path().join("eden/qt-config.ini"));
+        assert!(eden.contains("player_0_button_l=\"engine:sdl,guid:030000004c050000e60c000000006800,port:0,button:9\""), "{eden}");
+        assert!(eden.contains("player_0_button_dup=\"engine:sdl,guid:030000004c050000e60c000000006800,port:0,hat:0,direction:up\""));
+        assert!(eden.contains(
+            "player_1_button_l=\"engine:sdl,guid:030000005e0400008e02000010010000,port:0,button:4\""
+        ));
+        assert!(eden.contains(
+            "player_2_button_a=\"engine:sdl,guid:030000004c050000e60c000000006800,port:1,button:1\""
+        ));
+        assert!(eden.contains("player_3_connected=false\n"));
+        assert!(eden.contains("player_0_motionleft=\"engine:sdl,motion:0,port:0,guid:030000004c050000e60c000000006800\""));
+        // Dolphin: SDL devices by name, three GameCube ports and Wii Remotes, gyro on the remote.
+        let gc = read(&tmp.path().join("dolphin/GCPadNew.ini"));
+        assert!(gc.contains("[GCPad1]\nDevice = SDL/0/DualSense Wireless Controller\n"));
+        assert!(gc.contains("[GCPad3]\nDevice = SDL/1/DualSense Wireless Controller\n"));
+        let main = read(&tmp.path().join("dolphin/Dolphin.ini"));
+        assert!(main.contains("SIDevice2 = 6\nSIDevice3 = 0\n"), "{main}");
+        let wii = read(&tmp.path().join("dolphin/WiimoteNew.ini"));
+        assert!(wii.contains("IMUGyroscope/Yaw Right = `Gyro Yaw Right`\n"));
+        assert!(wii.contains("[Wiimote4]\nSource = 0\n"));
+        // Cemu: a GamePad with motion, Pro Controllers with their own ids (Home 11), no fourth.
+        let cemu = |n: u8| {
+            read(
+                &tmp.path()
+                    .join(format!("cemu/controllerProfiles/controller{n}.xml")),
+            )
+        };
+        assert!(cemu(0).contains("<motion>true</motion>"));
+        assert!(cemu(1).contains("<mapping>11</mapping>\n\t\t\t\t<button>5</button>"));
+        assert!(!stale.exists());
+        // A third PS1/PS2 player needs port 1's multitap; unseated pads are unplugged.
+        let pcsx2 = read(&tmp.path().join("pcsx2/inis/PCSX2.ini"));
+        assert!(
+            pcsx2.contains("MultitapPort1 = true\nMultitapPort2 = false\n"),
+            "{pcsx2}"
+        );
+        assert!(pcsx2.contains("[Pad4]\nType = None\n"));
+        let duck = read(&tmp.path().join("duckstation/settings.ini"));
+        assert!(duck.contains("MultitapMode = Port1Only\n"));
+        let flycast = read(&tmp.path().join("flycast/emu.cfg"));
+        assert!(flycast.contains("device1 = 0\ndevice2 = 0\ndevice3 = 0\ndevice4 = 10\n"));
+        let rmg = read(&tmp.path().join("rmg/mupen64plus.cfg"));
+        assert!(
+            rmg.contains("[Rosalie's Mupen GUI - Input Plugin Profile 3]\nPluggedIn = False\n")
+        );
+        assert!(rmg.contains("ZTrigger_Data = \"4\"\n"));
+        let ryujinx: serde_json::Value = serde_json::from_str(&read(&ryu)).unwrap();
+        assert_eq!(ryujinx["version"], 70);
+        assert_eq!(
+            ryujinx["input_config"][2]["id"],
+            "1-00000003-054c-0000-e60c-000000006800"
+        );
+        assert_eq!(ryujinx["input_config"][2]["player_index"], "Player3");
+        // SDL 2 raw numbers: a HIDAPI pad's d-pad is buttons 11-14.
+        let melon = read(&tmp.path().join("melonds/melonDS.toml"));
+        assert!(
+            melon.contains("L = 9\n") && melon.contains("Up = 11\n"),
+            "{melon}"
+        );
+        let mgba = read(&tmp.path().join("mgba/config.ini"));
+        assert!(mgba.contains("[gba.input.SDLB]\nkeyA = 1\n"), "{mgba}");
+        assert!(mgba.contains("[gba.input-profile.DualSense Wireless Controller]\n"));
+        assert!(
+            read(&tmp.path().join("shadps4/config.json"))
+                .contains("\"background_controller_input\": true")
+        );
+        // ares: SDL 3 raw numbers by GUID and slot, a HIDAPI pad's d-pad on its hat.
+        let ares = read(&tmp.path().join("ares/settings.bml"));
+        assert!(ares.contains("Input\n  Driver: SDL\n"), "{ares}");
+        assert!(
+            ares.contains("VirtualPad3\n  Pad.Up: 030057564c050000e60c000000006800/1/1/1/Lo;;\n")
+        );
+        assert!(ares.contains("  L-Bumper: 030081b85e0400008e02000010010000/0/3/4;;\n"));
+        assert!(ares.contains("  L-Trigger: 030081b85e0400008e02000010010000/0/0/2/Hi;;\n"));
+        // A missing Config.json is Ryujinx's to write.
+        let fresh = tmp.path().join("fresh");
+        let p = run(&c, "ryujinx", Os::Linux, &fresh, &players(three), &snaps);
+        assert_eq!(knob(&p, "players").support, Support::Unsupported);
+        assert!(!fresh.join("Config.json").exists());
     }
 
     #[test]
@@ -1322,7 +1476,7 @@ mod tests {
         assert_eq!(by("pcsx2", "region").support, Support::Unsupported);
         assert_eq!(by("pcsx2", "players").support, Support::Applied);
         assert_eq!(by("ppsspp", "players").support, Support::Partial);
-        assert_eq!(by("ryujinx", "players").support, Support::Unsupported);
+        assert_eq!(by("ryujinx", "players").support, Support::Applied);
         let aspect = by("rpcs3", "video.aspect");
         assert_eq!(aspect.support, Support::Partial);
         assert_eq!(aspect.note.as_deref(), Some("only 16:9, 4:3"));

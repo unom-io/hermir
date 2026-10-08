@@ -15,7 +15,9 @@
     ]
   },
   "expect": {
-    "players": "unsupported"
+    "players": "applied"
   },
-  "may_touch": []
+  "may_touch": [
+    "snes9x.conf:Joypad 0"
+  ]
 }

@@ -48,7 +48,10 @@
     ]
   },
   "expect": {
-    "players": "unsupported"
+    "players": "applied"
   },
-  "may_touch": []
+  "may_touch": [
+    "settings.bml:VirtualPad1",
+    "settings.bml:VirtualPad2"
+  ]
 }

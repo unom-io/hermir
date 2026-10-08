@@ -1,77 +1,93 @@
 //! Eden (yuzu's lineage): a Pro Controller per player in `qt-config.ini`, each control
-//! `engine:sdl,guid:<guid>,port:<n>,…` with SDL's game-controller numbers, n counting pads of
-//! the same GUID from 0. Eden zeroes the name CRC in the GUID.
+//! `engine:sdl,guid:<guid>,port:<n>,…` with SDL 3's raw joystick numbers, n counting pads of
+//! the same GUID from 0. Eden zeroes the name CRC in the GUID. A player is plugged in by its
+//! `connected` flag, not by a pad, so every seat without one is unplugged.
 use super::{Bindings, Cx, Plan, Seating, beyond, guid_note, join, set};
 use crate::config::ini::qt_value;
+use crate::players::{Ctl, Dir, RawControl};
 
 pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
     let players = &s.seats[..];
     let mut edits = Vec::new();
-    for p in players.iter().filter(|p| p.seat <= 8) {
-        let n = u32::from(p.seat) - 1;
+    let mut key = |n: u8, k: &str, v: &str| -> Result<(), String> {
+        edits.extend(set(cx, "main", "Controls", &format!("player_{n}_{k}"), v)?);
+        Ok(())
+    };
+    for n in 0..8u8 {
+        let Some(p) = players.iter().find(|p| p.seat == n + 1) else {
+            key(n, "connected", "false")?;
+            continue;
+        };
         let g = p.pad.sdl_guid(false);
         let i = s.ordinal(&p.pad, |q| q.sdl_guid(false));
-        let btn = |b: u32| qt_value(&format!("engine:sdl,guid:{g},port:{i},button:{b}"));
-        let axis = |a: u32| {
+        let raw = p.pad.raw(true);
+        let pad = format!("engine:sdl,guid:{g},port:{i}");
+        let ctl = |c: Ctl| {
+            qt_value(&match raw.of(c) {
+                RawControl::Button(b) => format!("{pad},button:{b}"),
+                RawControl::Axis(a) => format!("{pad},axis:{a},threshold:0.500000,invert:+"),
+                RawControl::Hat(d) => {
+                    let d = match d {
+                        Dir::Up => "up",
+                        Dir::Down => "down",
+                        Dir::Left => "left",
+                        Dir::Right => "right",
+                    };
+                    format!("{pad},hat:0,direction:{d}")
+                }
+            })
+        };
+        let axis = |c: Ctl| match raw.of(c) {
+            RawControl::Axis(a) => a,
+            _ => 0,
+        };
+        let stick = |x: Ctl, y: Ctl| {
             qt_value(&format!(
-                "engine:sdl,guid:{g},port:{i},axis:{a},threshold:0.500000,invert:+"
+                "{pad},axis_x:{},axis_y:{},offset_x:-0.000000,offset_y:-0.000000,invert_x:+,\
+                 invert_y:+,deadzone:0.150000,range:0.950000,threshold:0.500000",
+                axis(x),
+                axis(y)
             ))
         };
-        let stick = |x: u32, y: u32| {
-            qt_value(&format!(
-                "engine:sdl,guid:{g},port:{i},axis_x:{x},axis_y:{y},offset_x:-0.000000,\
-                 offset_y:-0.000000,invert_x:+,invert_y:+,deadzone:0.150000,range:0.950000,\
-                 threshold:0.500000"
-            ))
-        };
+        // Switch buttons by position: A east, B south, X north, Y west.
         let binds = [
-            ("button_a", btn(1)),
-            ("button_b", btn(0)),
-            ("button_x", btn(3)),
-            ("button_y", btn(2)),
-            ("button_lstick", btn(7)),
-            ("button_rstick", btn(8)),
-            ("button_l", btn(9)),
-            ("button_r", btn(10)),
-            ("button_zl", axis(4)),
-            ("button_zr", axis(5)),
-            ("button_plus", btn(6)),
-            ("button_minus", btn(4)),
-            ("button_dleft", btn(13)),
-            ("button_dup", btn(11)),
-            ("button_dright", btn(14)),
-            ("button_ddown", btn(12)),
-            ("button_slleft", btn(9)),
-            ("button_srleft", btn(10)),
-            ("button_slright", btn(9)),
-            ("button_srright", btn(10)),
-            ("button_home", btn(5)),
-            ("button_screenshot", btn(15)),
-            ("lstick", stick(0, 1)),
-            ("rstick", stick(2, 3)),
+            ("button_a", ctl(Ctl::East)),
+            ("button_b", ctl(Ctl::South)),
+            ("button_x", ctl(Ctl::North)),
+            ("button_y", ctl(Ctl::West)),
+            ("button_lstick", ctl(Ctl::LeftStick)),
+            ("button_rstick", ctl(Ctl::RightStick)),
+            ("button_l", ctl(Ctl::LeftShoulder)),
+            ("button_r", ctl(Ctl::RightShoulder)),
+            ("button_zl", ctl(Ctl::LeftTrigger)),
+            ("button_zr", ctl(Ctl::RightTrigger)),
+            ("button_plus", ctl(Ctl::Start)),
+            ("button_minus", ctl(Ctl::Back)),
+            ("button_dleft", ctl(Ctl::Left)),
+            ("button_dup", ctl(Ctl::Up)),
+            ("button_dright", ctl(Ctl::Right)),
+            ("button_ddown", ctl(Ctl::Down)),
+            ("button_slleft", ctl(Ctl::LeftShoulder)),
+            ("button_srleft", ctl(Ctl::RightShoulder)),
+            ("button_slright", ctl(Ctl::LeftShoulder)),
+            ("button_srright", ctl(Ctl::RightShoulder)),
+            ("button_home", ctl(Ctl::Guide)),
+            ("lstick", stick(Ctl::LeftX, Ctl::LeftY)),
+            ("rstick", stick(Ctl::RightX, Ctl::RightY)),
+            // A pad without a gyro gives Eden nothing here; one with gives both halves motion.
+            (
+                "motionleft",
+                qt_value(&format!("engine:sdl,motion:0,port:{i},guid:{g}")),
+            ),
+            (
+                "motionright",
+                qt_value(&format!("engine:sdl,motion:0,port:{i},guid:{g}")),
+            ),
         ];
-        edits.extend(set(
-            cx,
-            "main",
-            "Controls",
-            &format!("player_{n}_type"),
-            "0",
-        )?);
-        edits.extend(set(
-            cx,
-            "main",
-            "Controls",
-            &format!("player_{n}_connected"),
-            "true",
-        )?);
-        for (key, value) in binds {
-            edits.extend(set(
-                cx,
-                "main",
-                "Controls",
-                &format!("player_{n}_{key}"),
-                &value,
-            )?);
+        key(n, "type", "0")?;
+        key(n, "connected", "true")?;
+        for (k, v) in binds {
+            key(n, k, &v)?;
         }
     }
     Ok(Bindings {
