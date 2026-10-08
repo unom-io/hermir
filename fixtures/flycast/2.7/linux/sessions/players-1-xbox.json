@@ -15,7 +15,9 @@
     ]
   },
   "expect": {
-    "players": "partial"
+    "players": "applied"
   },
-  "may_touch": []
+  "may_touch": [
+    "emu.cfg:input"
+  ]
 }

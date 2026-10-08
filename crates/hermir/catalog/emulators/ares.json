@@ -119,7 +119,7 @@
       }
     },
     "players": {
-      "unsupported": "ares binds pads by its own device ids in settings.bml; not yet described"
+      "adapter": "ares"
     }
   },
   "saves": {

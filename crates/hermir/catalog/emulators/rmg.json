@@ -81,7 +81,7 @@
       }
     },
     "players": {
-      "automatic": "RMG-Input takes the first pads itself, in the order they appear"
+      "adapter": "rmg"
     }
   },
   "saves": {

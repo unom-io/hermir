@@ -15,7 +15,7 @@ pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
             (format!("InputStart{k}"), q(format!("KEY_{k},{j}_BUTTON8"))),
             (
                 format!("InputCoin{k}"),
-                q(format!("KEY_{},{j}_BUTTON7", 4 + p.seat)),
+                q(format!("KEY_{},{j}_BUTTON7", 2 + p.seat)),
             ),
             (
                 format!("InputJoyUp{s}"),

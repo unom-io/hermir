@@ -109,7 +109,7 @@
       }
     },
     "players": {
-      "unsupported": "Snes9x's bindings differ between its Windows and GTK builds; not yet described"
+      "adapter": "snes9x"
     }
   },
   "saves": {

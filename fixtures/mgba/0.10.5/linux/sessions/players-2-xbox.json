@@ -28,5 +28,10 @@
   "expect": {
     "players": "partial"
   },
-  "may_touch": []
+  "may_touch": [
+    "config.ini:gb.input-profile.Xbox 360 Controller",
+    "config.ini:gb.input.SDLB",
+    "config.ini:gba.input-profile.Xbox 360 Controller",
+    "config.ini:gba.input.SDLB"
+  ]
 }

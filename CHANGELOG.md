@@ -105,8 +105,23 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   on Windows that the USB-derived GUID is a best effort there.
 - Seats past an emulator's ports (xemu's four, Supermodel's two, melonDS's one) are noted
   rather than written.
+- Player bindings work for every pad kind, not only an Xbox 360 pad: Dolphin binds through its
+  SDL backend, RetroArch through its `sdl2` driver, Azahar reads any pad, and the emulators
+  that bind raw numbers (Eden, melonDS, mGBA, ares, Snes9x) follow the layout SDL gives the
+  pad (evdev, or HIDAPI under SDL 2 or 3), read off its GUID.
+- A seat without a pad is unplugged: PCSX2 and DuckStation pads typed `None`, Dolphin's
+  GameCube ports and Wii Remotes off, Eden's players disconnected, Cemu's profiles removed.
+  A third PS1 or PS2 player turns the multitap on.
+- Gyro reaches Dolphin's Wii Remote, Cemu's GamePad, Eden, Ryujinx and Azahar.
+- Every Linux launch sets SDL to report a pad's face buttons by position and to read pads
+  without window focus.
+- Flycast, RMG, mGBA, shadPS4, Ryujinx, ares and Snes9x (GTK) get player bindings; Flycast's
+  ports past A, and RMG's profiles, hold no controller unless told.
 
 ### Fixed
+
+- Cemu's Pro Controllers took the GamePad's mapping ids, so the d-pad landed on Home.
+- Supermodel's coin keys were the Service and Test keys.
 
 - RPCS3 on Windows keeps `config.yml`, `GuiConfigs/` and `input_configs/` under `config/`;
   the first-run answer and the bindings go there now.

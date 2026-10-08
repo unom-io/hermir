@@ -113,6 +113,21 @@ pub(crate) fn launch(
             }
         }
     }
+    // Every adapter binds a pad's buttons by position; SDL 2 reports a Nintendo pad's by label
+    // unless told. A streamed window can lack focus, which stops SDL's pad events otherwise.
+    if os == Os::Linux {
+        for (k, v) in [
+            ("SDL_GAMECONTROLLER_USE_BUTTON_LABELS", "0"),
+            ("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1"),
+        ] {
+            match install.exe {
+                Exe::FlatpakRun(_) => sandbox.push(format!("--env={k}={v}")),
+                _ => {
+                    env.insert(k.to_string(), v.to_string());
+                }
+            }
+        }
+    }
     Ok(LaunchSpec {
         exe: install.exe.clone(),
         args,
@@ -344,13 +359,20 @@ mod tests {
                 "/roms/ps2/Game.iso"
             ]
         );
-        assert_eq!(spec.sandbox, ["--filesystem=/roms/ps2"]);
+        // SDL is told to report pads by position and to read them without focus.
+        let sdl = [
+            "--env=SDL_GAMECONTROLLER_USE_BUTTON_LABELS=0",
+            "--env=SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1",
+        ];
+        assert_eq!(spec.sandbox, ["--filesystem=/roms/ps2", sdl[0], sdl[1]]);
         assert_eq!(
             spec.argv(),
             [
                 "flatpak",
                 "run",
                 "--filesystem=/roms/ps2",
+                sdl[0],
+                sdl[1],
                 "net.pcsx2.PCSX2",
                 "-batch",
                 "-nogui",

@@ -29,6 +29,7 @@
     "players": "applied"
   },
   "may_touch": [
+    "xemu.toml:input",
     "xemu.toml:input.bindings"
   ]
 }

@@ -48,12 +48,15 @@
     ]
   },
   "expect": {
-    "players": "partial"
+    "players": "applied"
   },
   "may_touch": [
+    "Dolphin.ini:Core",
     "GCPadNew.ini:GCPad1",
     "GCPadNew.ini:GCPad2",
     "WiimoteNew.ini:Wiimote1",
-    "WiimoteNew.ini:Wiimote2"
+    "WiimoteNew.ini:Wiimote2",
+    "WiimoteNew.ini:Wiimote3",
+    "WiimoteNew.ini:Wiimote4"
   ]
 }

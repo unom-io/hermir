@@ -80,6 +80,45 @@ pub fn set(text: &str, section: &str, key: &str, value: &str) -> Result<Option<S
     }
 }
 
+/// `text` with the root member `key` replaced by `value` whole, an array or object included:
+/// an adapter's own structure (Ryujinx's `input_config`), never a knob's. Written on one line;
+/// `Ok(None)` when the file already holds an equal value. A file that is not valid JSON is
+/// refused.
+pub fn set_value(text: &str, key: &str, value: &Value) -> Result<Option<String>, String> {
+    let (bom, text) = split_bom(text);
+    let nl = newline(text);
+    let compact = value.to_string();
+    if text.trim().is_empty() {
+        let k = string(key);
+        return Ok(Some(format!("{bom}{{{nl}  {k}: {compact}{nl}}}{nl}")));
+    }
+    serde_json::from_str::<Value>(text).map_err(|e| format!("not valid JSON: {e}"))?;
+    let root = root(text).ok_or("not a JSON object")??;
+    let out = match find(text, &root, key) {
+        Some(m) => {
+            let old = serde_json::from_str::<Value>(&text[m.value.clone()]).ok();
+            if old.as_ref() == Some(value) {
+                return Ok(None);
+            }
+            format!(
+                "{}{compact}{}",
+                &text[..m.value.start],
+                &text[m.value.end..]
+            )
+        }
+        None => {
+            let style = Style::of(text, &root, nl);
+            let new = New {
+                name: key,
+                inner: None,
+                value: &compact,
+            };
+            insert_first(text, &root, &root, &style, &new)
+        }
+    };
+    Ok(Some(format!("{bom}{out}")))
+}
+
 /// The value of `key` in the root object, or in the object `section` names under it, as the
 /// file spells it: a string with its quotes, an object or array whole. `None` when it is
 /// missing.
@@ -498,6 +537,21 @@ mod tests {
             let out = out.unwrap().unwrap();
             assert!(serde_json::from_str::<Value>(&out).is_ok(), "{out}");
         }
+    }
+
+    #[test]
+    fn an_adapter_replaces_a_whole_array_in_place() {
+        let v: Value =
+            serde_json::from_str(r#"[{"id":"0-x","led":{"enable_led":false}}]"#).unwrap();
+        let out = set_value(RYU, "input_config", &v).unwrap().unwrap();
+        let doc: Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(doc["input_config"], v);
+        assert_eq!(doc["version"], 60, "the rest stays");
+        assert!(out.starts_with("{\n  \"version\": 60,\n"), "{out}");
+        assert_eq!(set_value(&out, "input_config", &v), Ok(None));
+        let added = set_value("{\n  \"a\": 1\n}\n", "b", &v).unwrap().unwrap();
+        assert_eq!(serde_json::from_str::<Value>(&added).unwrap()["b"], v);
+        assert!(set_value("[1]", "b", &v).is_err());
     }
 
     #[test]

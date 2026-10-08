@@ -136,7 +136,7 @@
       }
     },
     "players": {
-      "automatic": "Flycast maps SDL pads itself, in the order they appear"
+      "adapter": "flycast"
     }
   },
   "saves": {
