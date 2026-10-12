@@ -5,10 +5,10 @@
   "kind": "flatpak",
   "source": {
     "flatpak": "org.ppsspp.PPSSPP",
-    "commit": "193bbe95656ed696c8e5a5e42831ee8017d53514e9e0e0acaa3e1235e22089d3"
+    "commit": "3efb018d47cbf79f1c1900f31210e4add051a559497c74baddd7fa17c0624a5e"
   },
   "captured": {
-    "on": "2026-10-03",
+    "on": "2026-10-12",
     "by": "xtask capture"
   },
   "files": {
