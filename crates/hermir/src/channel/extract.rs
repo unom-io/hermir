@@ -205,13 +205,13 @@ fn unzip(archive: &Path, dest: &Path) -> Result<()> {
         let mut entry = zip
             .by_index(i)
             .map_err(|e| refuse(archive, format!("zip entry {i}: {e}")))?;
+        let name = entry
+            .name()
+            .map_err(|e| refuse(archive, format!("zip entry {i}: {e}")))?;
         // The name as stored, `\` read as a separator: no `..`, no root, no drive.
-        let rel = PathBuf::from(entry.name().replace('\\', "/"));
-        if entry.name().contains('\0') || !is_safe_relative(&rel) {
-            return Err(refuse(
-                archive,
-                format!("entry {} escapes the archive", entry.name()),
-            ));
+        let rel = PathBuf::from(name.replace('\\', "/"));
+        if name.contains('\0') || !is_safe_relative(&rel) {
+            return Err(refuse(archive, format!("entry {name} escapes the archive")));
         }
         if through_link(dest, &rel) {
             return Err(refuse(
