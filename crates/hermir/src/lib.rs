@@ -1462,7 +1462,7 @@ mod tests {
         let spec = e.launch(&copy, &req).unwrap();
         assert_eq!(
             spec.args[..2],
-            ["-u".to_string(), dir.display().to_string()]
+            ["-u".to_string(), p.dir().display().to_string()]
         );
 
         p.remove().unwrap();

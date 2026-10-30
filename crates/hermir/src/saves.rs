@@ -157,7 +157,8 @@ mod tests {
     fn folders_resolve_under_the_root_beside_it_and_where_the_settings_moved_them() {
         let c = Catalog::embedded().unwrap();
         let tmp = tempfile::tempdir().unwrap();
-        let env = FakeEnv::new(Os::Linux, "/home/u");
+        let home = tmp.path().join("home");
+        let env = FakeEnv::new(Os::Linux, home.to_str().unwrap());
         // PCSX2: relative to its root, moved by its own setting.
         let root = tmp.path().join("config/PCSX2");
         std::fs::create_dir_all(root.join("inis")).unwrap();
@@ -230,7 +231,7 @@ mod tests {
         );
         assert_eq!(
             s[0].locations[1].path.as_deref(),
-            Some(Path::new("/home/u/states"))
+            Some(home.join("states").as_path())
         );
 
         // mGBA: beside each game.
