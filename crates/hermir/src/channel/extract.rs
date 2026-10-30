@@ -80,13 +80,16 @@ fn link_stays_inside(base: &Path, target: &Path) -> bool {
 }
 
 /// Whether `rel`, or a folder on its way, is a link already in `dest`: writing there would
-/// write wherever the link points.
+/// write wherever the link points. Off Unix a zip's link is a plain file, so a file where
+/// `rel` needs a folder counts too.
 fn through_link(dest: &Path, rel: &Path) -> bool {
     let mut at = dest.to_path_buf();
-    for c in rel.components() {
+    let mut parts = rel.components().peekable();
+    while let Some(c) = parts.next() {
         at.push(c);
         match fs::symlink_metadata(&at) {
             Ok(m) if m.file_type().is_symlink() => return true,
+            Ok(m) if m.is_file() && parts.peek().is_some() => return true,
             Ok(_) => {}
             Err(_) => return false,
         }

@@ -58,6 +58,7 @@ unchanged; `--force` replaces it.
 that differ on every first start (Dolphin's analytics id), `full_writer` for emulators that write
 every setting (every key the catalog binds must then already be in `before/`), `ignore_after`,
 `args`, a longer `settle`, `close_after` for emulators that write only on a clean quit,
+`interactive_only` for emulators that write nothing headless (`--all` leaves them out),
 `checklists` for `--interactive`, and `saves_later` for save folders that appear only at the
 first save.
 
