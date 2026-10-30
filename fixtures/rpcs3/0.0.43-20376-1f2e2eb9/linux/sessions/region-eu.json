@@ -1,0 +1,8 @@
+{
+  "patch": {
+    "region": "eu"
+  },
+  "expect": {
+    "region": "applied"
+  }
+}
