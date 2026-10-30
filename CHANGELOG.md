@@ -87,6 +87,18 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 - `unsafe` is forbidden across the workspace, as a lint the build enforces.
 - `Output` is public, so a consumer can pass its own `Runner` in `Options::runner`: an
   emulator's installer then runs as whichever account the consumer chooses.
+- One copy for every account on a machine: `Options::flatpak_installation` installs a Flatpak
+  `--system` (`FlatpakInstallation::System`), and `installed.json` records which installation
+  (`installation`), so update and remove act there. `Options::shared_install` places a Windows
+  archive without its portable marker, so each account keeps its config and saves under
+  `roots.windows`; the row says `shared: true`. RPCS3 and Supermodel have no per-account
+  layout and stay portable. `Options::home` resolves config roots in another account's home
+  and puts its per-user variables in every `LaunchSpec::env`, for a host running as a service.
+  Rows written before parse as the user's installation, not shared.
+- `Options::state_dir`: one account's snapshots and `.save-backups` outside a shared prefix,
+  with a lock of their own that `apply`, `revert`, `revert_all` and `import_unit` hold instead
+  of the prefix's. One account's `revert_all` leaves another's session alone, and two accounts
+  apply at once. Unset, both stay in the prefix under its lock.
 
 ### Changed
 
@@ -131,6 +143,7 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 - A UTF-8 byte-order mark at the start of a settings file no longer hides its first section.
 - Emulators that offer a folder as their portable marker (Cemu, Azahar, PPSSPP, shadPS4) get
   the folder after an install, so a managed copy runs portable.
+- A managed RPCS3 or Snes9x on Windows resolved its config root to `.`, not its own folder.
 - Values quoted by RPCS3's YAML, Cemu's XML and the Qt ini are escaped, so a pad name or path
   cannot end the line it is on.
 - PPSSPP's portrait and landscape layouts, Supermodel's Flatpak root and Dolphin's

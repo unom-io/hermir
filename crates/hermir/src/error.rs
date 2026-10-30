@@ -68,8 +68,8 @@ pub enum Error {
         /// What is wrong with it.
         why: String,
     },
-    /// Another hermir holds the prefix lock; the path is the prefix.
-    #[error("{0} is busy: another hermir holds the prefix lock")]
+    /// Another hermir holds the lock of the path: the prefix, or `Options::state_dir`.
+    #[error("{0} is busy: another hermir holds its lock")]
     Locked(PathBuf),
     /// What was asked cannot be done as asked: a seat given twice, a newline in a value.
     #[error("{0}")]

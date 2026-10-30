@@ -10,7 +10,9 @@ pub mod url;
 use std::path::Path;
 
 use crate::error::{Error, Result};
-use crate::model::{Channel, Entry, Exe, Installed, Os, Portable, Resolved, Verified};
+use crate::model::{
+    Channel, Entry, Exe, FlatpakInstallation, Installed, Os, Portable, Resolved, Verified,
+};
 use crate::progress::{Event, Progress};
 use crate::store::{Store, now_rfc3339, sha256_file};
 use flatpak::Runner;
@@ -67,9 +69,10 @@ fn unverified_why(resolved: &Resolved) -> String {
     }
 }
 
-/// Installs (or reinstalls) `entry` into `store`. The caller holds the store lock. With
-/// `require_verified`, an archive there is nothing to check against is refused before it is
-/// downloaded.
+/// Installs (or reinstalls) `entry` into `store`, a Flatpak into `installation`. The caller holds
+/// the store lock. With `require_verified`, an archive there is nothing to check against is
+/// refused before it is downloaded. `shared` leaves a Windows archive's portable marker out.
+#[allow(clippy::too_many_arguments)]
 pub fn install(
     entry: &Entry,
     os: Os,
@@ -78,6 +81,8 @@ pub fn install(
     runner: &dyn Runner,
     progress: &dyn Progress,
     require_verified: bool,
+    installation: FlatpakInstallation,
+    shared: bool,
 ) -> Result<Installed> {
     let channel = channel_for(entry, os)?;
     let resolved = resolve(entry, os, http)?;
@@ -88,17 +93,19 @@ pub fn install(
     });
     let row = match channel {
         Channel::Flatpak { flatpak } => {
-            flatpak::install(runner, flatpak)?;
+            flatpak::install(runner, flatpak, installation)?;
             progress.on(Event::Placed);
             Installed {
                 emulator: entry.id.clone(),
                 channel: "flatpak".into(),
                 exe: Exe::FlatpakRun(flatpak.clone()),
-                version: flatpak::version(runner, flatpak),
+                version: flatpak::version(runner, flatpak, installation),
                 release: Some(resolved.release),
                 sha256: None,
                 verified: Verified::Flatpak,
                 kept: Vec::new(),
+                installation: Some(installation),
+                shared: false,
                 installed_at: now_rfc3339(),
             }
         }
@@ -117,6 +124,7 @@ pub fn install(
                 store,
                 http,
                 progress,
+                shared && os == Os::Windows,
             )?
         }
     };
@@ -134,6 +142,7 @@ fn part_name(file_name: &str, resolved: &Resolved) -> String {
     format!("{file_name}.{id}.part")
 }
 
+#[allow(clippy::too_many_arguments)]
 fn install_archive(
     entry: &Entry,
     resolved: &Resolved,
@@ -142,15 +151,15 @@ fn install_archive(
     store: &Store,
     http: &dyn Http,
     progress: &dyn Progress,
+    shared: bool,
 ) -> Result<Installed> {
     let url = resolved.url.as_deref().ok_or_else(|| Error::Catalog {
         entry: entry.id.clone(),
         why: "channel resolved without a URL".into(),
     })?;
-    for rel in std::iter::once(exe_rel).chain(portable.map(|p| match p {
-        Portable::File { file } => file.as_str(),
-        Portable::Dir { dir } => dir.as_str(),
-    })) {
+    let marker_name =
+        portable.map(|(Portable::File { file } | Portable::Dir { dir: file })| file.as_str());
+    for rel in std::iter::once(exe_rel).chain(marker_name) {
         if !extract::is_safe_relative(Path::new(rel)) {
             return Err(Error::Catalog {
                 entry: entry.id.clone(),
@@ -215,22 +224,44 @@ fn install_archive(
             ),
         });
     }
-    if let Some(Portable::File { file }) = portable {
+    // A shared copy runs without its marker, so each account keeps its data under
+    // `roots.windows`. Where that is `<app>` there is no per-account layout to fall back to.
+    let leave_out = shared
+        && entry
+            .roots
+            .windows
+            .as_deref()
+            .is_some_and(|w| !w.starts_with("<app>"));
+    if let Some(m) = marker_name.filter(|_| leave_out) {
+        let shipped = fresh.join(m);
+        let gone = if shipped.is_dir() {
+            std::fs::remove_dir_all(&shipped)
+        } else {
+            std::fs::remove_file(&shipped)
+        };
+        if let Err(e) = gone
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(Error::io("remove", &shipped, e));
+        }
+    } else if let Some(Portable::File { file }) = portable {
         let p = fresh.join(file);
         std::fs::write(&p, b"").map_err(|e| Error::io("write", &p, e))?;
     }
     let placed = store.place(&entry.id, &fresh)?;
+    let app = store.app_dir(&entry.id);
+    // A marker the user kept, or a marker folder from an earlier install, keeps it portable.
+    let shared = leave_out && !marker_name.is_some_and(|m| app.join(m).exists());
     // A marker folder and the firmware folder exist from the start, so the copy runs portable
     // and a consumer can be granted the folder before the emulator ever ran. After placing:
     // the store moves files, not empty folders.
-    let app = store.app_dir(&entry.id);
     let marker = match portable {
-        Some(Portable::Dir { dir }) => Some(app.join(dir)),
+        Some(Portable::Dir { dir }) if !leave_out => Some(app.join(dir)),
         _ => None,
     };
     let fw_dir = entry.firmware.as_ref().and_then(|f| f.dir.as_ref());
     let firmware = match (fw_dir, portable_root(entry, &app)) {
-        (Some(dir), Some(root)) => Some(root.join(dir)),
+        (Some(dir), Some(root)) if !shared => Some(root.join(dir)),
         _ => None,
     };
     for p in marker.iter().chain(firmware.iter()) {
@@ -246,11 +277,14 @@ fn install_archive(
         sha256: Some(sha256),
         verified,
         kept: placed.kept_modified,
+        installation: None,
+        shared,
         installed_at: now_rfc3339(),
     })
 }
 
-/// Removes a managed install; with `purge`, its data too (for a Flatpak, `~/.var/app/<id>`).
+/// Removes a managed install, a Flatpak from the installation its row names; with `purge`, its
+/// data too (for a Flatpak, `~/.var/app/<id>`).
 pub fn remove(
     entry: &Entry,
     row: &Installed,
@@ -259,7 +293,7 @@ pub fn remove(
     purge: bool,
 ) -> Result<()> {
     if let Exe::FlatpakRun(id) = &row.exe {
-        flatpak::remove(runner, id, purge)?;
+        flatpak::remove(runner, id, row.installation.unwrap_or_default(), purge)?;
     } else {
         store.remove_files(&entry.id, purge)?;
     }
@@ -368,6 +402,10 @@ mod tests {
     }
 
     fn install_windows(id: &str, store: &Store, http: &FakeHttp) -> Result<Installed> {
+        install_shared(id, store, http, false)
+    }
+
+    fn install_shared(id: &str, store: &Store, http: &FakeHttp, shared: bool) -> Result<Installed> {
         let c = Catalog::embedded().unwrap();
         install(
             c.get(id).unwrap(),
@@ -377,8 +415,12 @@ mod tests {
             &FakeRunner::default(),
             &Quiet,
             false,
+            USER,
+            shared,
         )
     }
+
+    const USER: FlatpakInstallation = FlatpakInstallation::User;
 
     #[test]
     fn archive_install_places_exe_marker_and_record() {
@@ -396,6 +438,8 @@ mod tests {
             &FakeRunner::default(),
             &log,
             true,
+            USER,
+            false,
         )
         .unwrap();
         let app = store.app_dir("duckstation");
@@ -457,6 +501,8 @@ mod tests {
             &FakeRunner::default(),
             &log,
             false,
+            USER,
+            false,
         )
         .unwrap();
         assert_eq!(row.verified, Verified::None);
@@ -483,6 +529,8 @@ mod tests {
             &FakeRunner::default(),
             &Quiet,
             true,
+            USER,
+            false,
         )
         .unwrap_err();
         assert!(matches!(err, Error::Unverified { .. }), "{err}");
@@ -512,12 +560,34 @@ mod tests {
 
         entry.channels.windows = Some(pin(sha256(&zip)));
         let fake = FakeRunner::default();
-        let row = install(&entry, Os::Windows, &store, &http, &fake, &Quiet, true).unwrap();
+        let row = install(
+            &entry,
+            Os::Windows,
+            &store,
+            &http,
+            &fake,
+            &Quiet,
+            true,
+            USER,
+            false,
+        )
+        .unwrap();
         assert_eq!(row.verified, Verified::Pinned);
         assert_eq!(row.release.as_deref(), Some("2026.3.0"));
 
         entry.channels.windows = Some(pin("11".repeat(32)));
-        let err = install(&entry, Os::Windows, &store, &http, &fake, &Quiet, false).unwrap_err();
+        let err = install(
+            &entry,
+            Os::Windows,
+            &store,
+            &http,
+            &fake,
+            &Quiet,
+            false,
+            USER,
+            false,
+        )
+        .unwrap_err();
         assert!(matches!(err, Error::Verify { .. }));
     }
 
@@ -544,6 +614,114 @@ mod tests {
         // A reinstall prunes empty folders, and the marker comes back.
         install_windows("cemu", &store, &http).unwrap();
         assert!(app.join("portable").is_dir());
+    }
+
+    fn cemu_release(files: &[(&str, &[u8])]) -> FakeHttp {
+        github_release(
+            "cemu-project/Cemu",
+            "cemu-2.6-windows-x64.zip",
+            zip_with(files),
+            None,
+            "2026-09-20T00:01:00Z",
+        )
+    }
+
+    #[test]
+    fn a_shared_copy_goes_without_the_marker_even_one_the_archive_ships() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let shipped = github_release(
+            "stenzek/duckstation",
+            "duckstation-windows-x64-release.zip",
+            zip_with(&[
+                ("duckstation-qt-x64-ReleaseLTCG.exe", b"exe"),
+                ("portable.txt", b""),
+            ]),
+            None,
+            "2026-09-20T00:01:00Z",
+        );
+        let row = install_shared("duckstation", &store, &shipped, true).unwrap();
+        let app = store.app_dir("duckstation");
+        assert!(row.shared);
+        assert!(app.join("duckstation-qt-x64-ReleaseLTCG.exe").is_file());
+        assert!(!app.join("portable.txt").exists());
+        assert!(!app.join("bios").exists(), "firmware is each account's");
+
+        let http = cemu_release(&[
+            ("Cemu_2.6/Cemu.exe", b"exe"),
+            ("Cemu_2.6/portable/settings.xml", b"s"),
+        ]);
+        let row = install_shared("cemu", &store, &http, true).unwrap();
+        assert!(row.shared);
+        assert!(!store.app_dir("cemu").join("portable").exists());
+    }
+
+    #[test]
+    fn a_portable_copy_turns_shared_unless_its_marker_holds_data() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        let http = github_fixture(None);
+        install_windows("duckstation", &store, &http).unwrap();
+        let app = store.app_dir("duckstation");
+        assert!(app.join("portable.txt").is_file());
+        // The marker hermir wrote is the release's: it goes with the reinstall.
+        let row = install_shared("duckstation", &store, &http, true).unwrap();
+        assert!(row.shared && !app.join("portable.txt").exists());
+
+        let http = cemu_release(&[("Cemu_2.6/Cemu.exe", b"exe")]);
+        install_windows("cemu", &store, &http).unwrap();
+        let data = store.app_dir("cemu").join("portable/settings.xml");
+        std::fs::write(&data, "mine").unwrap();
+        let row = install_shared("cemu", &store, &http, true).unwrap();
+        assert!(!row.shared, "the folder keeps Cemu portable");
+        assert_eq!(std::fs::read_to_string(&data).unwrap(), "mine");
+    }
+
+    #[test]
+    fn an_emulator_without_a_per_account_layout_stays_beside_its_exe() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path()).unwrap();
+        // Supermodel's `roots.windows` is `<app>`: its marker folder is still made.
+        let http = github_release(
+            "trzy/Supermodel",
+            "supermodel-0.3-windows.zip",
+            zip_with(&[("supermodel.exe", b"exe")]),
+            None,
+            "2026-09-20T00:01:00Z",
+        );
+        let row = install_shared("supermodel", &store, &http, true).unwrap();
+        assert!(!row.shared);
+        assert!(store.app_dir("supermodel").join("Config").is_dir());
+
+        // RPCS3's too, with no marker at all.
+        let c = Catalog::embedded().unwrap();
+        let mut entry = c.get("rpcs3").unwrap().clone();
+        entry.channels.windows = Some(Channel::Url {
+            url: "https://dl/rpcs3.zip".into(),
+            version: "0.0.38".into(),
+            sha256: None,
+            exe: "rpcs3.exe".into(),
+            portable: None,
+        });
+        let mut http = FakeHttp::default();
+        http.files.insert(
+            "https://dl/rpcs3.zip".into(),
+            zip_with(&[("rpcs3.exe", b"exe")]),
+        );
+        let fake = FakeRunner::default();
+        let row = install(
+            &entry,
+            Os::Windows,
+            &store,
+            &http,
+            &fake,
+            &Quiet,
+            false,
+            USER,
+            true,
+        )
+        .unwrap();
+        assert!(!row.shared);
     }
 
     #[test]
@@ -604,11 +782,15 @@ mod tests {
             &runner,
             &Quiet,
             true,
+            USER,
+            true,
         )
         .unwrap();
         assert_eq!(row.exe, Exe::FlatpakRun("net.pcsx2.PCSX2".into()));
         assert_eq!(row.version.as_deref(), Some("2.8.2"));
         assert_eq!(row.verified, Verified::Flatpak);
+        assert_eq!(row.installation, Some(USER));
+        assert!(!row.shared, "a Flatpak's data is per account already");
 
         remove(entry, &row, &store, &runner, true).unwrap();
         let calls = runner.calls.lock().unwrap();

@@ -1737,6 +1737,18 @@ pub enum Verified {
     None,
 }
 
+/// Which Flatpak installation an app goes into: `flatpak --user` or `--system`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum FlatpakInstallation {
+    /// The installing account's own, under its home.
+    #[default]
+    User,
+    /// The machine's, which every account sees; installing there takes root.
+    System,
+}
+
 impl Install {
     /// A copy of `emulator` that hermir did not find itself: a host that knows where its
     /// emulator lives, or a test. `config_root` is where it reads its settings.
@@ -1783,6 +1795,14 @@ pub struct Installed {
     /// new ones are beside them as `<file>.new`. Relative to the copy's directory.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kept: Vec<String>,
+    /// A Flatpak's installation; update and remove act there. A Flatpak row without one is
+    /// the user's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installation: Option<FlatpakInstallation>,
+    /// Placed by `Options::shared_install` without its portable marker: every account keeps its
+    /// own data under `roots.windows`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub shared: bool,
     /// RFC 3339, UTC.
     pub installed_at: String,
 }
