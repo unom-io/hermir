@@ -91,6 +91,12 @@ pub struct Options {
     /// `Documents`). An emulator whose `roots.windows` is `<app>` (RPCS3, Snes9x, Supermodel)
     /// keeps its data beside the exe, shared. Off by default; nothing changes on Linux.
     pub shared_install: bool,
+    /// One account's own state, for a prefix several accounts share: the snapshots `apply`
+    /// keeps and `revert` restores from, under a lock of their own, so one account's
+    /// `revert_all` never undoes another's session and both can apply at once. `import_unit`'s
+    /// `.save-backups` lives here too, since a replaced save belongs to the account it came from.
+    /// Installs and their lock stay in the prefix. The prefix, and its lock, when unset.
+    pub state_dir: Option<PathBuf>,
 }
 
 impl Default for Options {
@@ -105,6 +111,7 @@ impl Default for Options {
             require_verified: false,
             flatpak_installation: FlatpakInstallation::User,
             shared_install: false,
+            state_dir: None,
         }
     }
 }
@@ -123,6 +130,8 @@ pub struct Hermir {
     require_verified: bool,
     flatpak_installation: FlatpakInstallation,
     shared_install: bool,
+    /// `Options::state_dir`, or the prefix.
+    state: PathBuf,
 }
 
 impl Hermir {
@@ -134,9 +143,11 @@ impl Hermir {
             Some(home) => RealEnv::with_home(os, home),
             None => RealEnv::new(os),
         };
+        let prefix = opts.prefix.unwrap_or_else(Store::default_root);
         Ok(Hermir {
             catalog: Catalog::embedded()?,
-            store: Store::open(opts.prefix.unwrap_or_else(Store::default_root))?,
+            state: opts.state_dir.unwrap_or_else(|| prefix.clone()),
+            store: Store::open(prefix)?,
             os,
             http: opts.http,
             runner: opts.runner,
@@ -158,7 +169,7 @@ impl Hermir {
         self.catalog.registry(self.os)
     }
 
-    /// The prefix: managed installs, snapshots, the lock.
+    /// The prefix: managed installs, the lock; snapshots too without [`Options::state_dir`].
     pub fn store(&self) -> &Store {
         &self.store
     }
@@ -170,14 +181,20 @@ impl Hermir {
 
     /// Where `apply` keeps what it overwrote.
     fn snapshots(&self) -> PathBuf {
-        self.store.root().join(".snapshots")
+        self.state.join(".snapshots")
+    }
+
+    /// The lock `apply`, `revert` and `import_unit` hold: the state dir's own, or the prefix
+    /// lock without [`Options::state_dir`].
+    fn state_lock(&self) -> Result<Lock> {
+        store::lock_dir(&self.state)
     }
 
     /// Restores every emulator with a session's changes outstanding: what a consumer calls
     /// when the game it prepared has exited. A file changed since hermir wrote it is left as it
-    /// is (a [`StepOutcome::Conflict`]) unless `force`. Holds the prefix lock while it writes.
+    /// is (a [`StepOutcome::Conflict`]) unless `force`. Holds the state lock while it writes.
     pub fn revert_all(&self, force: bool) -> Result<Vec<(String, Vec<PrepareStep>)>> {
-        let _lock = self.store.lock()?;
+        let _lock = self.state_lock()?;
         Ok(config::outstanding(&self.snapshots())
             .into_iter()
             .map(|id| {
@@ -507,11 +524,11 @@ impl EmulatorHandle<'_> {
     /// [`Self::revert`] gives the player's own settings back byte for byte. The result says
     /// per knob whether the emulator took it, and why not when it did not. A patch that
     /// cannot be written as asked ([`Patch::validate`]) is an error before anything is; the
-    /// prefix lock is held while it writes.
+    /// state lock ([`Options::state_dir`]) is held while it writes.
     pub fn apply(&self, install: &Install, patch: &Patch) -> Result<Applied> {
         self.mine(install)?;
         patch.validate().map_err(Error::Invalid)?;
-        let _lock = self.h.store.lock()?;
+        let _lock = self.h.state_lock()?;
         Ok(config::apply(
             self.entry,
             self.h.os,
@@ -555,10 +572,10 @@ impl EmulatorHandle<'_> {
 
     /// Restores every file [`Self::apply`] changed, for every copy of this emulator, and
     /// forgets what it restored. A file changed since hermir wrote it is left as it is, its
-    /// snapshot kept (a [`StepOutcome::Conflict`]), unless `force`. The prefix lock is held
+    /// snapshot kept (a [`StepOutcome::Conflict`]), unless `force`. The state lock is held
     /// while it writes.
     pub fn revert(&self, force: bool) -> Result<Vec<PrepareStep>> {
-        let _lock = self.h.store.lock()?;
+        let _lock = self.h.state_lock()?;
         Ok(config::revert(&self.h.snapshots(), &self.entry.id, force))
     }
 
@@ -689,10 +706,10 @@ impl EmulatorHandle<'_> {
     }
 
     /// Puts the unit in the file `from` where this copy keeps it, in the first folder of `kinds`
-    /// that has a place for its name; what was there is kept under
-    /// the prefix's `.save-backups`. `others` are the names a server holds for the same game.
-    /// A unit this copy has no place for yet is a step that says so, not an error. Holds the
-    /// prefix lock.
+    /// that has a place for its name; what was there is kept under `.save-backups` in
+    /// [`Options::state_dir`], or the prefix. `others` are the names a server holds for the same
+    /// game. A unit this copy has no place for yet is a step that says so, not an error. Holds
+    /// the state lock.
     #[allow(clippy::too_many_arguments)]
     pub fn import_unit(
         &self,
@@ -705,7 +722,7 @@ impl EmulatorHandle<'_> {
         others: &[String],
     ) -> Result<PrepareStep> {
         self.mine(install)?;
-        let _lock = self.h.store.lock()?;
+        let _lock = self.h.state_lock()?;
         units::import(
             self.entry,
             self.h.os,
@@ -717,12 +734,7 @@ impl EmulatorHandle<'_> {
             name,
             from,
             others,
-            &self
-                .h
-                .store
-                .root()
-                .join(".save-backups")
-                .join(&self.entry.id),
+            &self.h.state.join(".save-backups").join(&self.entry.id),
         )
         .map_err(Error::Invalid)
     }
@@ -944,7 +956,7 @@ impl Profile<'_> {
         if !self.exists() {
             self.create(false)?;
         }
-        let _lock = self.h.store.lock()?;
+        let _lock = self.h.state_lock()?;
         Ok(config::apply(
             self.entry,
             self.h.os,
@@ -1080,6 +1092,85 @@ mod tests {
         ));
         drop(held);
         assert!(e.apply(&pcsx2_copy(&root), &patch).is_ok());
+    }
+
+    /// Two accounts on one prefix: each its own snapshots, backups and lock.
+    #[test]
+    fn each_state_dir_keeps_its_own_session() {
+        let tmp = tempfile::tempdir().unwrap();
+        let prefix = tmp.path().join("prefix");
+        let seat = |state: Option<&str>| {
+            Hermir::open(Options {
+                prefix: Some(prefix.clone()),
+                state_dir: state.map(|s| tmp.path().join(s)),
+                os: Some(Os::Windows),
+                http: Box::new(FakeHttp::default()),
+                runner: Box::new(FakeRunner::default()),
+                ..Options::default()
+            })
+            .unwrap()
+        };
+        let (a, b, own) = (seat(Some("a")), seat(Some("b")), seat(None));
+        let root = |who: &str| tmp.path().join(who).join("PCSX2");
+        let ini = |who: &str| root(who).join("inis/PCSX2.ini");
+        let patch = Patch {
+            video: Some(Video {
+                fullscreen: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let apply = |h: &Hermir, who: &str| {
+            h.emulator("pcsx2")
+                .unwrap()
+                .apply(&pcsx2_copy(&root(who)), &patch)
+        };
+        for (h, who) in [(&a, "a-home"), (&b, "b-home"), (&own, "own-home")] {
+            assert!(!apply(h, who).unwrap().failed());
+        }
+        assert!(
+            tmp.path()
+                .join("a/.snapshots/pcsx2/manifest.json")
+                .is_file()
+        );
+        assert!(prefix.join(".snapshots/pcsx2/manifest.json").is_file());
+
+        // One account's revert leaves the other sessions as they are.
+        assert_eq!(a.revert_all(true).unwrap().len(), 1);
+        assert!(!ini("a-home").exists());
+        assert!(ini("b-home").is_file() && ini("own-home").is_file());
+        assert_eq!(config::outstanding(&b.snapshots()), ["pcsx2"]);
+        assert_eq!(own.revert_all(true).unwrap().len(), 1);
+        assert!(ini("b-home").is_file());
+
+        // Neither the prefix lock nor another account's blocks this one.
+        let _box = own.store().lock().unwrap();
+        let _a = a.state_lock().unwrap();
+        assert!(matches!(apply(&a, "a-home"), Err(Error::Locked(_))));
+        assert!(apply(&b, "b-home").is_ok());
+        assert_eq!(b.revert_all(true).unwrap().len(), 1);
+
+        // A save `import_unit` replaces is backed up with the account's state.
+        std::fs::create_dir_all(root("b-home").join("memcards")).unwrap();
+        std::fs::write(root("b-home").join("memcards/Mcd001.ps2"), "old").unwrap();
+        let from = tmp.path().join("Mcd001.ps2");
+        std::fs::write(&from, "new").unwrap();
+        let step = b
+            .emulator("pcsx2")
+            .unwrap()
+            .import_unit(
+                &pcsx2_copy(&root("b-home")),
+                "ps2",
+                None,
+                &[SaveKind::Memcard],
+                "Mcd001.ps2",
+                &from,
+                &[],
+            )
+            .unwrap();
+        assert_eq!(step.outcome, StepOutcome::Applied, "{step:?}");
+        assert!(tmp.path().join("b/.save-backups/pcsx2").is_dir());
+        assert!(!prefix.join(".save-backups").exists());
     }
 
     #[test]

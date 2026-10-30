@@ -95,6 +95,10 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   layout and stay portable. `Options::home` resolves config roots in another account's home
   and puts its per-user variables in every `LaunchSpec::env`, for a host running as a service.
   Rows written before parse as the user's installation, not shared.
+- `Options::state_dir`: one account's snapshots and `.save-backups` outside a shared prefix,
+  with a lock of their own that `apply`, `revert`, `revert_all` and `import_unit` hold instead
+  of the prefix's. One account's `revert_all` leaves another's session alone, and two accounts
+  apply at once. Unset, both stay in the prefix under its lock.
 
 ### Changed
 

@@ -344,7 +344,9 @@ fsync, rename; links followed, permissions kept). The first snapshot of a file i
 stays, so a second apply writes over hermir's own text, not the player's, and one `revert`
 undoes the whole session and forgets the snapshot. A file the emulator rewrote after hermir
 wrote it is a **conflict**: `revert` leaves it and says so, unless forced. A crash mid-apply
-leaves a snapshot that `hermir config revert` finishes.
+leaves a snapshot that `hermir config revert` finishes. With `Options::state_dir` the snapshots,
+`.save-backups` and the lock `apply`, `revert` and `import_unit` hold live there instead: one
+per account on a prefix the accounts share.
 
 The **index trap** is handled, not hidden. An SDL index is the enumeration order at launch,
 and several emulators number a pad among the pads of its name or GUID instead. With

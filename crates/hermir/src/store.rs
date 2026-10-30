@@ -21,7 +21,8 @@ use crate::model::Installed;
 
 #[derive(Clone, Debug)]
 /// The managed prefix on disk: one folder per emulator (`<id>/app`, its manifest),
-/// `installed.json`, the snapshots of `apply`, and the lock every write holds.
+/// `installed.json`, and the lock every write holds; the snapshots of `apply` too, unless
+/// `Options::state_dir` keeps them elsewhere.
 pub struct Store {
     root: PathBuf,
 }
@@ -84,19 +85,7 @@ impl Store {
 
     /// Fails at once when another process holds the prefix; nothing here waits.
     pub fn lock(&self) -> Result<Lock> {
-        fs::create_dir_all(&self.root).map_err(|e| Error::io("create", &self.root, e))?;
-        let path = self.root.join(".lock");
-        let file = fs::OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .open(&path)
-            .map_err(|e| Error::io("open", &path, e))?;
-        match file.try_lock() {
-            Ok(()) => Ok(Lock { _file: file }),
-            Err(fs::TryLockError::WouldBlock) => Err(Error::Locked(self.root.clone())),
-            Err(fs::TryLockError::Error(e)) => Err(Error::io("lock", &path, e)),
-        }
+        lock_dir(&self.root)
     }
 
     fn installed_path(&self) -> PathBuf {
@@ -321,6 +310,24 @@ impl Store {
         let _ = fs::remove_dir(&app);
         let _ = fs::remove_dir(&dir);
         Ok(())
+    }
+}
+
+/// `<dir>/.lock`, held until the `Lock` drops; [`Error::Locked`] at once when another process
+/// holds it.
+pub(crate) fn lock_dir(dir: &Path) -> Result<Lock> {
+    fs::create_dir_all(dir).map_err(|e| Error::io("create", dir, e))?;
+    let path = dir.join(".lock");
+    let file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&path)
+        .map_err(|e| Error::io("open", &path, e))?;
+    match file.try_lock() {
+        Ok(()) => Ok(Lock { _file: file }),
+        Err(fs::TryLockError::WouldBlock) => Err(Error::Locked(dir.to_path_buf())),
+        Err(fs::TryLockError::Error(e)) => Err(Error::io("lock", &path, e)),
     }
 }
 
