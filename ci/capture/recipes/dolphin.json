@@ -1,4 +1,8 @@
 {
-  "notes": "Dolphin writes a random analytics id on every first start; only settings it changed are written, so it is not a full writer.",
-  "masks": [{ "file": "main", "section": "Analytics", "key": "ID" }]
+  "notes": "Dolphin writes a random analytics id on every first start; only settings it changed are written, so it is not a full writer. Its Wii title folders appear at the first Wii game.",
+  "masks": [{ "file": "main", "section": "Analytics", "key": "ID" }],
+  "saves_later": [
+    "{data}/Wii/title/00010000",
+    "{data}/Wii/title/00010004"
+  ]
 }

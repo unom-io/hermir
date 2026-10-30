@@ -25,6 +25,8 @@ pub(crate) struct Recipe {
     /// From this many seconds on, ask its windows to close, every ten seconds, for an emulator
     /// that writes its settings only on a clean quit.
     close_after: Option<u32>,
+    /// It writes nothing headless: `--all` leaves it out, and its fixture comes from a person.
+    interactive_only: bool,
     masks: Vec<Mask>,
     full_writer: bool,
     ignore_after: Vec<String>,
@@ -129,13 +131,15 @@ pub fn main(args: &[String]) -> Result<(), String> {
     }
 }
 
-/// Every entry a capture can start: a Flathub id, config files, and not a Switch emulator.
+/// Every entry a capture can start: a Flathub id, config files, not a Switch emulator, and
+/// not one that needs a person.
 pub(crate) fn capturable(catalog: &Catalog) -> Vec<String> {
     catalog
         .entries()
         .iter()
         .filter(|e| flatpak_id(e).is_some() && e.no_install.is_none())
         .filter(|e| e.config.as_ref().is_some_and(|c| !c.files.is_empty()))
+        .filter(|e| !recipe(&e.id).is_ok_and(|r| r.interactive_only))
         .map(|e| e.id.clone())
         .collect()
 }
@@ -272,7 +276,8 @@ pub(crate) fn start(entry: &Entry, run: Run, seed: Option<&Tree>) -> Result<Star
                 out.insert(rel.clone(), masked);
                 meta.files.insert(name, rel);
             }
-            Err(_) => meta.missing.push(name),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => meta.missing.push(name),
+            Err(e) => return Err(format!("{}: {e}", config_root.join(&rel).display())),
         }
     }
     Ok(Start {

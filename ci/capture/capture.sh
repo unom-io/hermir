@@ -89,5 +89,7 @@ rm -rf "$out/home"
 mkdir -p "$out/home"
 if [ -d "$home/.var" ]; then
     cp -a "$home/.var" "$out/home/"
+    # Emulators keep files to their owner, and the caller reads these as itself, not as root.
+    chmod -R a+rX "$out/home"
 fi
 rm -rf "$home" "$rt"

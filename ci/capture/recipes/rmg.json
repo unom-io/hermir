@@ -1,0 +1,12 @@
+{
+  "notes": "RMG writes the absolute paths of its save and screenshot folders, which name the capture's temporary home, and makes those folders at the first game.",
+  "masks": [
+    { "file": "main", "section": "Core", "key": "ScreenshotPath" },
+    { "file": "main", "section": "Core", "key": "SaveStatePath" },
+    { "file": "main", "section": "Core", "key": "SaveSRAMPath" }
+  ],
+  "saves_later": [
+    "{data}/Save/Game",
+    "{data}/Save/State"
+  ]
+}
