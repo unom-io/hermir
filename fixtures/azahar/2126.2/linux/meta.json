@@ -1,0 +1,26 @@
+{
+  "emulator": "azahar",
+  "version": "2126.2",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "org.azahar_emu.Azahar",
+    "commit": "f647d694ab43eae768c19ea50bfb64a5480d4093fd327687ba3da288d48954a2"
+  },
+  "captured": {
+    "on": "2026-10-30",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "qt-config.ini"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": false,
+  "created": [
+    "config/azahar-emu/qt-config.ini",
+    "data/azahar-emu/log/azahar_log.txt",
+    "data/azahar-emu/nand/data/00000000000000000000000000000000/sysdata/00010017/00000000/config"
+  ]
+}

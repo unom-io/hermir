@@ -8,7 +8,7 @@
     "commit": "6fd57460d7bb6d329dc2e5ee2abfc3c484bbf994bd9b7ddbf6d9cac63f03a12b"
   },
   "captured": {
-    "on": "2026-10-03",
+    "on": "2026-10-30",
     "by": "xtask capture"
   },
   "files": {
@@ -17,6 +17,23 @@
   "oracle": {
     "main": "ini"
   },
+  "masks": [
+    {
+      "file": "main",
+      "section": "Core",
+      "key": "ScreenshotPath"
+    },
+    {
+      "file": "main",
+      "section": "Core",
+      "key": "SaveStatePath"
+    },
+    {
+      "file": "main",
+      "section": "Core",
+      "key": "SaveSRAMPath"
+    }
+  ],
   "full_writer": false,
   "created": [
     "config/RMG/mupen64plus.cfg"
