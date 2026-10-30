@@ -581,6 +581,8 @@ mod tests {
             sha256: None,
             verified: Verified::None,
             kept: Vec::new(),
+            installation: None,
+            shared: false,
             installed_at: now_rfc3339(),
         }
     }
@@ -637,6 +639,9 @@ mod tests {
         assert_eq!(r.verified, Verified::None);
         assert_eq!(r.sha256, None);
         assert!(r.kept.is_empty());
+        // From before installations and shared copies: the user's, portable.
+        assert_eq!(r.installation, None);
+        assert!(!r.shared);
     }
 
     #[test]

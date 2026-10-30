@@ -72,12 +72,25 @@ pub struct Options {
     /// default. A consumer's own [`Runner`] chooses the account it runs as.
     pub runner: Box<dyn Runner>,
     /// What detection looks at (files, `PATH`, environment variables): the machine itself,
-    /// [`RealEnv`], when unset.
+    /// [`RealEnv`] in [`Self::home`], when unset.
     pub env: Option<Box<dyn Env>>,
+    /// Another account's home, for a host running as a service on the player's behalf: config
+    /// roots under `~`, `%APPDATA%` and `Documents` resolve there ([`RealEnv::with_home`]; a
+    /// given `env` still decides), and every [`LaunchSpec::env`] carries that home's per-user
+    /// variables. The process's own when unset.
+    pub home: Option<PathBuf>,
     /// Refuse a download there is nothing to check against (a GitHub asset without a digest,
     /// a libretro core) with [`Error::Unverified`], before anything is fetched. Off by default:
     /// such an install then records `verified: none`.
     pub require_verified: bool,
+    /// The Flatpak installation a new install goes into; [`FlatpakInstallation::User`] by
+    /// default. A managed Flatpak is updated and removed where its row says it went.
+    pub flatpak_installation: FlatpakInstallation,
+    /// Place a Windows archive for every account on the machine: without its portable marker,
+    /// so each account keeps its own config and saves under `roots.windows` (`%APPDATA%`,
+    /// `Documents`). An emulator whose `roots.windows` is `<app>` (RPCS3, Snes9x, Supermodel)
+    /// keeps its data beside the exe, shared. Off by default; nothing changes on Linux.
+    pub shared_install: bool,
 }
 
 impl Default for Options {
@@ -88,7 +101,10 @@ impl Default for Options {
             http: Box::new(Ureq::new()),
             runner: Box::new(Process),
             env: None,
+            home: None,
             require_verified: false,
+            flatpak_installation: FlatpakInstallation::User,
+            shared_install: false,
         }
     }
 }
@@ -102,7 +118,11 @@ pub struct Hermir {
     http: Box<dyn Http>,
     runner: Box<dyn Runner>,
     env: Box<dyn Env>,
+    /// `Options::home`'s per-user variables, for every launch.
+    home_vars: Vec<(&'static str, PathBuf)>,
     require_verified: bool,
+    flatpak_installation: FlatpakInstallation,
+    shared_install: bool,
 }
 
 impl Hermir {
@@ -110,14 +130,21 @@ impl Hermir {
     /// is installed or applied.
     pub fn open(opts: Options) -> Result<Hermir> {
         let os = opts.os.unwrap_or_else(Os::current);
+        let real = match opts.home {
+            Some(home) => RealEnv::with_home(os, home),
+            None => RealEnv::new(os),
+        };
         Ok(Hermir {
             catalog: Catalog::embedded()?,
             store: Store::open(opts.prefix.unwrap_or_else(Store::default_root))?,
             os,
             http: opts.http,
             runner: opts.runner,
-            env: opts.env.unwrap_or_else(|| Box::new(RealEnv::new(os))),
+            home_vars: real.home_vars(),
+            env: opts.env.unwrap_or_else(|| Box::new(real)),
             require_verified: opts.require_verified,
+            flatpak_installation: opts.flatpak_installation,
+            shared_install: opts.shared_install,
         })
     }
 
@@ -226,13 +253,14 @@ impl Hermir {
                 .flatpak
                 .as_deref()
                 .map(|t| detect::expand(t, self.env.as_ref(), None)),
-            // A build without a portable marker keeps the layout of the OS: an AppImage the
-            // native one, a Windows zip `%APPDATA%`, as detection resolves them.
-            (Exe::Path(_), Some(e)) if !marks_portable(e, self.os) => match self.os {
+            // A build without a portable marker, none in its channel or left out of a shared
+            // copy, keeps the layout of the OS: an AppImage the native one, a Windows zip
+            // `roots.windows` (`<app>` for RPCS3), as detection resolves them.
+            (Exe::Path(p), Some(e)) if r.shared || !marks_portable(e, self.os) => match self.os {
                 Os::Windows => e.roots.windows.as_deref(),
                 _ => e.roots.native.as_deref(),
             }
-            .map(|t| detect::expand(t, self.env.as_ref(), None)),
+            .map(|t| detect::expand(t, self.env.as_ref(), p.parent())),
             (Exe::Path(p), Some(e)) => e
                 .roots
                 .portable
@@ -366,13 +394,13 @@ impl EmulatorHandle<'_> {
         self.h.store.installed_one(&self.entry.id)
     }
 
-    /// Installs, or reinstalls, from the channel for this OS.
+    /// Installs, or reinstalls, from the channel for this OS, as `Options` says.
     pub fn install(&self, progress: &dyn Progress) -> Result<Installed> {
         let _lock = self.h.store.lock()?;
-        self.install_locked(progress)
+        self.install_locked(progress, self.h.shared_install)
     }
 
-    fn install_locked(&self, progress: &dyn Progress) -> Result<Installed> {
+    fn install_locked(&self, progress: &dyn Progress, shared: bool) -> Result<Installed> {
         channel::install(
             self.entry,
             self.h.os,
@@ -381,6 +409,8 @@ impl EmulatorHandle<'_> {
             self.h.runner.as_ref(),
             progress,
             self.h.require_verified,
+            self.h.flatpak_installation,
+            shared,
         )
     }
 
@@ -393,14 +423,16 @@ impl EmulatorHandle<'_> {
         })
     }
 
-    /// Reinstalls when the channel moved; `Ok(None)` when it did not. A Flatpak asks
-    /// `flatpak update`.
+    /// Reinstalls when the channel moved, keeping the copy shared or not as its row says;
+    /// `Ok(None)` when it did not. A Flatpak asks `flatpak update`, in the installation its row
+    /// names.
     pub fn update(&self, progress: &dyn Progress) -> Result<Option<Installed>> {
         let _lock = self.h.store.lock()?;
         let row = self.managed_row()?;
         if let Exe::FlatpakRun(id) = &row.exe {
-            channel::flatpak::update(self.h.runner.as_ref(), id)?;
-            let version = channel::flatpak::version(self.h.runner.as_ref(), id);
+            let at = row.installation.unwrap_or_default();
+            channel::flatpak::update(self.h.runner.as_ref(), id, at)?;
+            let version = channel::flatpak::version(self.h.runner.as_ref(), id, at);
             // Flatpak updates in place and says nothing useful about it; the version it reports
             // afterwards is what tells whether anything moved.
             if version == row.version {
@@ -419,10 +451,11 @@ impl EmulatorHandle<'_> {
         if !channel::update_available(&row, &resolved) {
             return Ok(None);
         }
-        self.install_locked(progress).map(Some)
+        self.install_locked(progress, row.shared).map(Some)
     }
 
-    /// Removes the managed copy; with `purge`, its data too (a Flatpak's `~/.var/app/<id>`).
+    /// Removes the managed copy, a Flatpak from the installation its row names; with `purge`,
+    /// its data too (a Flatpak's `~/.var/app/<id>`).
     pub fn remove(&self, purge: bool) -> Result<()> {
         let _lock = self.h.store.lock()?;
         let row = self.managed_row()?;
@@ -730,8 +763,9 @@ impl EmulatorHandle<'_> {
     }
 
     /// The command that starts `install` with `req`: the catalog's template rendered, the
-    /// game's folder granted to a Flatpak, launch-only knobs from the request's patch. hermir
-    /// never runs it; the consumer does, its own way.
+    /// game's folder granted to a Flatpak, launch-only knobs from the request's patch, and
+    /// `Options::home`'s per-user variables in `env`. hermir never runs it; the consumer does,
+    /// its own way.
     pub fn launch(&self, install: &Install, req: &LaunchRequest) -> Result<LaunchSpec> {
         self.mine(install)?;
         let profile = match &req.profile {
@@ -753,8 +787,15 @@ impl EmulatorHandle<'_> {
             }
             None => None,
         };
-        launch::launch(self.entry, self.h.os, install, req, profile.as_deref())
-            .map_err(Error::Invalid)
+        let mut spec = launch::launch(self.entry, self.h.os, install, req, profile.as_deref())
+            .map_err(Error::Invalid)?;
+        spec.env.extend(
+            self.h
+                .home_vars
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string_lossy().into_owned())),
+        );
+        Ok(spec)
     }
 
     /// An install of another emulator would be patched with this one's keys.
@@ -934,8 +975,8 @@ mod tests {
             os: Some(Os::Windows),
             http: Box::new(FakeHttp::default()),
             runner: Box::new(FakeRunner::default()),
-            env: None,
             require_verified,
+            ..Options::default()
         })
         .unwrap()
     }
@@ -1085,23 +1126,13 @@ mod tests {
             http: Box::new(FakeHttp::default()),
             runner: Box::new(FakeRunner::default()),
             env: Some(Box::new(env)),
-            require_verified: false,
+            ..Options::default()
         })
         .unwrap();
         {
             let _lock = h.store().lock().unwrap();
             h.store()
-                .record(Installed {
-                    emulator: "xemu".into(),
-                    channel: "github".into(),
-                    exe: Exe::Path(prefix.join("xemu/app/xemu.exe")),
-                    version: None,
-                    release: None,
-                    sha256: None,
-                    verified: Verified::None,
-                    kept: Vec::new(),
-                    installed_at: "2026-10-03T00:00:00Z".into(),
-                })
+                .record(archive_row("xemu", prefix.join("xemu/app/xemu.exe"), false))
                 .unwrap();
         }
         let e = h.emulator("xemu").unwrap();
@@ -1127,6 +1158,151 @@ mod tests {
         assert!(matches!(pcsx2.apply(&best, &patch), Err(Error::Invalid(_))));
     }
 
+    fn archive_row(id: &str, exe: PathBuf, shared: bool) -> Installed {
+        Installed {
+            emulator: id.into(),
+            channel: "github".into(),
+            exe: Exe::Path(exe),
+            version: None,
+            release: None,
+            sha256: None,
+            verified: Verified::None,
+            kept: Vec::new(),
+            installation: None,
+            shared,
+            installed_at: "2026-10-03T00:00:00Z".into(),
+        }
+    }
+
+    /// The config root a managed row of `id` resolves to.
+    fn managed_root(h: &Hermir, id: &str, shared: bool) -> Option<PathBuf> {
+        let exe = h.store().app_dir(id).join(format!("{id}.exe"));
+        {
+            let _lock = h.store().lock().unwrap();
+            h.store().record(archive_row(id, exe, shared)).unwrap();
+        }
+        h.emulator(id).unwrap().copies().unwrap()[0]
+            .config_root
+            .clone()
+    }
+
+    #[test]
+    fn a_shared_copy_reads_each_accounts_folder_and_rpcs3_its_own() {
+        let tmp = tempfile::tempdir().unwrap();
+        let env = crate::detect::fake::FakeEnv::new(Os::Windows, "C:\\Users\\u")
+            .var("USERPROFILE", "C:\\Users\\u");
+        let h = Hermir::open(Options {
+            prefix: Some(tmp.path().to_path_buf()),
+            os: Some(Os::Windows),
+            http: Box::new(FakeHttp::default()),
+            runner: Box::new(FakeRunner::default()),
+            env: Some(Box::new(env)),
+            ..Options::default()
+        })
+        .unwrap();
+        assert_eq!(
+            managed_root(&h, "duckstation", true),
+            Some(PathBuf::from("C:\\Users\\u\\Documents\\DuckStation"))
+        );
+        assert_eq!(
+            managed_root(&h, "duckstation", false),
+            Some(h.store().app_dir("duckstation"))
+        );
+        // RPCS3 has no per-account layout: its data stays beside the exe.
+        assert_eq!(
+            managed_root(&h, "rpcs3", false),
+            Some(h.store().app_dir("rpcs3"))
+        );
+    }
+
+    #[test]
+    fn a_home_moves_the_accounts_folders_and_rides_along_with_every_launch() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path().join("player");
+        let h = Hermir::open(Options {
+            prefix: Some(tmp.path().join("prefix")),
+            os: Some(Os::Windows),
+            http: Box::new(FakeHttp::default()),
+            runner: Box::new(FakeRunner::default()),
+            home: Some(home.clone()),
+            ..Options::default()
+        })
+        .unwrap();
+        assert_eq!(
+            managed_root(&h, "duckstation", true),
+            Some(PathBuf::from(format!(
+                "{}\\Documents\\DuckStation",
+                home.display()
+            )))
+        );
+        let e = h.emulator("duckstation").unwrap();
+        let copy = e.copies().unwrap().remove(0);
+        let spec = e.launch(&copy, &LaunchRequest::default()).unwrap();
+        let var = |k: &str| spec.env.get(k).map(PathBuf::from);
+        assert_eq!(var("USERPROFILE"), Some(home.clone()));
+        assert_eq!(var("APPDATA"), Some(home.join("AppData").join("Roaming")));
+        assert_eq!(
+            var("LOCALAPPDATA"),
+            Some(home.join("AppData").join("Local"))
+        );
+
+        let own = open(&tmp.path().join("prefix"), false);
+        let e = own.emulator("duckstation").unwrap();
+        let spec = e.launch(&copy, &LaunchRequest::default()).unwrap();
+        assert!(spec.env.is_empty(), "{:?}", spec.env);
+    }
+
+    #[test]
+    fn a_flatpak_is_updated_and_removed_where_it_was_installed() {
+        let tmp = tempfile::tempdir().unwrap();
+        let runner = std::sync::Arc::new(FakeRunner {
+            info_version: Some("2.8.2".into()),
+            ..Default::default()
+        });
+        let open = |at: FlatpakInstallation| {
+            Hermir::open(Options {
+                prefix: Some(tmp.path().to_path_buf()),
+                os: Some(Os::Linux),
+                http: Box::new(FakeHttp::default()),
+                runner: Box::new(runner.clone()),
+                env: Some(Box::new(crate::detect::fake::FakeEnv::new(
+                    Os::Linux,
+                    "/home/u",
+                ))),
+                flatpak_installation: at,
+                ..Options::default()
+            })
+            .unwrap()
+        };
+        let row = open(FlatpakInstallation::System)
+            .emulator("pcsx2")
+            .unwrap()
+            .install(&Quiet)
+            .unwrap();
+        assert_eq!(row.installation, Some(FlatpakInstallation::System));
+        // Opened for the user's installation: the row, not the option, says where the app is.
+        let h = open(FlatpakInstallation::User);
+        let e = h.emulator("pcsx2").unwrap();
+        e.update(&Quiet).unwrap();
+        e.remove(false).unwrap();
+        let calls = runner.calls.lock().unwrap();
+        let verbs: Vec<_> = calls
+            .iter()
+            .map(|c| (c[1].as_str(), c[2].as_str()))
+            .collect();
+        assert_eq!(
+            verbs,
+            [
+                ("remote-add", "--system"),
+                ("install", "--system"),
+                ("info", "--system"),
+                ("update", "--system"),
+                ("info", "--system"),
+                ("uninstall", "--system"),
+            ]
+        );
+    }
+
     fn on_linux(tmp: &std::path::Path) -> Hermir {
         let env = crate::detect::fake::FakeEnv::new(Os::Linux, tmp.join("home").to_str().unwrap());
         Hermir::open(Options {
@@ -1135,7 +1311,7 @@ mod tests {
             http: Box::new(FakeHttp::default()),
             runner: Box::new(FakeRunner::default()),
             env: Some(Box::new(env)),
-            require_verified: false,
+            ..Options::default()
         })
         .unwrap()
     }
@@ -1244,7 +1420,7 @@ mod tests {
             http: Box::new(FakeHttp::default()),
             runner: Box::new(FakeRunner::default()),
             env: Some(Box::new(env)),
-            require_verified: false,
+            ..Options::default()
         })
         .unwrap();
         let e = h.emulator("eden").unwrap();

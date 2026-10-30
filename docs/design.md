@@ -239,7 +239,7 @@ vocabulary once, at the edge. The canonical → emulated-pad button tables live 
 (§4.3), next to the code that writes them.
 
 **Channels** (§2.1): `flatpak` shells out to `flatpak install --user -y --noninteractive
-flathub <id>`; `github` resolves the latest release, picks the asset by `all`/`none` (or exact
+flathub <id>` (`--system` with `Options::flatpak_installation`, recorded in the row); `github` resolves the latest release, picks the asset by `all`/`none` (or exact
 `name`) case-insensitive substring filters (regex invites mistakes), verifies the API's `digest`
 (sha256, since 2025-06), and tells a rolling release rebuilt under one tag (Vita3K's
 `continuous`, Xenia Canary's) by its release id; `url` takes a fixed URL and pins its sha256 in
@@ -247,7 +247,8 @@ the entry (Dolphin, RetroArch, ScummVM); a libretro core
 fetches `buildbot.libretro.com/nightly/<os>/x86_64/latest/<core>_libretro.<so|dll>.zip` into the
 cores dir — the URL RetroArch's own updater uses. Every download lands as `.part`, is verified,
 then extracted (zip, 7z, tar.gz in-process; an AppImage unpacked) into `<prefix>/<id>/app/`, the emulator's home: a portable emulator keeps its
-config, saves and firmware beside its exe, so they live in there too. `<id>/manifest.json` lists
+config, saves and firmware beside its exe, so they live in there too, unless `Options::shared_install`
+left its marker out and each account keeps them under `roots.windows`. `<id>/manifest.json` lists
 what the release shipped (path → sha256) and is what makes the rest safe: an **update** replaces
 shipped files, keeps a shipped file the user modified (the new one lands beside it as `.new`),
 deletes unmodified files the new release dropped, and touches nothing else; a **remove** takes
@@ -376,7 +377,7 @@ whose only rule is a portable marker never fires, so validation refuses it. Vers
 for managed copies (the release); detected copies carry none yet. Detection is pure over an
 injectable `Env` (file system, `which`, variables, home), so it is unit-tested against fake trees
 for both OSes; `RealEnv::with_home` moves the home and every per-user variable with it
-(`hermir check`).
+(`hermir check`, `Options::home`).
 
 ## 6. Launch
 
@@ -387,7 +388,8 @@ Without a game only the `{fullscreen:…}` arguments stay, so the emulator opens
 Flatpak, `exe` is `FlatpakRun("net.pcsx2.PCSX2")` and `sandbox` carries the `flatpak run`
 arguments the run needs (`--filesystem=<the game's folder>`, `--env=PULSE_SINK=…`); the consumer
 decides whether that becomes `flatpak run …` or a portal call. Files are single arguments;
-nothing is ever shell-joined. `hermir run` spawns the spec and forwards the exit code.
+nothing is ever shell-joined. With `Options::home` set, `env` carries that home's per-user
+variables. `hermir run` spawns the spec and forwards the exit code.
 
 ## 7. Firmware and saves
 

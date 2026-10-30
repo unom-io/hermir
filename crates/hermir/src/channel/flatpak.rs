@@ -3,6 +3,7 @@
 use std::process::Command;
 
 use crate::error::{Error, Result};
+use crate::model::FlatpakInstallation;
 
 /// How a [`Runner`]'s program went.
 pub struct Output {
@@ -65,15 +66,22 @@ fn check(what: &str, out: Output) -> Result<Output> {
     }
 }
 
-/// `flatpak install --user`, with the Flathub remote added for the user if it is missing.
-pub fn install(runner: &dyn Runner, id: &str) -> Result<()> {
+fn flag(at: FlatpakInstallation) -> &'static str {
+    match at {
+        FlatpakInstallation::User => "--user",
+        FlatpakInstallation::System => "--system",
+    }
+}
+
+/// `flatpak install` into `at`, with the Flathub remote added there if it is missing.
+pub fn install(runner: &dyn Runner, id: &str, at: FlatpakInstallation) -> Result<()> {
     check(
         "flatpak remote-add",
         runner.run(
             "flatpak",
             &[
                 "remote-add",
-                "--user",
+                flag(at),
                 "--if-not-exists",
                 "flathub",
                 FLATHUB,
@@ -84,26 +92,26 @@ pub fn install(runner: &dyn Runner, id: &str) -> Result<()> {
         &format!("flatpak install {id}"),
         runner.run(
             "flatpak",
-            &["install", "--user", "-y", "--noninteractive", "flathub", id],
+            &["install", flag(at), "-y", "--noninteractive", "flathub", id],
         )?,
     )?;
     Ok(())
 }
 
-pub fn update(runner: &dyn Runner, id: &str) -> Result<()> {
+pub fn update(runner: &dyn Runner, id: &str, at: FlatpakInstallation) -> Result<()> {
     check(
         &format!("flatpak update {id}"),
         runner.run(
             "flatpak",
-            &["update", "--user", "-y", "--noninteractive", id],
+            &["update", flag(at), "-y", "--noninteractive", id],
         )?,
     )?;
     Ok(())
 }
 
-/// `flatpak uninstall --user`; with `purge`, the app's data in `~/.var/app/<id>` too.
-pub fn remove(runner: &dyn Runner, id: &str, purge: bool) -> Result<()> {
-    let mut args = vec!["uninstall", "--user", "-y", "--noninteractive"];
+/// `flatpak uninstall` from `at`; with `purge`, the app's data in `~/.var/app/<id>` too.
+pub fn remove(runner: &dyn Runner, id: &str, at: FlatpakInstallation, purge: bool) -> Result<()> {
+    let mut args = vec!["uninstall", flag(at), "-y", "--noninteractive"];
     if purge {
         args.push("--delete-data");
     }
@@ -115,9 +123,9 @@ pub fn remove(runner: &dyn Runner, id: &str, purge: bool) -> Result<()> {
     Ok(())
 }
 
-/// The `Version:` line of `flatpak info`, when the app answers.
-pub fn version(runner: &dyn Runner, id: &str) -> Option<String> {
-    let out = runner.run("flatpak", &["info", "--user", id]).ok()?;
+/// The `Version:` line of `flatpak info` in `at`, when the app answers.
+pub fn version(runner: &dyn Runner, id: &str, at: FlatpakInstallation) -> Option<String> {
+    let out = runner.run("flatpak", &["info", flag(at), id]).ok()?;
     if !out.ok {
         return None;
     }
@@ -168,6 +176,13 @@ pub(crate) mod fake {
             })
         }
     }
+
+    /// Shared, so a test reads the calls after `Options` took the runner.
+    impl Runner for std::sync::Arc<FakeRunner> {
+        fn run(&self, program: &str, args: &[&str]) -> Result<Output> {
+            self.as_ref().run(program, args)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -175,10 +190,12 @@ mod tests {
     use super::fake::FakeRunner;
     use super::*;
 
+    const USER: FlatpakInstallation = FlatpakInstallation::User;
+
     #[test]
     fn install_adds_the_remote_then_installs() {
         let r = FakeRunner::default();
-        install(&r, "net.pcsx2.PCSX2").unwrap();
+        install(&r, "net.pcsx2.PCSX2", USER).unwrap();
         let calls = r.calls.lock().unwrap();
         assert_eq!(calls[0][1..4], ["remote-add", "--user", "--if-not-exists"]);
         assert_eq!(
@@ -196,10 +213,30 @@ mod tests {
     }
 
     #[test]
+    fn the_system_installation_is_named_in_every_call() {
+        let r = FakeRunner::default();
+        let at = FlatpakInstallation::System;
+        install(&r, "net.pcsx2.PCSX2", at).unwrap();
+        update(&r, "net.pcsx2.PCSX2", at).unwrap();
+        version(&r, "net.pcsx2.PCSX2", at);
+        remove(&r, "net.pcsx2.PCSX2", at, false).unwrap();
+        let calls = r.calls.lock().unwrap();
+        let verbs: Vec<_> = calls.iter().map(|c| c[1].as_str()).collect();
+        assert_eq!(
+            verbs,
+            ["remote-add", "install", "update", "info", "uninstall"]
+        );
+        for c in calls.iter() {
+            assert_eq!(c[2], "--system", "{c:?}");
+            assert!(!c.iter().any(|a| a == "--user"), "{c:?}");
+        }
+    }
+
+    #[test]
     fn a_purge_deletes_the_data_too() {
         let r = FakeRunner::default();
-        remove(&r, "info.cemu.Cemu", false).unwrap();
-        remove(&r, "info.cemu.Cemu", true).unwrap();
+        remove(&r, "info.cemu.Cemu", USER, false).unwrap();
+        remove(&r, "info.cemu.Cemu", USER, true).unwrap();
         let calls = r.calls.lock().unwrap();
         assert_eq!(
             calls[0],
@@ -232,7 +269,7 @@ mod tests {
             fail_install: true,
             ..Default::default()
         };
-        let e = install(&r, "x").unwrap_err();
+        let e = install(&r, "x", USER).unwrap_err();
         assert!(e.to_string().contains("No remote refs"));
     }
 
@@ -242,7 +279,7 @@ mod tests {
             info_version: Some("2.8.2".into()),
             ..Default::default()
         };
-        assert_eq!(version(&r, "x").as_deref(), Some("2.8.2"));
-        assert_eq!(version(&FakeRunner::default(), "x"), None);
+        assert_eq!(version(&r, "x", USER).as_deref(), Some("2.8.2"));
+        assert_eq!(version(&FakeRunner::default(), "x", USER), None);
     }
 }
