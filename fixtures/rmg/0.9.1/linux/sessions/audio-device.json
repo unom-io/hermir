@@ -1,0 +1,10 @@
+{
+  "patch": {
+    "audio": {
+      "device": "hermir_test_sink"
+    }
+  },
+  "expect": {
+    "audio.device": "partial"
+  }
+}

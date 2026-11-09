@@ -1,0 +1,41 @@
+{
+  "emulator": "rmg",
+  "version": "0.9.1",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "com.github.Rosalie241.RMG",
+    "commit": "af5238993f6105417160699c40d4a78feb64b6265cabdf2d264e6051bbef975d"
+  },
+  "captured": {
+    "on": "2026-11-09",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "mupen64plus.cfg"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "masks": [
+    {
+      "file": "main",
+      "section": "Core",
+      "key": "ScreenshotPath"
+    },
+    {
+      "file": "main",
+      "section": "Core",
+      "key": "SaveStatePath"
+    },
+    {
+      "file": "main",
+      "section": "Core",
+      "key": "SaveSRAMPath"
+    }
+  ],
+  "full_writer": false,
+  "created": [
+    "config/RMG/mupen64plus.cfg"
+  ]
+}
