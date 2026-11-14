@@ -144,14 +144,15 @@ mod tests {
         std::fs::create_dir_all(&cores).unwrap();
         std::fs::write(cores.join("snes9x_libretro.dll"), b"old").unwrap();
         #[cfg(windows)]
+        let icacls = |p: &Path, args: &[&str]| {
+            let s = std::process::Command::new("icacls")
+                .arg(p)
+                .args(args)
+                .status();
+            assert!(s.unwrap().success(), "icacls {} {args:?}", p.display());
+        };
+        #[cfg(windows)]
         {
-            let icacls = |p: &Path, args: &[&str]| {
-                let s = std::process::Command::new("icacls")
-                    .arg(p)
-                    .args(args)
-                    .status();
-                assert!(s.unwrap().success(), "icacls {} {args:?}", p.display());
-            };
             let me = format!("{}:(OI)(CI)F", std::env::var("USERNAME").unwrap());
             icacls(
                 &tmp,
@@ -169,13 +170,15 @@ mod tests {
         assert_eq!(std::fs::read_dir(&tmp).unwrap().count(), 0);
         #[cfg(windows)]
         {
-            let path = core.display().to_string().replace('\'', "''");
-            let sddl = std::process::Command::new("powershell")
-                .args(["-NoProfile", "-Command"])
-                .arg(format!("(Get-Acl -LiteralPath '{path}').Sddl"))
-                .output()
-                .unwrap();
-            let sddl = String::from_utf8_lossy(&sddl.stdout);
+            // `/save` writes the file's name and its SDDL as UTF-16LE.
+            let saved = root.path().join("acl");
+            icacls(&core, &["/save", &saved.to_string_lossy()]);
+            let raw = std::fs::read(&saved).unwrap();
+            let wide: Vec<u16> = raw
+                .chunks_exact(2)
+                .map(|b| u16::from_le_bytes([b[0], b[1]]))
+                .collect();
+            let sddl = String::from_utf16_lossy(&wide);
             assert!(
                 sddl.contains(";;;BU)"),
                 "no Users grant from the cores folder: {sddl}"
