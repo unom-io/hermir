@@ -5,10 +5,10 @@
   "kind": "flatpak",
   "source": {
     "flatpak": "com.snes9x.Snes9x",
-    "commit": "79ac5baaad32c5f7289f36277f2f643bb51085c4ecb41fe653679f885612b725"
+    "commit": "e1ff7a69715a9483d6675cae6f5aa7304eaf0be7e1ade7668321b3f84249079a"
   },
   "captured": {
-    "on": "2026-11-02",
+    "on": "2026-11-16",
     "by": "xtask capture"
   },
   "files": {
