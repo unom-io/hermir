@@ -135,6 +135,10 @@ pub(crate) const ADAPTERS: &[Adapter] = &[
         players: flycast::players,
     },
     Adapter {
+        name: "lichii",
+        players: eden::lichii,
+    },
+    Adapter {
         name: "mgba",
         players: mgba::players,
     },

@@ -1257,25 +1257,28 @@ mod tests {
             "video_fullscreen = \"true\"\nvideo_vsync = \"true\"\naspect_ratio_index = \"1\"\n"
         );
 
-        // Eden: Qt spelling on a fresh file, a scale table, `{config}` beside a data root.
-        let eden = tmp.path().join("home/.local/share/eden");
-        let a = run(&c, "eden", Os::Linux, &eden, &everything(), &snaps);
-        assert_eq!(knob(&a, "video.vsync").support, Support::Partial);
-        let qt = read(&tmp.path().join("home/.config/eden/qt-config.ini"));
-        assert!(
-            qt.starts_with("[UI]\nfullscreen=true\nfullscreen\\default=false\n"),
-            "{qt}"
-        );
-        assert!(
-            qt.contains(
-                "[Renderer]\nresolution_setup=4\nresolution_setup\\default=false\nvsync_mode=2\n"
-            ),
-            "{qt}"
-        );
-        assert!(
-            qt.contains("[System]\nregion_index=1\nregion_index\\default=false\n"),
-            "{qt}"
-        );
+        // Eden and Lichii: Qt spelling on a fresh file, a scale table (Res2X is 6 of
+        // ResolutionSetup), `{config}` beside a data root.
+        for id in ["eden", "lichii"] {
+            let root = tmp.path().join(format!("home/.local/share/{id}"));
+            let a = run(&c, id, Os::Linux, &root, &everything(), &snaps);
+            assert_eq!(knob(&a, "video.vsync").support, Support::Partial);
+            let qt = read(&tmp.path().join(format!("home/.config/{id}/qt-config.ini")));
+            assert!(
+                qt.starts_with("[UI]\nfullscreen=true\nfullscreen\\default=false\n"),
+                "{qt}"
+            );
+            assert!(
+                qt.contains(
+                    "[Renderer]\nresolution_setup=6\nresolution_setup\\default=false\nuse_vsync=2\n"
+                ),
+                "{qt}"
+            );
+            assert!(
+                qt.contains("[System]\nregion_index=1\nregion_index\\default=false\n"),
+                "{qt}"
+            );
+        }
 
         // Flycast: lines, yes/no, the region table; the 16:9 hack is partial.
         let fly = tmp.path().join("flycast");

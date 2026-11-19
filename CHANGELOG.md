@@ -10,7 +10,7 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 
 ### Added
 
-- A catalog of 23 emulators, embedded in the library, parsed strictly, with a JSON Schema and
+- A catalog of 24 emulators, embedded in the library, parsed strictly, with a JSON Schema and
   per-OS channels, detection rules, config roots and firmware folders.
 - Install, update and remove from each emulator's own channel — Flatpak on Linux; GitHub
   releases or a pinned official URL on Windows — over https only, with the OS's trust store and
@@ -99,6 +99,12 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   with a lock of their own that `apply`, `revert`, `revert_all` and `import_unit` hold instead
   of the prefix's. One account's `revert_all` leaves another's session alone, and two accounts
   apply at once. Unset, both stay in the prefix under its lock.
+- Lichii, an Eden fork that plays Switch 2 games as well as Switch ones, and the `switch2`
+  platform (RomM's `switch-2`). Like Eden it is detected, configured and launched, never
+  installed.
+- Eden and Lichii take a game's updates and DLC where they lie: the file's folder joins the
+  folders they scan (`external_content_dirs`), and a Flatpak Eden is granted those folders at
+  launch. `ContentMethod::keeps_path` says which ways need the file to stay put.
 
 ### Changed
 
@@ -132,6 +138,9 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 
 ### Fixed
 
+- Eden's settings follow its current names: the scale table has `ResolutionSetup`'s 1/4× and
+  5/4× steps (2× was written as 1×), vsync is `use_vsync`, and region `auto` is not written,
+  since Eden reads `-1` as Taiwan.
 - Cemu's Pro Controllers took the GamePad's mapping ids, so the d-pad landed on Home.
 - Supermodel's coin keys were the Service and Test keys.
 

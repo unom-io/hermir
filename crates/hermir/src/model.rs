@@ -188,6 +188,15 @@ pub enum ContentMethod {
     },
 }
 
+impl ContentMethod {
+    /// Whether the emulator reads the add-on where it lies, so the file must stay there:
+    /// Ryujinx registers the file, Eden and Lichii scan its folder. Every other way copies it
+    /// in or runs an installer on it.
+    pub fn keeps_path(&self) -> bool {
+        matches!(self, ContentMethod::Adapter { adapter } if adapter == "ryujinx" || adapter == "eden")
+    }
+}
+
 /// What installing one add-on did (`EmulatorHandle::install_content`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ContentStep {

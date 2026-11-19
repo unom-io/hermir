@@ -7,11 +7,11 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use crate::channel::flatpak::Runner;
-use crate::config;
+use crate::config::{self, ini};
 use crate::model::{ContentMethod, ContentStep, Entry, Exe, Install, Os, StepOutcome};
 
 /// The adapters a catalog entry may name.
-pub(crate) const ADAPTERS: &[&str] = &["cemu", "ryujinx", "rpcs3"];
+pub(crate) const ADAPTERS: &[&str] = &["cemu", "eden", "ryujinx", "rpcs3"];
 
 /// Platform → the add-on kinds the entry installs there.
 pub fn kinds(e: &Entry) -> BTreeMap<String, Vec<String>> {
@@ -99,6 +99,7 @@ pub fn install(
                 steps.extend(cemu(entry, os, install, root, &titles));
                 Ok(steps)
             }
+            "eden" => Ok(eden(entry, os, root, files)),
             "ryujinx" => Ok(files.iter().map(|f| ryujinx(root, kind, f)).collect()),
             "rpcs3" => Ok(files
                 .iter()
@@ -399,6 +400,157 @@ fn ryujinx_register(root: &Path, kind: &str, file: &Path) -> Result<PathBuf, Str
     Ok(target)
 }
 
+// ── Eden and Lichii: a package is read where it lies. At every start they scan each folder of
+// `[UI] Paths\external_content_dirs`, subfolders included, for NSP, NSZ, XCI and XCZ files (Eden
+// 0.2.1 only NSP and XCI) and take the updates and DLC in them. ──
+
+const EDEN_DIRS: &str = "Paths\\external_content_dirs";
+
+/// What makes Eden quote a path it writes; its reader drops every `"`.
+const EDEN_QUOTE: &[char] = &[
+    '!', '#', '$', '%', '^', '&', '*', '|', ';', '\'', '"', ',', '<', '>', '?', '`', '~', '=',
+];
+
+fn eden(entry: &Entry, os: Os, root: &Path, files: &[PathBuf]) -> Vec<ContentStep> {
+    let Some(ini) = eden_ini(entry, os, root) else {
+        let why = || Some("the catalog names no settings file".to_string());
+        return files
+            .iter()
+            .map(|f| step(f, f, StepOutcome::Failed, why()))
+            .collect();
+    };
+    files
+        .iter()
+        .map(|f| match eden_register(&entry.name, &ini, os, f) {
+            Ok(outcome) => step(f, &ini, outcome, None),
+            Err(e) => step(f, f, StepOutcome::Failed, Some(e)),
+        })
+        .collect()
+}
+
+/// Its `qt-config.ini`: the catalog's `main` file.
+fn eden_ini(entry: &Entry, os: Os, root: &Path) -> Option<PathBuf> {
+    let rel = entry.config.as_ref()?.files.get("main")?.path.get(os)?;
+    Some(config::resolve(root, rel))
+}
+
+/// The folders this copy scans for add-ons, as its ini spells them; none for an emulator that
+/// takes its add-ons another way. A Flatpak copy is granted them at launch.
+pub(crate) fn scanned_dirs(entry: &Entry, os: Os, install: &Install) -> Vec<String> {
+    let eden =
+        |m: &ContentMethod| matches!(m, ContentMethod::Adapter { adapter } if adapter == "eden");
+    if !entry
+        .content
+        .values()
+        .any(|c| eden(&c.update) || eden(&c.dlc))
+    {
+        return Vec::new();
+    }
+    install
+        .config_root
+        .as_deref()
+        .and_then(|root| eden_ini(entry, os, root))
+        .and_then(|ini| fs::read_to_string(ini).ok())
+        .map(|text| eden_dirs(&text).1)
+        .unwrap_or_default()
+}
+
+/// `(size, folders)` of the list in `text`. The size is what Eden numbers the next one by.
+fn eden_dirs(text: &str) -> (usize, Vec<String>) {
+    // ponytail: capped so a corrupt size cannot loop for long; Eden's own UI lists a handful.
+    let size = ini::get(text, "UI", &format!("{EDEN_DIRS}\\size"))
+        .and_then(|s| s.trim().parse::<usize>().ok())
+        .unwrap_or(0)
+        .min(4096);
+    let dirs = (1..=size)
+        .filter_map(|i| ini::get(text, "UI", &format!("{EDEN_DIRS}\\{i}\\path")))
+        .map(|p| p.replace('"', ""))
+        .filter(|p| !p.is_empty())
+        .collect();
+    (size, dirs)
+}
+
+/// `dir` as Eden writes a path: `/` for `\`, no doubled `/` but a network path's leading two.
+fn eden_spelling(dir: &Path) -> String {
+    let s = dir.to_string_lossy().replace('\\', "/");
+    let mut out = String::with_capacity(s.len() + 1);
+    for c in s.chars() {
+        if !(c == '/' && out.ends_with('/')) {
+            out.push(c);
+        }
+    }
+    if s.starts_with("//") {
+        out.insert(0, '/');
+    }
+    out
+}
+
+/// Whether Eden's scan of `listed` reaches `dir`: the folder itself, or one below it.
+fn covers(listed: &str, dir: &str, os: Os) -> bool {
+    let fold = |s: &str| {
+        let s = s.trim_end_matches('/');
+        if os == Os::Windows {
+            s.to_ascii_lowercase()
+        } else {
+            s.to_string()
+        }
+    };
+    let (l, d) = (fold(listed), fold(dir));
+    d == l || d.starts_with(&format!("{l}/"))
+}
+
+/// Lists the folder `file` lies in, unless a listed folder already reaches it.
+fn eden_register(name: &str, ini_path: &Path, os: Os, file: &Path) -> Result<StepOutcome, String> {
+    let ext = file
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if !matches!(ext.as_str(), "nsp" | "nsz" | "xci" | "xcz") {
+        return Err(format!(
+            "{name} reads updates and DLC from NSP, NSZ, XCI or XCZ files"
+        ));
+    }
+    if !file.is_file() {
+        return Err(format!("read {}: no such file", file.display()));
+    }
+    let dir = eden_spelling(file.parent().ok_or("the file has no folder")?);
+    let text = match fs::read_to_string(ini_path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(format!("read {}: {e}", ini_path.display())),
+    };
+    let (size, listed) = eden_dirs(&text);
+    if listed.iter().any(|l| covers(l, &dir, os)) {
+        return Ok(StepOutcome::Present);
+    }
+    let value = if dir.contains(EDEN_QUOTE) {
+        format!("\"{dir}\"")
+    } else {
+        dir
+    };
+    let opts = ini::IniOpts {
+        sep: "=",
+        case_insensitive: false,
+    };
+    let n = size + 1;
+    let mut text = text;
+    for (key, value) in [
+        (format!("{EDEN_DIRS}\\{n}\\path"), value),
+        (format!("{EDEN_DIRS}\\size"), n.to_string()),
+    ] {
+        if let Some(next) = ini::set_with(&text, "UI", &key, &value, opts)? {
+            text = next;
+        }
+    }
+    if let Some(p) = ini_path.parent() {
+        fs::create_dir_all(p).map_err(|e| format!("create {}: {e}", p.display()))?;
+    }
+    config::write_atomic(ini_path, text.as_bytes())
+        .map_err(|e| format!("write {}: {e}", ini_path.display()))?;
+    Ok(StepOutcome::Applied)
+}
+
 // ── RPCS3: a `.pkg` goes through its own installer; a licence (`.rap`, `.edat`) into the
 // user's `exdata`, where the installed content looks for it. ──
 
@@ -615,22 +767,99 @@ mod tests {
     fn an_emulator_without_a_way_says_why() {
         let c = Catalog::embedded().unwrap();
         let copy = Install::new(
-            "eden",
+            "azahar",
             InstallKind::Native,
-            Exe::Path("/usr/bin/eden".into()),
-            Some("/tmp/eden".into()),
+            Exe::Path("/usr/bin/azahar".into()),
+            Some("/tmp/azahar".into()),
         );
         let err = install(
-            c.get("eden").unwrap(),
+            c.get("azahar").unwrap(),
             Os::Linux,
             &copy,
-            "switch",
+            "3ds",
             "dlc",
             &[],
             &FakeRunner::default(),
         )
         .unwrap_err();
-        assert!(err.contains("Eden"), "{err}");
+        assert!(err.contains("Azahar"), "{err}");
+    }
+
+    #[test]
+    fn eden_and_lichii_scan_the_folder_an_add_on_lies_in() {
+        let c = Catalog::embedded().unwrap();
+        let lichii = c.get("lichii").unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("home/.local/share/lichii");
+        let copy = Install::new(
+            "lichii",
+            InstallKind::Native,
+            Exe::Path("/usr/bin/lichii".into()),
+            Some(root),
+        );
+        // A comma makes Eden quote the path.
+        let game = tmp.path().join("games, all/Game");
+        std::fs::create_dir_all(game.join("update")).unwrap();
+        std::fs::create_dir_all(game.join("dlc/more")).unwrap();
+        let upd = game.join("update/Game [v65536].nsp");
+        let dlc = game.join("dlc/Game DLC.nsz");
+        let deeper = game.join("dlc/more/More.xci");
+        let zip = game.join("update/Game.zip");
+        for f in [&upd, &dlc, &deeper, &zip] {
+            std::fs::write(f, b"PFS0").unwrap();
+        }
+        let run = |kind: &str, files: &[PathBuf]| {
+            let steps = install(
+                lichii,
+                Os::Linux,
+                &copy,
+                "switch2",
+                kind,
+                files,
+                &FakeRunner::default(),
+            )
+            .unwrap();
+            steps.into_iter().map(|s| s.outcome).collect::<Vec<_>>()
+        };
+        assert_eq!(
+            run("update", std::slice::from_ref(&upd)),
+            [StepOutcome::Applied]
+        );
+        // A second folder; then files the listed folders already reach.
+        assert_eq!(
+            run("dlc", &[dlc, deeper, upd]),
+            [
+                StepOutcome::Applied,
+                StepOutcome::Present,
+                StepOutcome::Present
+            ]
+        );
+        assert_eq!(run("update", &[zip]), [StepOutcome::Failed]);
+        let ini =
+            std::fs::read_to_string(tmp.path().join("home/.config/lichii/qt-config.ini")).unwrap();
+        let g = eden_spelling(&game);
+        assert!(
+            ini.starts_with(&format!(
+                "[UI]\nPaths\\external_content_dirs\\1\\path=\"{g}/update\"\n"
+            )),
+            "{ini}"
+        );
+        let want = vec![format!("{g}/update"), format!("{g}/dlc")];
+        assert_eq!(eden_dirs(&ini), (2, want.clone()));
+        assert_eq!(scanned_dirs(lichii, Os::Linux, &copy), want);
+        assert!(lichii.content["switch2"].dlc.keeps_path());
+        assert!(!c.get("cemu").unwrap().content["wiiu"].dlc.keeps_path());
+    }
+
+    #[test]
+    fn a_path_is_spelled_as_eden_writes_it() {
+        assert_eq!(
+            eden_spelling(Path::new(r"C:\Games\\Zelda")),
+            "C:/Games/Zelda"
+        );
+        assert_eq!(eden_spelling(Path::new(r"\\nas\roms")), "//nas/roms");
+        assert!(covers("C:/games/", "c:/Games/Zelda/update", Os::Windows));
+        assert!(!covers("/games/Zel", "/games/Zelda", Os::Linux));
     }
 
     #[test]

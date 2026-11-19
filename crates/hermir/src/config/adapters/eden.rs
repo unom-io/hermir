@@ -1,12 +1,21 @@
-//! Eden (yuzu's lineage): a Pro Controller per player in `qt-config.ini`, each control
-//! `engine:sdl,guid:<guid>,port:<n>,…` with SDL 3's raw joystick numbers, n counting pads of
-//! the same GUID from 0. Eden zeroes the name CRC in the GUID. A player is plugged in by its
-//! `connected` flag, not by a pad, so every seat without one is unplugged.
+//! Eden (yuzu's lineage) and its fork Lichii: a Pro Controller per player in `qt-config.ini`,
+//! each control `engine:sdl,guid:<guid>,port:<n>,…` with SDL 3's raw joystick numbers, n
+//! counting pads of the same GUID from 0. Eden zeroes the name CRC in the GUID. A player is
+//! plugged in by its `connected` flag, not by a pad, so every seat without one is unplugged.
 use super::{Bindings, Cx, Plan, Seating, beyond, guid_note, join, set};
 use crate::config::ini::qt_value;
 use crate::players::{Ctl, Dir, RawControl};
 
 pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
+    bind(cx, s, "Eden")
+}
+
+/// Lichii keeps Eden's `[Controls]` keys; only the name in a caveat differs.
+pub(super) fn lichii(cx: &Cx, s: &Seating) -> Plan {
+    bind(cx, s, "Lichii")
+}
+
+fn bind(cx: &Cx, s: &Seating, emulator: &str) -> Plan {
     let players = &s.seats[..];
     let mut edits = Vec::new();
     let mut key = |n: u8, k: &str, v: &str| -> Result<(), String> {
@@ -93,8 +102,8 @@ pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
     Ok(Bindings {
         edits,
         note: join(
-            join(beyond(players, 8, "Eden"), guid_note(cx.os, s)),
-            s.guessed("Eden", "GUID"),
+            join(beyond(players, 8, emulator), guid_note(cx.os, s)),
+            s.guessed(emulator, "GUID"),
         ),
     })
 }

@@ -29,7 +29,7 @@ way.
 | D9 | Versions | **Current stable line per emulator.** Where a format split matters (melonDS `.ini` → `.toml` at 1.0), `detect` reads the version and the adapter branches. Ancient versions are out of scope. |
 | D10 | Language, runtime, deps | **Rust 2024, blocking I/O, progress by callback.** Small dependency set (§9). No async in the library — a CLI doesn't need it and a tokio host wraps it in `spawn_blocking`. |
 | D11 | Licence | **MIT OR Apache-2.0**, as punktfunk. The catalog is data under the same licence; it points at each emulator's own release channel and rehosts nothing. |
-| D12 | Switch emulators | **DECIDED 2026-09-27: supported, never installed.** Detect-and-configure entries (Ryujinx and its Ryubing fork, Eden) ship like any other emulator; no catalog entry for them carries an install channel — policy of the catalog, not a code path. |
+| D12 | Switch emulators | **DECIDED 2026-09-27: supported, never installed.** Detect-and-configure entries (Ryujinx and its Ryubing fork, Eden; Lichii for Switch 2) ship like any other emulator; no catalog entry for them carries an install channel — policy of the catalog, not a code path. |
 | D13 | The CLI is the FFI | **Every library type is `serde` and every CLI verb has `--json`.** A JSON Schema is generated from the types (`schemars`) and shipped, so a TypeScript consumer gets typed results without bindings. |
 
 ## 1. What a consumer wants
@@ -273,7 +273,7 @@ changed is not re-serialised.
 | format | used by | editor |
 |---|---|---|
 | `ini` (also flat TOML and RetroArch's `key = "value"`) | PCSX2, DuckStation, Dolphin, PPSSPP, mGBA, xemu, Xenia, melonDS, RetroArch, Flycast, Supermodel, shadPS4 | own, line-based, keeps the file's `key = value` spelling |
-| `qt` (Qt's ini) | Azahar, Eden | `ini` plus the `key\default=false` companion Qt needs |
+| `qt` (Qt's ini) | Azahar, Eden, Lichii | `ini` plus the `key\default=false` companion Qt needs |
 | `yaml` (two levels) / `bml` | RPCS3, Vita3K / ares | own, line-based, section + key, no reflow |
 | `xml` (elements by path) | Cemu `settings.xml` | own, text of one element, missing branches created |
 | `json` (root, or one object under it) | Ryujinx `Config.json`, shadPS4 `config.json` | own, one scalar per line |
@@ -319,7 +319,7 @@ differently, and that is the whole reason `PadRef` carries every identity:
 | RetroArch | `input_playerN_joypad_index`; autoconfig by the driver does the rest | — | `retroarch.cfg` |
 | Cemu | `<uuid>` = `<n>_<SDL GUID>`, n counting same-GUID controllers | XML profile per controller | `controllerProfiles/controllerN.xml` |
 | xemu | `portN = "<SDL GUID>"` | fixed Xbox layout | `xemu.toml` |
-| Azahar, Eden | `engine:sdl,guid:<GUID>,port:<n>,…`, n counting same-GUID pads (Eden zeroes the GUID's CRC) | per 3DS / Switch button | `qt-config.ini` |
+| Azahar, Eden, Lichii | `engine:sdl,guid:<GUID>,port:<n>,…`, n counting same-GUID pads (Eden zeroes the GUID's CRC) | per 3DS / Switch button | `qt-config.ini` |
 | melonDS | joystick index | raw button numbers | `melonDS.toml` |
 | Supermodel | `JOY<index+1>_…` on its SDL game-controller system | per cabinet input | `Supermodel.ini` |
 | PPSSPP, Flycast, Vita3K, RMG | — | they map SDL pads themselves, in the order they appear | — |
@@ -434,9 +434,12 @@ Two views of catalog knowledge, resolved against an `Install`:
 `content` in an entry says, per platform, how an `update` and a `dlc` reach the emulator: an
 adapter that reads the add-on (Cemu: the title folder, copied into the MLC under the id its
 `meta.xml` names; Ryujinx: the NSP registered in `games/<base>/updates.json` or `dlc.json`, the
-title from its ticket, no keys needed; RPCS3: a `.pkg` through `--headless --installpkg`, a
-`.rap` into `exdata`), the emulator's own installer, or `unsupported` with the sentence a UI
-shows (Eden, Xenia, Azahar, Vita3K install through their own menus).
+title from its ticket, no keys needed; Eden and Lichii: the file's folder added to
+`external_content_dirs`, which they scan at every start, and granted to a Flatpak at launch;
+RPCS3: a `.pkg` through `--headless --installpkg`, a `.rap` into `exdata`), the emulator's own
+installer, or `unsupported` with the sentence a UI shows (Xenia, Azahar, Vita3K install
+through their own menus). `ContentMethod::keeps_path` says which ways read the file where it
+lies, so a consumer keeps it there.
 
 ### 7.2 Adopted copies
 

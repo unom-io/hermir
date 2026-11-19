@@ -1,0 +1,177 @@
+{
+  "id": "lichii",
+  "name": "Lichii",
+  "platforms": [
+    "switch2",
+    "switch"
+  ],
+  "license": "GPL-3.0-or-later",
+  "no_install": "Switch emulators are never installed by hermir. A copy you installed is detected and configured like any other.",
+  "detect": {
+    "linux": {
+      "path": [
+        "lichii"
+      ],
+      "paths": [
+        "~/Applications/lichii-linux-x86_64.AppImage",
+        "~/Applications/lichii-linux-x86_64-pgo.AppImage",
+        "~/Applications/lichii-linux-aarch64.AppImage",
+        "~/Applications/lichii-linux-aarch64-pgo.AppImage"
+      ]
+    },
+    "windows": {
+      "paths": [
+        "%USERPROFILE%\\Lichii\\lichii.exe",
+        "%LOCALAPPDATA%\\Lichii\\lichii.exe",
+        "C:\\Lichii\\lichii.exe",
+        "%USERPROFILE%\\Downloads\\lichii-windows-x86_64\\lichii.exe",
+        "%USERPROFILE%\\Downloads\\lichii-windows-x86_64-pgo\\lichii.exe"
+      ],
+      "portable_marker": "user"
+    }
+  },
+  "roots": {
+    "native": "~/.local/share/lichii",
+    "portable": "<app>/user",
+    "windows": "%APPDATA%\\lichii"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:-f}",
+      "-g",
+      "{file}"
+    ]
+  },
+  "config": {
+    "files": {
+      "main": {
+        "path": {
+          "linux": "{config}/qt-config.ini",
+          "windows": "config/qt-config.ini"
+        },
+        "format": "qt"
+      }
+    },
+    "knobs": {
+      "video.fullscreen": {
+        "file": "main",
+        "section": "UI",
+        "key": "fullscreen",
+        "bool": [
+          "true",
+          "false"
+        ]
+      },
+      "video.scale": {
+        "file": "main",
+        "section": "Renderer",
+        "key": "resolution_setup",
+        "scale": {
+          "map": {
+            "1": "3",
+            "2": "6",
+            "3": "7",
+            "4": "8",
+            "5": "9",
+            "6": "10",
+            "7": "11",
+            "8": "12"
+          }
+        }
+      },
+      "video.vsync": {
+        "file": "main",
+        "section": "Renderer",
+        "key": "use_vsync",
+        "bool": [
+          "2",
+          "0"
+        ],
+        "note": "FIFO for on, immediate for off"
+      },
+      "video.aspect": {
+        "file": "main",
+        "section": "Renderer",
+        "key": "aspect_ratio",
+        "values": {
+          "auto": "0",
+          "16:9": "0",
+          "4:3": "1",
+          "stretch": "4"
+        }
+      },
+      "region": {
+        "file": "main",
+        "section": "System",
+        "key": "region_index",
+        "values": {
+          "jp": "0",
+          "us": "1",
+          "eu": "2"
+        }
+      }
+    },
+    "players": {
+      "adapter": "lichii"
+    }
+  },
+  "saves": {
+    "*": [
+      {
+        "kind": "save",
+        "path": "nand/user/save/0000000000000000",
+        "per_game": true,
+        "note": "per profile and title: <profile>/<title>, the profile folder in Eden's own spelling",
+        "units": {
+          "shape": "folders",
+          "depth": 2,
+          "adapter": "eden",
+          "written_at_start": true
+        }
+      }
+    ]
+  },
+  "content": {
+    "switch": {
+      "update": {
+        "adapter": "eden"
+      },
+      "dlc": {
+        "adapter": "eden"
+      }
+    },
+    "switch2": {
+      "update": {
+        "adapter": "eden"
+      },
+      "dlc": {
+        "adapter": "eden"
+      }
+    }
+  },
+  "notes": "An Eden fork that plays Switch 2 games as well as Switch ones; its folders are Eden's, named lichii. Its settings are under ~/.config/lichii. A first start that finds Eden or yuzu data asks once whether to import it.",
+  "firmware": {
+    "dir": "keys",
+    "unpack": {
+      "any_of": [
+        "*.zip"
+      ],
+      "into": "nand/system/Contents/registered",
+      "present": "*.nca"
+    },
+    "platforms": {
+      "switch": {
+        "any_of": [
+          "prod.keys"
+        ],
+        "note": "prod.keys and title.keys, dumped from your Switch"
+      },
+      "switch2": {
+        "any_of": [
+          "prod.keys"
+        ],
+        "note": "prod.keys and title.keys, dumped from your Switch 2"
+      }
+    }
+  }
+}

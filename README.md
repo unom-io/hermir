@@ -104,6 +104,7 @@ The library is `cargo add hermir`.
 | [xemu](https://github.com/xemu-project/xemu) | Xbox | Flatpak | release build |
 | [Xenia Canary](https://github.com/xenia-canary/xenia-canary) | Xbox 360 | release build | release build |
 | Eden, Ryujinx | Nintendo Switch | detect only | detect only |
+| [Lichii](https://github.com/zortos293/Lichii) | Nintendo Switch 2, Nintendo Switch | detect only | detect only |
 
 † Not free software: DuckStation is under the PolyForm Strict licence, Snes9x under its own
 non-commercial one. hermir installs them from their own channels like the others; whether

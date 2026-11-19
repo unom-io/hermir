@@ -30,6 +30,7 @@ const EMULATORS: &[(&str, &str)] = &[
     ),
     ("eden", include_str!("../catalog/emulators/eden.json")),
     ("flycast", include_str!("../catalog/emulators/flycast.json")),
+    ("lichii", include_str!("../catalog/emulators/lichii.json")),
     ("melonds", include_str!("../catalog/emulators/melonds.json")),
     ("mgba", include_str!("../catalog/emulators/mgba.json")),
     ("pcsx2", include_str!("../catalog/emulators/pcsx2.json")),
@@ -58,7 +59,7 @@ const EMULATORS: &[(&str, &str)] = &[
 const PLATFORMS: &str = include_str!("../catalog/platforms.json");
 
 /// Platforms whose emulators are never installed by hermir (D12).
-const NO_INSTALL_PLATFORMS: &[&str] = &["switch"];
+const NO_INSTALL_PLATFORMS: &[&str] = &["switch", "switch2"];
 
 #[derive(Clone, Debug)]
 /// Every emulator and platform hermir knows: the entries under `catalog/`, embedded at build
@@ -685,11 +686,11 @@ mod tests {
     #[test]
     fn switch_entries_never_carry_a_channel() {
         let c = Catalog::embedded().unwrap();
-        for e in c
-            .entries()
-            .iter()
-            .filter(|e| e.platforms.iter().any(|p| p == "switch"))
-        {
+        for e in c.entries().iter().filter(|e| {
+            e.platforms
+                .iter()
+                .any(|p| NO_INSTALL_PLATFORMS.contains(&p.as_str()))
+        }) {
             assert!(e.channels.get(Os::Linux).is_none() && e.channels.get(Os::Windows).is_none());
             assert!(e.no_install.is_some());
         }
