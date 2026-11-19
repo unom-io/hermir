@@ -1257,7 +1257,8 @@ mod tests {
             "video_fullscreen = \"true\"\nvideo_vsync = \"true\"\naspect_ratio_index = \"1\"\n"
         );
 
-        // Eden: Qt spelling on a fresh file, a scale table, `{config}` beside a data root.
+        // Eden: Qt spelling on a fresh file, a scale table (Res2X is 6 of ResolutionSetup),
+        // `{config}` beside a data root.
         let eden = tmp.path().join("home/.local/share/eden");
         let a = run(&c, "eden", Os::Linux, &eden, &everything(), &snaps);
         assert_eq!(knob(&a, "video.vsync").support, Support::Partial);
@@ -1268,7 +1269,7 @@ mod tests {
         );
         assert!(
             qt.contains(
-                "[Renderer]\nresolution_setup=4\nresolution_setup\\default=false\nvsync_mode=2\n"
+                "[Renderer]\nresolution_setup=6\nresolution_setup\\default=false\nuse_vsync=2\n"
             ),
             "{qt}"
         );

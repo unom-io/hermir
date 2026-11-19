@@ -132,6 +132,9 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 
 ### Fixed
 
+- Eden's settings follow its current names: the scale table has `ResolutionSetup`'s 1/4× and
+  5/4× steps (2× was written as 1×), vsync is `use_vsync`, and region `auto` is not written,
+  since Eden reads `-1` as Taiwan.
 - Cemu's Pro Controllers took the GamePad's mapping ids, so the d-pad landed on Home.
 - Supermodel's coin keys were the Service and Test keys.
 

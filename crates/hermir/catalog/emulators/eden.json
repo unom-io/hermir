@@ -59,21 +59,21 @@
         "key": "resolution_setup",
         "scale": {
           "map": {
-            "1": "2",
-            "2": "4",
-            "3": "5",
-            "4": "6",
-            "5": "7",
-            "6": "8",
-            "7": "9",
-            "8": "10"
+            "1": "3",
+            "2": "6",
+            "3": "7",
+            "4": "8",
+            "5": "9",
+            "6": "10",
+            "7": "11",
+            "8": "12"
           }
         }
       },
       "video.vsync": {
         "file": "main",
         "section": "Renderer",
-        "key": "vsync_mode",
+        "key": "use_vsync",
         "bool": [
           "2",
           "0"
@@ -96,7 +96,6 @@
         "section": "System",
         "key": "region_index",
         "values": {
-          "auto": "-1",
           "jp": "0",
           "us": "1",
           "eu": "2"
