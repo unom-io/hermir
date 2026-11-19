@@ -91,11 +91,17 @@ pub(crate) fn launch(
     }
     let mut sandbox = Vec::new();
     let mut env = BTreeMap::new();
-    // A Flatpak reads only what it was granted: the game's folder, for this run.
+    // A Flatpak reads only what it was granted: the game's folder, and the folders it scans
+    // for add-ons, for this run.
     if let (Exe::FlatpakRun(_), Some(f)) = (&install.exe, &req.file)
         && let Some(dir) = f.parent().filter(|d| !d.as_os_str().is_empty())
     {
         sandbox.push(format!("--filesystem={}", dir.display()));
+    }
+    if let Exe::FlatpakRun(_) = &install.exe {
+        for dir in crate::content::scanned_dirs(entry, os, install) {
+            sandbox.push(format!("--filesystem={dir}:ro"));
+        }
     }
     // The sound to a device on Linux whatever the emulator's settings say: Pulse, and
     // PipeWire's Pulse server, play a client's streams to PULSE_SINK. A Flatpak gets it inside.
@@ -333,6 +339,29 @@ mod tests {
             let alone = launch(e, Os::Linux, &copy, &LaunchRequest::default(), None).unwrap();
             assert!(alone.args.is_empty(), "{}: {:?}", e.id, alone.args);
         }
+    }
+
+    #[test]
+    fn a_flatpak_eden_reads_the_folders_it_scans_for_add_ons() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path().join("data/eden");
+        let ini = crate::config::resolve(&root, "{config}/qt-config.ini");
+        std::fs::create_dir_all(ini.parent().unwrap()).unwrap();
+        std::fs::write(
+            &ini,
+            "[UI]\nPaths\\external_content_dirs\\1\\path=\"/games, all/Zelda/update\"\nPaths\\external_content_dirs\\size=1\n",
+        )
+        .unwrap();
+        let copy = flatpak("eden", "dev.eden_emu.eden", &root);
+        let req = game("/games/Zelda/base/Zelda.nsp", None);
+        let spec = launch(c.get("eden").unwrap(), Os::Linux, &copy, &req, None).unwrap();
+        assert!(
+            spec.sandbox
+                .contains(&"--filesystem=/games, all/Zelda/update:ro".to_string()),
+            "{:?}",
+            spec.sandbox
+        );
     }
 
     #[test]

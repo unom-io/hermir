@@ -134,18 +134,18 @@
   "content": {
     "switch": {
       "update": {
-        "unsupported": "Lichii installs updates into its own storage, or plays a .nup that bundles them"
+        "adapter": "eden"
       },
       "dlc": {
-        "unsupported": "Lichii installs DLC into its own storage, or plays a .nup that bundles it"
+        "adapter": "eden"
       }
     },
     "switch2": {
       "update": {
-        "unsupported": "Lichii installs updates into its own storage, or plays a .nup that bundles them"
+        "adapter": "eden"
       },
       "dlc": {
-        "unsupported": "Lichii installs DLC into its own storage, or plays a .nup that bundles it"
+        "adapter": "eden"
       }
     }
   },

@@ -463,10 +463,7 @@ fn the_registry_names_what_each_emulator_saves_and_installs() {
     assert_eq!(ryu.content["switch"], ["update", "dlc"]);
     assert!(!ryu.offered);
     let eden = r.emulators.iter().find(|e| e.id == "eden").unwrap();
-    assert!(
-        eden.content.is_empty(),
-        "Eden has no way, and says so in the catalog"
-    );
+    assert_eq!(eden.content["switch"], ["update", "dlc"]);
     let ra = r.emulators.iter().find(|e| e.id == "retroarch").unwrap();
     assert!(ra.archives && ra.saves.contains(&"snes".to_string()));
     assert!(ra.firmware.contains_key("psx"));

@@ -125,10 +125,10 @@
   "content": {
     "switch": {
       "update": {
-        "unsupported": "Eden installs updates into its own storage: File → Install Files to NAND"
+        "adapter": "eden"
       },
       "dlc": {
-        "unsupported": "Eden installs DLC into its own storage: File → Install Files to NAND"
+        "adapter": "eden"
       }
     }
   },

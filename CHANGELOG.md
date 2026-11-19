@@ -102,6 +102,9 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 - Lichii, an Eden fork that plays Switch 2 games as well as Switch ones, and the `switch2`
   platform (RomM's `switch-2`). Like Eden it is detected, configured and launched, never
   installed.
+- Eden and Lichii take a game's updates and DLC where they lie: the file's folder joins the
+  folders they scan (`external_content_dirs`), and a Flatpak Eden is granted those folders at
+  launch. `ContentMethod::keeps_path` says which ways need the file to stay put.
 
 ### Changed
 

@@ -434,9 +434,12 @@ Two views of catalog knowledge, resolved against an `Install`:
 `content` in an entry says, per platform, how an `update` and a `dlc` reach the emulator: an
 adapter that reads the add-on (Cemu: the title folder, copied into the MLC under the id its
 `meta.xml` names; Ryujinx: the NSP registered in `games/<base>/updates.json` or `dlc.json`, the
-title from its ticket, no keys needed; RPCS3: a `.pkg` through `--headless --installpkg`, a
-`.rap` into `exdata`), the emulator's own installer, or `unsupported` with the sentence a UI
-shows (Eden, Xenia, Azahar, Vita3K install through their own menus).
+title from its ticket, no keys needed; Eden and Lichii: the file's folder added to
+`external_content_dirs`, which they scan at every start, and granted to a Flatpak at launch;
+RPCS3: a `.pkg` through `--headless --installpkg`, a `.rap` into `exdata`), the emulator's own
+installer, or `unsupported` with the sentence a UI shows (Xenia, Azahar, Vita3K install
+through their own menus). `ContentMethod::keeps_path` says which ways read the file where it
+lies, so a consumer keeps it there.
 
 ### 7.2 Adopted copies
 
