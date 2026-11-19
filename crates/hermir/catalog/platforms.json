@@ -172,7 +172,32 @@
     },
     "emulators": [
       "ryujinx",
-      "eden"
+      "eden",
+      "lichii"
+    ]
+  },
+  {
+    "id": "switch2",
+    "name": "Nintendo Switch 2",
+    "short_name": "Switch 2",
+    "aliases": {
+      "romm": "switch-2"
+    },
+    "extensions": [
+      ".nsp",
+      ".xci",
+      ".nsz",
+      ".xcz",
+      ".nup"
+    ],
+    "folder": {
+      "markers": [
+        "base/*.nsp",
+        "base/*.xci"
+      ]
+    },
+    "emulators": [
+      "lichii"
     ]
   },
   {

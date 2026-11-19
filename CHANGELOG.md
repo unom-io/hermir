@@ -10,7 +10,7 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 
 ### Added
 
-- A catalog of 23 emulators, embedded in the library, parsed strictly, with a JSON Schema and
+- A catalog of 24 emulators, embedded in the library, parsed strictly, with a JSON Schema and
   per-OS channels, detection rules, config roots and firmware folders.
 - Install, update and remove from each emulator's own channel — Flatpak on Linux; GitHub
   releases or a pinned official URL on Windows — over https only, with the OS's trust store and
@@ -99,6 +99,9 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   with a lock of their own that `apply`, `revert`, `revert_all` and `import_unit` hold instead
   of the prefix's. One account's `revert_all` leaves another's session alone, and two accounts
   apply at once. Unset, both stay in the prefix under its lock.
+- Lichii, an Eden fork that plays Switch 2 games as well as Switch ones, and the `switch2`
+  platform (RomM's `switch-2`). Like Eden it is detected, configured and launched, never
+  installed.
 
 ### Changed
 
