@@ -1,0 +1,24 @@
+{
+  "emulator": "duckstation",
+  "version": "0.1-12640",
+  "os": "linux",
+  "kind": "flatpak",
+  "source": {
+    "flatpak": "org.duckstation.DuckStation",
+    "commit": "f7a8cd13d0d46cbfd38c6ff7f999abacf241c96979654ea27f73d87199111329"
+  },
+  "captured": {
+    "on": "2026-11-23",
+    "by": "xtask capture"
+  },
+  "files": {
+    "main": "settings.ini"
+  },
+  "oracle": {
+    "main": "ini"
+  },
+  "full_writer": true,
+  "created": [
+    "config/duckstation/settings.ini"
+  ]
+}
