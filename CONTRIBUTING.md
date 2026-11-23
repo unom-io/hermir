@@ -44,6 +44,7 @@ its own directory.
    ```sh
    cargo run -q -p hermir-cli -- --os windows catalog resolve <id>
    cargo run -q -p hermir-cli -- --os linux catalog resolve <id>
+   cargo run -q -p hermir-cli -- --os macos catalog resolve <id>
    ```
    Exactly one asset must match; `GITHUB_TOKEN` avoids the anonymous rate limit.
 5. **Describe its settings** in a `config` block, as far as you know them (below). An entry
@@ -61,7 +62,8 @@ its own directory.
 The rules a reviewer holds an entry to:
 
 - **The emulator's own channel, nothing else.** Flathub on Linux; the project's GitHub releases
-  or its official download on Windows. No mirrors, no rehosting, no third-party builds.
+  or its official download on Windows and macOS (the app as it ships, never a Homebrew
+  rebuild). No mirrors, no rehosting, no third-party builds.
 - **Verifiable downloads.** GitHub publishes a sha256 per asset (for assets uploaded since
   2025-06). A `url` channel pins `sha256`, bumped with `version` in the same PR
   (`curl -sSL --fail <url> | sha256sum`); validation rejects one without it.

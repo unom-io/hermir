@@ -18,13 +18,20 @@
         "%USERPROFILE%\\scoop\\apps\\eden\\current\\eden.exe"
       ],
       "portable_marker": "user"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/Eden.app/Contents/MacOS/eden",
+        "~/Applications/Eden.app/Contents/MacOS/eden"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/dev.eden_emu.eden/data/eden",
     "native": "~/.local/share/eden",
     "portable": "<app>/user",
-    "windows": "%APPDATA%\\eden"
+    "windows": "%APPDATA%\\eden",
+    "macos": "~/.local/share/eden"
   },
   "launch": {
     "args": [
@@ -38,7 +45,8 @@
       "main": {
         "path": {
           "linux": "{config}/qt-config.ini",
-          "windows": "config/qt-config.ini"
+          "windows": "config/qt-config.ini",
+          "macos": "{config}/qt-config.ini"
         },
         "format": "qt"
       }

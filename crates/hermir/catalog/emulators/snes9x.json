@@ -152,5 +152,5 @@
       }
     ]
   },
-  "notes": "The Windows build keeps snes9x.conf beside its exe; the GTK build under ~/.config/snes9x. Its licence is Snes9x's own, non-commercial."
+  "notes": "The Windows build keeps snes9x.conf beside its exe; the GTK build under ~/.config/snes9x. No macOS slot: the Mac app keeps its settings and pad bindings in its own preferences, and RetroArch's snes9x core plays SNES there. Its licence is Snes9x's own, non-commercial."
 }

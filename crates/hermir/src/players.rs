@@ -60,8 +60,9 @@ impl PadRef {
         }
         match (self.vendor, self.product) {
             (0x045e, 0x028e) => "Xbox 360 Controller".into(),
-            (0x045e, 0x02ea) => "Xbox One S Controller".into(),
-            (0x045e, 0x0b00) => "Xbox One Elite 2 Controller".into(),
+            (0x045e, 0x02ea | 0x02fd) => "Xbox One S Controller".into(),
+            (0x045e, 0x0b00 | 0x0b22) => "Xbox One Elite 2 Controller".into(),
+            (0x045e, 0x0b13) => "Xbox Series X Controller".into(),
             _ => self.name.clone(),
         }
     }

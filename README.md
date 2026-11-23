@@ -14,7 +14,7 @@ thing for every other language.
 
 ```
 hermir status                       managed and detected emulators
-hermir install pcsx2                Flatpak on Linux, the official portable build on Windows
+hermir install pcsx2                Flatpak on Linux, the official build on Windows and macOS
 hermir update --all
 hermir where dolphin                exe and config root of the best copy on this machine
 hermir detect --json                what the user installed, as data
@@ -80,31 +80,33 @@ The library is `cargo add hermir`.
 
 ## Emulators
 
-| Emulator | Plays | Linux | Windows |
-|---|---|---|---|
-| [ares](https://ares-emu.net) | NES, SNES, N64, Game Boy line, Mega Drive line, PlayStation, PC Engine and more | Flatpak | release build |
-| [Azahar](https://github.com/azahar-emu/azahar) | Nintendo 3DS | Flatpak | release build |
-| [Cemu](https://github.com/cemu-project/Cemu) | Wii U | Flatpak | release build |
-| [Dolphin](https://dolphin-emu.org) | GameCube, Wii | Flatpak | release build |
-| [DOSBox Staging](https://github.com/dosbox-staging/dosbox-staging) | DOS | Flatpak | release build |
-| [DuckStation](https://github.com/stenzek/duckstation) † | PlayStation | Flatpak | release build |
-| [Flycast](https://github.com/flyinghead/flycast) | Dreamcast | Flatpak | release build |
-| [melonDS](https://github.com/melonDS-emu/melonDS) | Nintendo DS | Flatpak | release build |
-| [mGBA](https://github.com/mgba-emu/mgba) | Game Boy, Game Boy Color, Game Boy Advance | Flatpak | release build |
-| [PCSX2](https://github.com/PCSX2/pcsx2) | PlayStation 2 | Flatpak | release build |
-| [PPSSPP](https://github.com/hrydgard/ppsspp) | PlayStation Portable | Flatpak | release build |
-| [RetroArch](https://www.retroarch.com) | 37 systems, cores via `hermir core install` | Flatpak | release build |
-| [Rosalie's Mupen GUI](https://github.com/Rosalie241/RMG) | Nintendo 64 | Flatpak | release build |
-| [RPCS3](https://github.com/RPCS3/rpcs3) | PlayStation 3 | AppImage | release build |
-| [ScummVM](https://www.scummvm.org) | ScummVM games | Flatpak | release build |
-| [shadPS4](https://github.com/shadps4-emu/shadPS4) | PlayStation 4 | release build | release build |
-| [Snes9x](https://github.com/snes9xgit/snes9x) † | Super Nintendo | Flatpak | release build |
-| [Supermodel](https://github.com/trzy/Supermodel) | Sega Model 3 | release build | release build |
-| [Vita3K](https://github.com/Vita3K/Vita3K) | PlayStation Vita | release build | release build |
-| [xemu](https://github.com/xemu-project/xemu) | Xbox | Flatpak | release build |
-| [Xenia Canary](https://github.com/xenia-canary/xenia-canary) | Xbox 360 | release build | release build |
-| Eden, Ryujinx | Nintendo Switch | detect only | detect only |
-| [Lichii](https://github.com/zortos293/Lichii) | Nintendo Switch 2, Nintendo Switch | detect only | detect only |
+| Emulator | Plays | Linux | Windows | macOS |
+|---|---|---|---|---|
+| [ares](https://ares-emu.net) | NES, SNES, N64, Game Boy line, Mega Drive line, PlayStation, PC Engine and more | Flatpak | release build | release build |
+| [Azahar](https://github.com/azahar-emu/azahar) | Nintendo 3DS | Flatpak | release build | release build |
+| [Cemu](https://github.com/cemu-project/Cemu) | Wii U | Flatpak | release build | release build ‡ |
+| [Dolphin](https://dolphin-emu.org) | GameCube, Wii | Flatpak | release build | release build |
+| [DOSBox Staging](https://github.com/dosbox-staging/dosbox-staging) | DOS | Flatpak | release build | release build |
+| [DuckStation](https://github.com/stenzek/duckstation) † | PlayStation | Flatpak | release build | release build |
+| [Flycast](https://github.com/flyinghead/flycast) | Dreamcast | Flatpak | release build | release build |
+| [melonDS](https://github.com/melonDS-emu/melonDS) | Nintendo DS | Flatpak | release build | release build |
+| [mGBA](https://github.com/mgba-emu/mgba) | Game Boy, Game Boy Color, Game Boy Advance | Flatpak | release build | release build |
+| [PCSX2](https://github.com/PCSX2/pcsx2) | PlayStation 2 | Flatpak | release build | release build ‡ |
+| [PPSSPP](https://github.com/hrydgard/ppsspp) | PlayStation Portable | Flatpak | release build | release build |
+| [RetroArch](https://www.retroarch.com) | 37 systems, cores via `hermir core install` | Flatpak | release build | release build |
+| [Rosalie's Mupen GUI](https://github.com/Rosalie241/RMG) | Nintendo 64 | Flatpak | release build | — |
+| [RPCS3](https://github.com/RPCS3/rpcs3) | PlayStation 3 | AppImage | release build | release build |
+| [ScummVM](https://www.scummvm.org) | ScummVM games | Flatpak | release build | release build |
+| [shadPS4](https://github.com/shadps4-emu/shadPS4) | PlayStation 4 | release build | release build | release build ‡ |
+| [Snes9x](https://github.com/snes9xgit/snes9x) † | Super Nintendo | Flatpak | release build | — |
+| [Supermodel](https://github.com/trzy/Supermodel) | Sega Model 3 | release build | release build | release build |
+| [Vita3K](https://github.com/Vita3K/Vita3K) | PlayStation Vita | release build | release build | release build |
+| [xemu](https://github.com/xemu-project/xemu) | Xbox | Flatpak | release build | release build |
+| [Xenia Canary](https://github.com/xenia-canary/xenia-canary) | Xbox 360 | release build | release build | — |
+| Eden, Ryujinx | Nintendo Switch | detect only | detect only | detect only |
+| [Lichii](https://github.com/zortos293/Lichii) | Nintendo Switch 2, Nintendo Switch | detect only | detect only | detect only |
+
+‡ x86-64 only on macOS: Apple silicon runs it through Rosetta 2.
 
 † Not free software: DuckStation is under the PolyForm Strict licence, Snes9x under its own
 non-commercial one. hermir installs them from their own channels like the others; whether

@@ -28,6 +28,19 @@
       "portable": {
         "dir": "user"
       }
+    },
+    "macos": {
+      "github": "shadps4-emu/shadPS4",
+      "asset": {
+        "all": [
+          "shadps4-macos-sdl",
+          ".zip"
+        ]
+      },
+      "exe": "shadps4",
+      "portable": {
+        "dir": "user"
+      }
     }
   },
   "detect": {
@@ -46,7 +59,8 @@
   "roots": {
     "native": "~/.local/share/shadPS4",
     "portable": "<app>/user",
-    "windows": "%APPDATA%\\shadPS4"
+    "windows": "%APPDATA%\\shadPS4",
+    "macos": "~/Library/Application Support/shadPS4"
   },
   "launch": {
     "args": [

@@ -272,17 +272,15 @@ impl Hermir {
                 .map(|t| detect::expand(t, self.env.as_ref(), None)),
             // A build without a portable marker, none in its channel or left out of a shared
             // copy, keeps the layout of the OS: an AppImage the native one, a Windows zip
-            // `roots.windows` (`<app>` for RPCS3), as detection resolves them.
-            (Exe::Path(p), Some(e)) if r.shared || !marks_portable(e, self.os) => match self.os {
-                Os::Windows => e.roots.windows.as_deref(),
-                _ => e.roots.native.as_deref(),
+            // `roots.windows` (`<app>` for RPCS3), a macOS app `roots.macos`.
+            (Exe::Path(p), Some(e)) if r.shared || !marks_portable(e, self.os) => {
+                e.roots.installed(self.os).map(|t| {
+                    detect::expand(t, self.env.as_ref(), detect::dir_of(self.os, p).as_deref())
+                })
             }
-            .map(|t| detect::expand(t, self.env.as_ref(), p.parent())),
-            (Exe::Path(p), Some(e)) => e
-                .roots
-                .portable
-                .as_deref()
-                .map(|t| detect::expand(t, self.env.as_ref(), p.parent())),
+            (Exe::Path(p), Some(e)) => e.roots.portable.as_deref().map(|t| {
+                detect::expand(t, self.env.as_ref(), detect::dir_of(self.os, p).as_deref())
+            }),
             _ => None,
         };
         Install {
@@ -771,7 +769,7 @@ impl EmulatorHandle<'_> {
         platform: &str,
     ) -> Result<Option<FirmwareStatus>> {
         self.mine(install)?;
-        Ok(prepare::status(self.entry, install, platform))
+        Ok(prepare::status(self.entry, self.h.os, install, platform))
     }
 
     /// The command that starts `install` with `req`: the catalog's template rendered, the

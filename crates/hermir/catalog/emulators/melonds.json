@@ -21,6 +21,20 @@
       "portable": {
         "dir": "portable"
       }
+    },
+    "macos": {
+      "github": "melonDS-emu/melonDS",
+      "asset": {
+        "all": [
+          "macos",
+          "universal",
+          ".zip"
+        ]
+      },
+      "exe": "melonDS.app/Contents/MacOS/melonDS",
+      "portable": {
+        "dir": "portable"
+      }
     }
   },
   "detect": {
@@ -35,13 +49,21 @@
         "%USERPROFILE%\\scoop\\apps\\melonds\\current\\melonDS.exe"
       ],
       "portable_marker": "portable"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/melonDS.app/Contents/MacOS/melonDS",
+        "~/Applications/melonDS.app/Contents/MacOS/melonDS"
+      ],
+      "portable_marker": "portable"
     }
   },
   "roots": {
     "flatpak": "~/.var/app/net.kuribo64.melonDS/config/melonDS",
     "native": "~/.config/melonDS",
     "portable": "<app>/portable",
-    "windows": "%APPDATA%\\melonDS"
+    "windows": "%APPDATA%\\melonDS",
+    "macos": "~/Library/Preferences/melonDS"
   },
   "launch": {
     "args": [
@@ -177,6 +199,28 @@
       }
     ],
     "windows": [
+      {
+        "dir": "saves"
+      },
+      {
+        "dir": "states"
+      },
+      {
+        "ini": "melonDS.toml",
+        "section": "Instance0",
+        "key": "SaveFilePath",
+        "value": "'{root}/saves'",
+        "when_unset": true
+      },
+      {
+        "ini": "melonDS.toml",
+        "section": "Instance0",
+        "key": "SavestatePath",
+        "value": "'{root}/states'",
+        "when_unset": true
+      }
+    ],
+    "macos": [
       {
         "dir": "saves"
       },

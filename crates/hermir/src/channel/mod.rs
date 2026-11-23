@@ -207,7 +207,8 @@ fn install_archive(
     let extracted = extract::extract(&archive, &fresh);
     let _ = std::fs::remove_file(&archive);
     extracted?;
-    if !fresh.join(exe_rel).is_file() {
+    let found = find_exe(&fresh, exe_rel);
+    let Some(exe_rel) = found.as_deref() else {
         let top: Vec<String> = std::fs::read_dir(&fresh)
             .map(|rd| {
                 rd.flatten()
@@ -223,7 +224,7 @@ fn install_archive(
                 top.join(", ")
             ),
         });
-    }
+    };
     // A shared copy runs without its marker, so each account keeps its data under
     // `roots.windows`. Where that is `<app>` there is no per-account layout to fall back to.
     let leave_out = shared
@@ -304,6 +305,30 @@ pub fn remove(
 /// asset, or the same one uploaded again.
 pub fn update_available(row: &Installed, resolved: &Resolved) -> bool {
     row.channel != "flatpak" && row.release.as_deref() != Some(resolved.release.as_str())
+}
+
+/// The catalog's `exe` in the extracted tree `root`, as a path that exists. A part with `*`
+/// matches one entry of its folder (PCSX2's app carries its version: `PCSX2-*.app`); none, or
+/// more than one, is no exe.
+fn find_exe(root: &Path, exe: &str) -> Option<std::path::PathBuf> {
+    let mut at = std::path::PathBuf::new();
+    for part in exe.split(['/', '\\']) {
+        if !part.contains('*') {
+            at.push(part);
+            continue;
+        }
+        let mut hits = std::fs::read_dir(root.join(&at))
+            .ok()?
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| crate::prepare::glob(part, n));
+        let (hit, more) = (hits.next()?, hits.next());
+        if more.is_some() {
+            return None;
+        }
+        at.push(hit);
+    }
+    root.join(&at).is_file().then_some(at)
 }
 
 /// `roots.portable` with `<app>` resolved to the extracted tree, when the entry has one.
@@ -809,8 +834,27 @@ mod tests {
             Err(Error::Policy { .. })
         ));
         assert!(matches!(
-            resolve(c.get("pcsx2").unwrap(), Os::Macos, &http),
+            resolve(c.get("rmg").unwrap(), Os::Macos, &http),
             Err(Error::UnsupportedOs { .. })
         ));
+    }
+
+    #[test]
+    fn an_exe_named_with_its_version_is_found_by_its_star() {
+        let dir = tempfile::tempdir().unwrap();
+        let macos = dir.path().join("PCSX2-v2.8.2.app/Contents/MacOS");
+        std::fs::create_dir_all(&macos).unwrap();
+        std::fs::write(macos.join("PCSX2"), b"run").unwrap();
+        let star = "PCSX2*.app/Contents/MacOS/PCSX2";
+        assert_eq!(
+            find_exe(dir.path(), star).unwrap(),
+            Path::new("PCSX2-v2.8.2.app/Contents/MacOS/PCSX2")
+        );
+        assert!(find_exe(dir.path(), "PCSX2.app/Contents/MacOS/PCSX2").is_none());
+        // Two apps the star fits: neither is the exe.
+        let other = dir.path().join("PCSX2-v2.9.0.app/Contents/MacOS");
+        std::fs::create_dir_all(&other).unwrap();
+        std::fs::write(other.join("PCSX2"), b"run").unwrap();
+        assert!(find_exe(dir.path(), star).is_none());
     }
 }

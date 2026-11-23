@@ -24,6 +24,19 @@
       "portable": {
         "file": "portable.ini"
       }
+    },
+    "macos": {
+      "github": "PCSX2/pcsx2",
+      "asset": {
+        "all": [
+          "macos-Qt",
+          ".tar.xz"
+        ]
+      },
+      "exe": "PCSX2*.app/Contents/MacOS/PCSX2",
+      "portable": {
+        "file": "portable.ini"
+      }
     }
   },
   "detect": {
@@ -40,13 +53,21 @@
         "%ProgramFiles(x86)%\\PCSX2\\pcsx2-qt.exe"
       ],
       "portable_marker": "portable.ini"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/PCSX2.app/Contents/MacOS/PCSX2",
+        "~/Applications/PCSX2.app/Contents/MacOS/PCSX2"
+      ],
+      "portable_marker": "portable.ini"
     }
   },
   "roots": {
     "flatpak": "~/.var/app/net.pcsx2.PCSX2/config/PCSX2",
     "native": "~/.config/PCSX2",
     "portable": "<app>",
-    "windows": "%USERPROFILE%\\Documents\\PCSX2"
+    "windows": "%USERPROFILE%\\Documents\\PCSX2",
+    "macos": "~/Library/Application Support/PCSX2"
   },
   "launch": {
     "args": [
@@ -82,6 +103,18 @@
       }
     ],
     "windows": [
+      {
+        "seed": "inis/PCSX2.ini",
+        "content": "[UI]\nSettingsVersion = 1\n"
+      },
+      {
+        "ini": "inis/PCSX2.ini",
+        "section": "UI",
+        "key": "SetupWizardIncomplete",
+        "value": "false"
+      }
+    ],
+    "macos": [
       {
         "seed": "inis/PCSX2.ini",
         "content": "[UI]\nSettingsVersion = 1\n"

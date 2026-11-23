@@ -27,6 +27,16 @@
       "portable": {
         "file": "portable.ini"
       }
+    },
+    "macos": {
+      "github": "mgba-emu/mgba",
+      "asset": {
+        "all": [
+          "macos",
+          ".dmg"
+        ]
+      },
+      "exe": "mGBA.app/Contents/MacOS/mGBA"
     }
   },
   "detect": {
@@ -42,13 +52,20 @@
         "%ProgramFiles%\\mGBA\\mGBA.exe"
       ],
       "portable_marker": "portable.ini"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/mGBA.app/Contents/MacOS/mGBA",
+        "~/Applications/mGBA.app/Contents/MacOS/mGBA"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/io.mgba.mGBA/config/mgba",
     "native": "~/.config/mgba",
     "portable": "<app>",
-    "windows": "%APPDATA%\\mGBA"
+    "windows": "%APPDATA%\\mGBA",
+    "macos": "~/.config/mgba"
   },
   "launch": {
     "args": [

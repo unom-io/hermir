@@ -15,6 +15,20 @@
         "name": "xemu-win-x86_64-release.zip"
       },
       "exe": "xemu.exe"
+    },
+    "macos": {
+      "github": "xemu-project/xemu",
+      "asset": {
+        "all": [
+          "macos-universal",
+          ".zip"
+        ],
+        "none": [
+          "unsigned",
+          "dbg"
+        ]
+      },
+      "exe": "xemu.app/Contents/MacOS/xemu"
     }
   },
   "detect": {
@@ -28,13 +42,20 @@
       "paths": [
         "%ProgramFiles%\\xemu\\xemu.exe"
       ]
+    },
+    "macos": {
+      "paths": [
+        "/Applications/xemu.app/Contents/MacOS/xemu",
+        "~/Applications/xemu.app/Contents/MacOS/xemu"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/app.xemu.xemu/data/xemu/xemu",
     "native": "~/.local/share/xemu/xemu",
     "portable": "<app>",
-    "windows": "%APPDATA%\\xemu\\xemu"
+    "windows": "%APPDATA%\\xemu\\xemu",
+    "macos": "~/Library/Application Support/xemu/xemu"
   },
   "launch": {
     "args": [

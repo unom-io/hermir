@@ -105,6 +105,12 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 - Eden and Lichii take a game's updates and DLC where they lie: the file's folder joins the
   folders they scan (`external_content_dirs`), and a Flatpak Eden is granted those folders at
   launch. `ContentMethod::keeps_path` says which ways need the file to stay put.
+- macOS: every emulator with an official Mac build installs, is detected in `/Applications` and
+  `~/Applications`, and is configured under its Mac root (`roots.macos`); Eden, Lichii and
+  Ryujinx are detected. Disk images, tar.xz and 7z with framework links extract whole, a
+  versioned app is found by a `*` in `exe`, a Mac copy starts in its own folder, and
+  `hermir core install` fetches the Mac's libretro cores. `firmware.install.done` may differ
+  per OS.
 
 ### Changed
 

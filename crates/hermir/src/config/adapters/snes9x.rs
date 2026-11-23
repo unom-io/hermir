@@ -2,14 +2,17 @@
 //! `Joystick <n> Button <b>` or `Joystick <n> Axis <a> <+|-> <threshold>%` on a raw SDL 2
 //! joystick, n its number from 1. A hat is two axes after the real ones: up is `+` on
 //! `axes + 2h`, left `-` on the one after. A third player needs port 2's multitap, five at
-//! most. The Windows build reads pads through winmm, which nothing here describes.
+//! most. The Windows build reads pads through winmm, the Mac app keeps its bindings in its own
+//! preferences; nothing here describes either.
 use super::{Bindings, Cx, Plan, Seating, beyond, set};
 use crate::model::Os;
 use crate::players::{Ctl, Dir, RawControl};
 
 pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
-    if cx.os == Os::Windows {
-        return Err("Snes9x on Windows reads pads through winmm, not SDL".into());
+    match cx.os {
+        Os::Windows => return Err("Snes9x on Windows reads pads through winmm, not SDL".into()),
+        Os::Macos => return Err("Snes9x's Mac app binds pads in its own preferences".into()),
+        Os::Linux => {}
     }
     let players = &s.seats[..];
     let top = players

@@ -24,13 +24,20 @@
         "C:\\Ryujinx\\Ryujinx.exe"
       ],
       "portable_marker": "portable"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/Ryujinx.app/Contents/MacOS/Ryujinx",
+        "~/Applications/Ryujinx.app/Contents/MacOS/Ryujinx"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/io.github.ryubing.Ryujinx/config/Ryujinx",
     "native": "~/.config/Ryujinx",
     "portable": "<app>/portable",
-    "windows": "%APPDATA%\\Ryujinx"
+    "windows": "%APPDATA%\\Ryujinx",
+    "macos": "~/Library/Application Support/Ryujinx"
   },
   "launch": {
     "args": [

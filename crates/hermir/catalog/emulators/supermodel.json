@@ -29,6 +29,16 @@
       "portable": {
         "dir": "Config"
       }
+    },
+    "macos": {
+      "github": "trzy/Supermodel",
+      "asset": {
+        "all": [
+          "supermodel-",
+          "-macos.tar.gz"
+        ]
+      },
+      "exe": "supermodel"
     }
   },
   "detect": {
@@ -48,7 +58,8 @@
     "flatpak": "~/.var/app/com.supermodel3.Supermodel/config/supermodel",
     "native": "~/.supermodel",
     "portable": "<app>",
-    "windows": "<app>"
+    "windows": "<app>",
+    "macos": "<app>"
   },
   "launch": {
     "args": [

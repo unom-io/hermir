@@ -19,6 +19,13 @@
         "name": "windows-latest.zip"
       },
       "exe": "Vita3K.exe"
+    },
+    "macos": {
+      "github": "Vita3K/Vita3K",
+      "asset": {
+        "name": "macos-arm64-latest.dmg"
+      },
+      "exe": "Vita3K.app/Contents/MacOS/Vita3K"
     }
   },
   "detect": {
@@ -31,12 +38,19 @@
       "paths": [
         "%USERPROFILE%\\scoop\\apps\\vita3k\\current\\Vita3K.exe"
       ]
+    },
+    "macos": {
+      "paths": [
+        "/Applications/Vita3K.app/Contents/MacOS/Vita3K",
+        "~/Applications/Vita3K.app/Contents/MacOS/Vita3K"
+      ]
     }
   },
   "roots": {
     "native": "~/.local/share/Vita3K/Vita3K",
     "portable": "<app>",
-    "windows": "%APPDATA%\\Vita3K\\Vita3K"
+    "windows": "%APPDATA%\\Vita3K\\Vita3K",
+    "macos": "~/Library/Application Support/Vita3K/Vita3K"
   },
   "launch": {
     "args": [
@@ -51,7 +65,11 @@
         "--firmware",
         "{file}"
       ],
-      "done": "vs0/vsh/shell/shell.self"
+      "done": {
+        "linux": "vs0/vsh/shell/shell.self",
+        "windows": "vs0/vsh/shell/shell.self",
+        "macos": "fs/vs0/vsh/shell/shell.self"
+      }
     },
     "platforms": {
       "psvita": {
@@ -114,7 +132,11 @@
     "psvita": [
       {
         "kind": "save",
-        "path": "ux0/user/00/savedata",
+        "path": {
+          "linux": "ux0/user/00/savedata",
+          "windows": "ux0/user/00/savedata",
+          "macos": "fs/ux0/user/00/savedata"
+        },
         "per_game": true,
         "note": "per title id (PCSE…)",
         "units": {

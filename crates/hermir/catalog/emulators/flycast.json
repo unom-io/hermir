@@ -19,6 +19,16 @@
         ]
       },
       "exe": "flycast.exe"
+    },
+    "macos": {
+      "github": "flyinghead/flycast",
+      "asset": {
+        "all": [
+          "macos",
+          ".zip"
+        ]
+      },
+      "exe": "Flycast.app/Contents/MacOS/Flycast"
     }
   },
   "detect": {
@@ -32,13 +42,20 @@
       "paths": [
         "%USERPROFILE%\\scoop\\apps\\flycast\\current\\flycast.exe"
       ]
+    },
+    "macos": {
+      "paths": [
+        "/Applications/Flycast.app/Contents/MacOS/Flycast",
+        "~/Applications/Flycast.app/Contents/MacOS/Flycast"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/org.flycast.Flycast/config/flycast",
     "native": "~/.config/flycast",
     "portable": "<app>",
-    "windows": "%APPDATA%\\flycast"
+    "windows": "%APPDATA%\\flycast",
+    "macos": "~/Library/Application Support/Flycast"
   },
   "launch": {
     "args": [
@@ -143,7 +160,11 @@
     "dc": [
       {
         "kind": "memcard",
-        "path": "{data}",
+        "path": {
+          "linux": "{data}",
+          "windows": "{data}",
+          "macos": "data"
+        },
         "pattern": "vmu_save_*.bin",
         "note": "a VMU image per port and slot (vmu_save_A1.bin), shared by every game unless per-game VMUs are on",
         "units": {
@@ -155,7 +176,11 @@
       },
       {
         "kind": "state",
-        "path": "{data}",
+        "path": {
+          "linux": "{data}",
+          "windows": "{data}",
+          "macos": "data"
+        },
         "pattern": "*.state",
         "per_game": true,
         "units": {

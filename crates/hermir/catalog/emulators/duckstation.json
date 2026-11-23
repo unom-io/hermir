@@ -19,6 +19,13 @@
       "portable": {
         "file": "portable.txt"
       }
+    },
+    "macos": {
+      "github": "stenzek/duckstation",
+      "asset": {
+        "name": "duckstation-mac-release.zip"
+      },
+      "exe": "DuckStation.app/Contents/MacOS/DuckStation"
     }
   },
   "detect": {
@@ -34,13 +41,20 @@
         "%ProgramFiles%\\DuckStation\\duckstation-qt-x64-ReleaseLTCG.exe"
       ],
       "portable_marker": "portable.txt"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/DuckStation.app/Contents/MacOS/DuckStation",
+        "~/Applications/DuckStation.app/Contents/MacOS/DuckStation"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/org.duckstation.DuckStation/config/duckstation",
     "native": "~/.local/share/duckstation",
     "portable": "<app>",
-    "windows": "%USERPROFILE%\\Documents\\DuckStation"
+    "windows": "%USERPROFILE%\\Documents\\DuckStation",
+    "macos": "~/Library/Application Support/DuckStation"
   },
   "launch": {
     "args": [
@@ -203,6 +217,24 @@
       }
     ],
     "windows": [
+      {
+        "seed": "settings.ini",
+        "content": "[Main]\nSettingsVersion = 3\n"
+      },
+      {
+        "ini": "settings.ini",
+        "section": "Main",
+        "key": "SetupWizardIncomplete",
+        "value": "false"
+      },
+      {
+        "ini": "settings.ini",
+        "section": "AutoUpdater",
+        "key": "CheckAtStartup",
+        "value": "false"
+      }
+    ],
+    "macos": [
       {
         "seed": "settings.ini",
         "content": "[Main]\nSettingsVersion = 3\n"

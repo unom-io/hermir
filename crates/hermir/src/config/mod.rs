@@ -1153,11 +1153,17 @@ mod tests {
         run(&c, "rpcs3", Os::Windows, &rpcs3, &everything(), &snaps);
         assert!(rpcs3.join("config/config.yml").is_file());
 
-        // No macOS layout is described: honest, not a crash.
-        let a = run(&c, "dolphin", Os::Macos, &dolphin, &everything(), &snaps);
+        // Snes9x's Mac app keeps no settings file: honest, not a crash.
+        let snes9x = tmp.path().join("snes9x");
+        let a = run(&c, "snes9x", Os::Macos, &snes9x, &everything(), &snaps);
         let k = knob(&a, "video.fullscreen");
         assert_eq!(k.support, Support::Unsupported);
         assert!(k.note.as_deref().unwrap().contains("macos"));
+
+        // Dolphin's Mac user folder holds Config/, as on Windows.
+        let mac = tmp.path().join("Dolphin-mac");
+        run(&c, "dolphin", Os::Macos, &mac, &everything(), &snaps);
+        assert!(mac.join("Config/Dolphin.ini").is_file());
     }
 
     #[test]

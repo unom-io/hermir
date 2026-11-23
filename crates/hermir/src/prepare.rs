@@ -83,6 +83,7 @@ pub fn prepare(
             steps.push(run_installer(
                 install,
                 root,
+                inst.done.get(os),
                 inst,
                 file,
                 need.note.as_deref(),
@@ -205,7 +206,7 @@ fn known_dump(need: &FirmwareNeed, file: &Path) -> Option<bool> {
 
 /// What `platform` needs on this copy and whether it is there: each matching file, hashed and
 /// checked. `None` when the emulator needs no firmware for it.
-pub fn status(entry: &Entry, install: &Install, platform: &str) -> Option<FirmwareStatus> {
+pub fn status(entry: &Entry, os: Os, install: &Install, platform: &str) -> Option<FirmwareStatus> {
     let fw = entry.firmware.as_ref()?;
     let need = fw.platforms.get(platform)?;
     let root = install.config_root.as_deref();
@@ -235,8 +236,8 @@ pub fn status(entry: &Entry, install: &Install, platform: &str) -> Option<Firmwa
     }
     // An installer leaves its own mark; that is the firmware being there.
     let installed = root
-        .zip(fw.install.as_ref())
-        .is_some_and(|(r, i)| r.join(&i.done).is_file());
+        .zip(fw.install.as_ref().and_then(|i| i.done.get(os)))
+        .is_some_and(|(r, done)| r.join(done).is_file());
     let ok = need.optional || installed || found.iter().any(|f| f.known != Some(false));
     Some(FirmwareStatus {
         platform: platform.to_string(),
@@ -423,12 +424,16 @@ fn move_into(from: &Path, to: &Path) -> std::io::Result<()> {
 fn run_installer(
     install: &Install,
     root: &Path,
+    done: Option<&str>,
     inst: &FirmwareInstall,
     file: Option<&PathBuf>,
     note: Option<&str>,
     runner: &dyn Runner,
 ) -> PrepareStep {
-    let done = root.join(&inst.done);
+    let Some(done) = done.map(|d| root.join(d)) else {
+        let why = "the catalog names no installed-firmware file on this OS".into();
+        return step("firmware_install", root, StepOutcome::Skipped, Some(why));
+    };
     if done.is_file() {
         return step("firmware_install", &done, StepOutcome::Present, None);
     }
@@ -482,7 +487,8 @@ fn run_installer(
     step("firmware_install", &done, StepOutcome::Failed, Some(why))
 }
 
-/// `*` as any run of characters, case-insensitive: enough for firmware names.
+/// `*` as any run of characters, case-insensitive: enough for firmware names and a folder
+/// named with its version.
 pub fn glob(pattern: &str, name: &str) -> bool {
     let (p, n) = (pattern.to_ascii_lowercase(), name.to_ascii_lowercase());
     let parts: Vec<&str> = p.split('*').collect();

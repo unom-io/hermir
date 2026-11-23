@@ -51,6 +51,15 @@
       "version": "1.22.2",
       "sha256": "b2139b1d0f9d4526dc6b5ce23cbb3efdc766096fa6f2c3df016818b486ac6372",
       "exe": "retroarch.exe"
+    },
+    "macos": {
+      "url": "https://buildbot.libretro.com/stable/1.22.2/apple/osx/universal/RetroArch_Metal.dmg",
+      "version": "1.22.2",
+      "sha256": "81b79121ba26d539064ae13b4d0419a120c3d165afbe656cf5f5412b15fdb434",
+      "exe": "RetroArch.app/Contents/MacOS/RetroArch",
+      "portable": {
+        "file": "portable.txt"
+      }
     }
   },
   "detect": {
@@ -67,13 +76,21 @@
         "C:\\RetroArch\\retroarch.exe"
       ],
       "portable_marker": "retroarch.cfg"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/RetroArch.app/Contents/MacOS/RetroArch",
+        "~/Applications/RetroArch.app/Contents/MacOS/RetroArch"
+      ],
+      "portable_marker": "portable.txt"
     }
   },
   "roots": {
     "flatpak": "~/.var/app/org.libretro.RetroArch/config/retroarch",
     "native": "~/.config/retroarch",
     "portable": "<app>",
-    "windows": "%APPDATA%\\RetroArch"
+    "windows": "%APPDATA%\\RetroArch",
+    "macos": "~/Library/Application Support/RetroArch"
   },
   "launch": {
     "args": [
@@ -228,7 +245,11 @@
   "config": {
     "files": {
       "main": {
-        "path": "retroarch.cfg",
+        "path": {
+          "linux": "retroarch.cfg",
+          "windows": "retroarch.cfg",
+          "macos": "config/retroarch.cfg"
+        },
         "format": "ini"
       }
     },

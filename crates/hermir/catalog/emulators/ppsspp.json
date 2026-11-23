@@ -21,6 +21,16 @@
       "portable": {
         "dir": "memstick"
       }
+    },
+    "macos": {
+      "github": "hrydgard/ppsspp",
+      "asset": {
+        "all": [
+          "PPSSPPSDL-macOS",
+          ".zip"
+        ]
+      },
+      "exe": "PPSSPPSDL.app/Contents/MacOS/PPSSPPSDL"
     }
   },
   "detect": {
@@ -37,13 +47,21 @@
         "%ProgramFiles%\\PPSSPP\\PPSSPPWindows64.exe"
       ],
       "portable_marker": "memstick"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/PPSSPPSDL.app/Contents/MacOS/PPSSPPSDL",
+        "~/Applications/PPSSPPSDL.app/Contents/MacOS/PPSSPPSDL",
+        "/opt/homebrew/bin/PPSSPPSDL"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/org.ppsspp.PPSSPP/config/ppsspp",
     "native": "~/.config/ppsspp",
     "portable": "<app>/memstick",
-    "windows": "%USERPROFILE%\\Documents\\PPSSPP"
+    "windows": "%USERPROFILE%\\Documents\\PPSSPP",
+    "macos": "~/.config/ppsspp"
   },
   "launch": {
     "args": [

@@ -61,7 +61,7 @@ impl RealEnv {
 
 /// Where each per-user variable points for a home of `home`.
 fn home_vars(os: Os, home: &Path) -> Vec<(&'static str, PathBuf)> {
-    match os {
+    let mut vars = match os {
         Os::Windows => vec![
             ("USERPROFILE", home.to_path_buf()),
             ("APPDATA", home.join("AppData").join("Roaming")),
@@ -74,7 +74,12 @@ fn home_vars(os: Os, home: &Path) -> Vec<(&'static str, PathBuf)> {
             ("XDG_CACHE_HOME", home.join(".cache")),
             ("XDG_STATE_HOME", home.join(".local/state")),
         ],
+    };
+    // Cocoa, and Qt through it, take `~/Library` from the account, not from `HOME`.
+    if os == Os::Macos {
+        vars.push(("CFFIXED_USER_HOME", home.to_path_buf()));
     }
+    vars
 }
 
 impl Env for RealEnv {
@@ -261,15 +266,24 @@ fn flatpak_present(id: &str, env: &dyn Env) -> bool {
         .any(|dir| env.exists(&dir.join("app").join(id)))
 }
 
-/// The directory of `exe` under `os` path rules, so a Windows path parses on any host.
-fn dir_of(os: Os, exe: &Path) -> Option<PathBuf> {
+/// The directory of `exe` under `os` path rules, so a Windows path parses on any host: `<app>`.
+/// An exe in `X.app/Contents/MacOS` is the app's, and `<app>` is the folder holding `X.app`.
+pub(crate) fn dir_of(os: Os, exe: &Path) -> Option<PathBuf> {
     if os == Os::Windows {
         let s = exe.to_string_lossy();
         let cut = s.rfind(['\\', '/'])?;
-        Some(PathBuf::from(&s[..cut]))
-    } else {
-        exe.parent().map(Path::to_path_buf)
+        return Some(PathBuf::from(&s[..cut]));
     }
+    let dir = exe.parent()?;
+    let bundle = dir
+        .ends_with("Contents/MacOS")
+        .then(|| dir.parent()?.parent())
+        .flatten()
+        .filter(|app| {
+            app.extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("app"))
+        });
+    Some(bundle.and_then(Path::parent).unwrap_or(dir).to_path_buf())
 }
 
 fn join_for(os: Os, dir: &Path, name: &str) -> PathBuf {
@@ -314,11 +328,10 @@ fn config_root(
     env: &dyn Env,
     app_dir: Option<&Path>,
 ) -> Option<PathBuf> {
-    let template = match (kind, env.os()) {
-        (InstallKind::Portable, _) | (InstallKind::Managed, _) => roots.portable.as_deref(),
-        (InstallKind::Flatpak, _) => roots.flatpak.as_deref(),
-        (InstallKind::Native, Os::Windows) => roots.windows.as_deref(),
-        (InstallKind::Native, _) => roots.native.as_deref(),
+    let template = match kind {
+        InstallKind::Portable | InstallKind::Managed => roots.portable.as_deref(),
+        InstallKind::Flatpak => roots.flatpak.as_deref(),
+        InstallKind::Native => roots.installed(env.os()),
     }?;
     Some(expand(template, env, app_dir))
 }
@@ -557,6 +570,33 @@ mod tests {
         assert_eq!(
             found[0].config_root.as_deref(),
             Some(Path::new("C:\\Program Files\\PCSX2"))
+        );
+    }
+
+    /// A Mac app keeps its settings under `~/Library`; with its marker beside the app, the
+    /// folder holding the app is `<app>`.
+    #[test]
+    fn a_mac_app_is_found_with_its_library_root_or_beside_its_marker() {
+        let c = Catalog::embedded().unwrap();
+        let pcsx2 = c.get("pcsx2").unwrap();
+        let env = FakeEnv::new(Os::Macos, "/Users/u")
+            .file("/Applications/PCSX2.app/Contents/MacOS/PCSX2");
+        let found = detect_entry(pcsx2, &env);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].kind, InstallKind::Native);
+        assert_eq!(
+            found[0].config_root.as_deref(),
+            Some(Path::new("/Users/u/Library/Application Support/PCSX2"))
+        );
+
+        let env = FakeEnv::new(Os::Macos, "/Users/u")
+            .file("/Users/u/Applications/PCSX2.app/Contents/MacOS/PCSX2")
+            .file("/Users/u/Applications/portable.ini");
+        let found = detect_entry(pcsx2, &env);
+        assert_eq!(found[0].kind, InstallKind::Portable);
+        assert_eq!(
+            found[0].config_root.as_deref(),
+            Some(Path::new("/Users/u/Applications"))
         );
     }
 

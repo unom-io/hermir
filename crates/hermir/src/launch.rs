@@ -119,9 +119,10 @@ pub(crate) fn launch(
             }
         }
     }
-    // Every adapter binds a pad's buttons by position; SDL 2 reports a Nintendo pad's by label
-    // unless told. A streamed window can lack focus, which stops SDL's pad events otherwise.
-    if os == Os::Linux {
+    // Off Windows every adapter binds a pad's buttons by position; SDL 2 reports a Nintendo
+    // pad's by label unless told. A streamed or exec'd window can lack focus, which stops
+    // SDL's pad events otherwise.
+    if os != Os::Windows {
         for (k, v) in [
             ("SDL_GAMECONTROLLER_USE_BUTTON_LABELS", "0"),
             ("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1"),
@@ -134,11 +135,17 @@ pub(crate) fn launch(
             }
         }
     }
+    // A Mac copy starts in its own folder: Supermodel's Mac build reads everything relative to
+    // it, and shadPS4 looks there for its portable folder.
+    let cwd = match &install.exe {
+        Exe::Path(p) if os == Os::Macos => crate::detect::dir_of(os, p),
+        _ => None,
+    };
     Ok(LaunchSpec {
         exe: install.exe.clone(),
         args,
         env,
-        cwd: None,
+        cwd,
         sandbox,
     })
 }
@@ -298,6 +305,43 @@ mod tests {
         );
         let spec = launch(entry, Os::Windows, &native, &req, None).unwrap();
         assert!(spec.env.is_empty());
+    }
+
+    /// A Mac copy starts in the folder holding its app, with SDL's pad hints and no Pulse sink.
+    #[test]
+    fn a_mac_copy_starts_beside_its_app() {
+        let c = Catalog::embedded().unwrap();
+        let entry = c.get("supermodel").unwrap();
+        let copy = Install {
+            emulator: "supermodel".into(),
+            kind: InstallKind::Managed,
+            exe: Exe::Path("/p/supermodel/app/supermodel".into()),
+            version: None,
+            config_root: Some("/p/supermodel/app".into()),
+        };
+        let spec = launch(entry, Os::Macos, &copy, &game("/g/a.zip", None), None).unwrap();
+        assert_eq!(spec.cwd.as_deref(), Some(Path::new("/p/supermodel/app")));
+        assert_eq!(
+            spec.env
+                .get("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS")
+                .map(String::as_str),
+            Some("1")
+        );
+        let app = Install {
+            exe: Exe::Path("/Applications/Dolphin.app/Contents/MacOS/Dolphin".into()),
+            ..copy
+        };
+        let spec = launch(
+            c.get("dolphin").unwrap(),
+            Os::Macos,
+            &app,
+            &LaunchRequest::default(),
+            None,
+        );
+        assert_eq!(
+            spec.unwrap().cwd.as_deref(),
+            Some(Path::new("/Applications"))
+        );
     }
 
     #[test]
