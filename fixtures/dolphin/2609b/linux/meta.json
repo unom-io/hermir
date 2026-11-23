@@ -1,14 +1,14 @@
 {
   "emulator": "dolphin",
-  "version": "2609",
+  "version": "2609b",
   "os": "linux",
   "kind": "flatpak",
   "source": {
     "flatpak": "org.DolphinEmu.dolphin-emu",
-    "commit": "594afeb78ede945c8fe0e774649443cf12b0706188ce03bb3cd49e3004659e5b"
+    "commit": "d9d4e0994cd845e911622f1d5de8ecfda4658cfb9e3d49b166b1a74c169142a7"
   },
   "captured": {
-    "on": "2026-10-03",
+    "on": "2026-11-23",
     "by": "xtask capture"
   },
   "files": {
