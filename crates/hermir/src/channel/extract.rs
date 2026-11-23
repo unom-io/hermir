@@ -565,6 +565,7 @@ mod tests {
         gz.finish().unwrap()
     }
 
+    #[cfg(unix)]
     fn tar_xz(entries: &[T]) -> Vec<u8> {
         let mut xz = lzma_rust2::XzWriter::new(Vec::new(), Default::default()).unwrap();
         xz.write_all(&tar_of(entries)).unwrap();
@@ -621,6 +622,7 @@ mod tests {
     }
 
     /// A 7z of entries with a Unix mode each, as p7zip writes them on a Mac.
+    #[cfg(unix)]
     fn sevenz_unix(entries: &[(&str, u32, &[u8])]) -> Vec<u8> {
         let mut w = sevenz_rust2::ArchiveWriter::new(io::Cursor::new(Vec::new())).unwrap();
         for (name, mode, bytes) in entries {
