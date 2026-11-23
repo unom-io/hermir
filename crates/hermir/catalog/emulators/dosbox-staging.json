@@ -21,6 +21,16 @@
         ]
       },
       "exe": "dosbox.exe"
+    },
+    "macos": {
+      "github": "dosbox-staging/dosbox-staging",
+      "asset": {
+        "all": [
+          "macos",
+          ".dmg"
+        ]
+      },
+      "exe": "DOSBox Staging.app/Contents/MacOS/dosbox"
     }
   },
   "detect": {
@@ -35,13 +45,21 @@
       "paths": [
         "%ProgramFiles%\\dosbox-staging\\dosbox.exe"
       ]
+    },
+    "macos": {
+      "paths": [
+        "/Applications/DOSBox Staging.app/Contents/MacOS/dosbox",
+        "~/Applications/DOSBox Staging.app/Contents/MacOS/dosbox",
+        "/opt/homebrew/bin/dosbox-staging"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/io.github.dosbox-staging/config/dosbox",
     "native": "~/.config/dosbox",
     "portable": "<app>",
-    "windows": "%LOCALAPPDATA%\\DOSBox"
+    "windows": "%LOCALAPPDATA%\\DOSBox",
+    "macos": "~/Library/Preferences/DOSBox"
   },
   "launch": {
     "args": [

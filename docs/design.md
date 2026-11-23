@@ -25,7 +25,7 @@ way.
 | D5 | Pad identity | **The consumer describes the pads; hermir writes the bindings.** A `PadRef` carries every identity an emulator might key on (kernel name, bus/VID/PID/version, SDL's GUID and name, enumeration index, evdev node), and `Patch.connected` lists every pad present, so a pad is numbered among the pads of its name or GUID as each emulator numbers it. Enumeration is an optional feature (`enumerate`, SDL 3) for the CLI and consumers without their own input stack. |
 | D6 | Canonical layout | **SDL game-controller semantics** (A/B/X/Y, bumpers, triggers, sticks, d-pad, start/back/guide, paddles, touchpad, motion) are the neutral buttons. Each platform's emulated pad (DualShock 2, GameCube pad, Wii U GamePad…) has a mapping table from that layout, in the catalog, overridable per call. |
 | D7 | Launching | **hermir builds a `LaunchSpec { exe, args, env, cwd, sandbox }`; the library never spawns.** The CLI's `run` spawns for convenience and testing. A host with its own execution rules (punktfunk's exec templates) stays in charge of what runs. |
-| D8 | Operating systems | **Linux and Windows in v1; macOS in the schema.** Every catalog entry has a slot per OS; a `null` slot is an honest "not offered here", never a crash. |
+| D8 | Operating systems | **Linux, Windows and macOS.** Every catalog entry has a slot per OS; a `null` slot is an honest "not offered here", never a crash. A Mac copy is the project's own app, placed whole (`X.app`), its settings under `~/Library` (`roots.macos`). |
 | D9 | Versions | **Current stable line per emulator.** Where a format split matters (melonDS `.ini` → `.toml` at 1.0), `detect` reads the version and the adapter branches. Ancient versions are out of scope. |
 | D10 | Language, runtime, deps | **Rust 2024, blocking I/O, progress by callback.** Small dependency set (§9). No async in the library — a CLI doesn't need it and a tokio host wraps it in `spawn_blocking`. |
 | D11 | Licence | **MIT OR Apache-2.0**, as punktfunk. The catalog is data under the same licence; it points at each emulator's own release channel and rehosts nothing. |
@@ -244,9 +244,11 @@ flathub <id>` (`--system` with `Options::flatpak_installation`, recorded in the 
 (sha256, since 2025-06), and tells a rolling release rebuilt under one tag (Vita3K's
 `continuous`, Xenia Canary's) by its release id; `url` takes a fixed URL and pins its sha256 in
 the entry (Dolphin, RetroArch, ScummVM); a libretro core
-fetches `buildbot.libretro.com/nightly/<os>/x86_64/latest/<core>_libretro.<so|dll>.zip` into the
+fetches `buildbot.libretro.com/nightly/<os>/<arch>/latest/<core>_libretro.<so|dll|dylib>.zip` into the
 cores dir — the URL RetroArch's own updater uses. Every download lands as `.part`, is verified,
-then extracted (zip, 7z, tar.gz in-process; an AppImage unpacked) into `<prefix>/<id>/app/`, the emulator's home: a portable emulator keeps its
+then extracted (zip, 7z, tar.gz, tar.xz in-process; an AppImage unpacked; a disk image attached
+read-only and its visible items copied out, the `Applications` link left behind) into
+`<prefix>/<id>/app/`, a lone `X.app` kept whole and macOS's `__MACOSX` and `._` files dropped: the emulator's home. A portable emulator keeps its
 config, saves and firmware beside its exe, so they live in there too, unless `Options::shared_install`
 left its marker out and each account keeps them under `roots.windows`. `<id>/manifest.json` lists
 what the release shipped (path → sha256) and is what makes the rest safe: an **update** replaces
@@ -372,8 +374,10 @@ thing a consumer edits by accident.
 
 `detect` runs the catalog's `detect` block per OS — `PATH` names, Flatpak app ids (user and system
 installations, `$FLATPAK_USER_DIR` and `$FLATPAK_SYSTEM_DIR` honoured), known install paths with
-`%VAR%`, `$VAR` and `~` expansion (Scoop's `%USERPROFILE%\scoop\apps\<app>\current` among them),
-portable markers beside a found exe — and the managed prefix, deduplicated by canonical path.
+`%VAR%`, `$VAR` and `~` expansion (Scoop's `%USERPROFILE%\scoop\apps\<app>\current` among them,
+and a Mac app's exe in `/Applications` or `~/Applications`), portable markers beside a found exe
+(beside the `.app` on macOS: `<app>` is the folder holding it) — and the managed prefix,
+deduplicated by canonical path. A Mac copy starts in that folder (`LaunchSpec.cwd`).
 Results are `Install`s with `kind` and the config root resolved from `roots`. A detect block
 whose only rule is a portable marker never fires, so validation refuses it. Versions are known
 for managed copies (the release); detected copies carry none yet. Detection is pure over an
@@ -532,8 +536,9 @@ and can ship alone. P1 and P2 are independent of each other.
   names, ares's per-system BIOS files, Snes9x's `FullscreenOnOpen` beyond its first start.
 - **Versions of detected copies**: the field exists, nothing fills it yet (an exe's version
   resource on Windows, Flatpak metadata, `--version` where it is fast).
-- **macOS**: channels (Homebrew casks, `.dmg`) and the Apple-only emulators — the schema slot
-  exists, no entries.
+- **macOS on glass**: each Mac entry is proven by `hermir check` in a macOS VM; pads there
+  need a signed host, so the GUIDs of the host's virtual pads are derived from SDL's source,
+  not read off a live SDL.
 - Keyboard and mouse bindings are not in the model; a consumer with a keyboard-first game passes
   native keys through `Patch.native`.
 - Version-split adapters beyond melonDS: PCSX2 1.6 and DuckStation's pre-2024 keys are out of

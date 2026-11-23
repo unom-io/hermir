@@ -11,19 +11,24 @@ use crate::progress::{Event, Progress};
 /// Why a core is never verified.
 pub const UNVERIFIED: &str = "the libretro buildbot publishes no checksums";
 
-pub fn core_url(os: Os, core: &str) -> Option<String> {
+/// The buildbot's URL of `core` for `os`. A Mac's cores are of this build's arch, which is the
+/// arch a universal RetroArch runs as beside it.
+pub fn core_url(os: Os, core: &str) -> String {
+    let mac = if cfg!(target_arch = "x86_64") {
+        "apple/osx/x86_64"
+    } else {
+        "apple/osx/arm64"
+    };
     let (dir, ext) = match os {
         Os::Linux => ("linux/x86_64", "so"),
         Os::Windows => ("windows/x86_64", "dll"),
-        Os::Macos => return None,
+        Os::Macos => (mac, "dylib"),
     };
-    Some(format!(
-        "https://buildbot.libretro.com/nightly/{dir}/latest/{core}_libretro.{ext}.zip"
-    ))
+    format!("https://buildbot.libretro.com/nightly/{dir}/latest/{core}_libretro.{ext}.zip")
 }
 
-/// Downloads and unpacks `<core>_libretro.<so|dll>` into `cores_dir`, through `tmp`. Returns the
-/// core's path.
+/// Downloads and unpacks `<core>_libretro.<so|dll|dylib>` into `cores_dir`, through `tmp`.
+/// Returns the core's path.
 pub fn install_core(
     http: &dyn Http,
     os: Os,
@@ -38,10 +43,7 @@ pub fn install_core(
             why: "a core name is [A-Za-z0-9_]".into(),
         });
     }
-    let url = core_url(os, core).ok_or_else(|| Error::UnsupportedOs {
-        emulator: format!("core {core}"),
-        os: os.to_string(),
-    })?;
+    let url = core_url(os, core);
     std::fs::create_dir_all(tmp).map_err(|e| Error::io("create", tmp, e))?;
     let part = tmp.join(format!("{core}.zip.part"));
     let _ = std::fs::remove_file(&part);
@@ -106,15 +108,11 @@ mod tests {
     #[test]
     fn urls_follow_the_buildbot_layout() {
         assert_eq!(
-            core_url(Os::Windows, "snes9x").unwrap(),
+            core_url(Os::Windows, "snes9x"),
             "https://buildbot.libretro.com/nightly/windows/x86_64/latest/snes9x_libretro.dll.zip"
         );
-        assert!(
-            core_url(Os::Linux, "mgba")
-                .unwrap()
-                .ends_with("mgba_libretro.so.zip")
-        );
-        assert!(core_url(Os::Macos, "mgba").is_none());
+        assert!(core_url(Os::Linux, "mgba").ends_with("mgba_libretro.so.zip"));
+        assert!(core_url(Os::Macos, "mgba").ends_with("/latest/mgba_libretro.dylib.zip"));
     }
 
     /// A core replaces the old one and leaves nothing behind. On Windows it carries the cores
@@ -136,7 +134,7 @@ mod tests {
             w.finish().unwrap();
         }
         let mut http = FakeHttp::default();
-        let url = core_url(Os::Windows, "snes9x").unwrap();
+        let url = core_url(Os::Windows, "snes9x");
         http.files.insert(url, zip.into_inner());
         let root = tempfile::tempdir().unwrap();
         let (tmp, cores) = (root.path().join("tmp"), root.path().join("cores"));

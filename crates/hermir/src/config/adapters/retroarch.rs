@@ -1,7 +1,8 @@
 //! RetroArch: on Linux through its `sdl2` joypad driver, which numbers a pad's controls by
 //! SDL's game-controller enum whatever the pad, and reads its gyro for the cores that take
-//! one; each seat's slot is the pad's SDL index. On Windows through XInput, whose pads its
-//! built-in profiles bind; only the driver and each player's slot are written.
+//! one; each seat's slot is the pad's SDL index. On Windows through XInput, on macOS through
+//! GameController (`mfi`: the Mac build has no SDL), whose pads its built-in profiles bind;
+//! only the driver and each player's slot are written.
 use super::{Bindings, Cx, Plan, Seating, beyond, set};
 use crate::model::Os;
 
@@ -9,8 +10,13 @@ pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
     let players = &s.seats[..];
     let q = |s: &str| format!("\"{s}\"");
     let mut edits = Vec::new();
-    if cx.os == Os::Windows {
-        edits.extend(set(cx, "main", "", "input_joypad_driver", &q("xinput"))?);
+    if cx.os != Os::Linux {
+        let driver = if cx.os == Os::Windows {
+            "xinput"
+        } else {
+            "mfi"
+        };
+        edits.extend(set(cx, "main", "", "input_joypad_driver", &q(driver))?);
         for p in players.iter().filter(|p| p.seat <= 16) {
             edits.extend(set(
                 cx,

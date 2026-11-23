@@ -120,7 +120,8 @@ pub struct Entry {
     #[serde(default)]
     pub detect: PerOs<Detect>,
     /// Where the emulator keeps its config and data, per install kind. `<app>` is the exe's
-    /// directory, `~` the home, `%VAR%` and `$VAR` environment variables.
+    /// directory (on macOS the folder holding `X.app`), `~` the home, `%VAR%` and `$VAR`
+    /// environment variables.
     #[serde(default)]
     pub roots: Roots,
     /// How to start it with a game.
@@ -1218,9 +1219,9 @@ pub struct FirmwareUnpack {
 pub struct FirmwareInstall {
     /// The argv after the exe; `{file}` is the firmware file.
     pub args: Vec<String>,
-    /// A file under the config root that exists once firmware is installed. It, not the exit
-    /// code, says whether the install worked.
-    pub done: String,
+    /// A file under the config root that exists once firmware is installed, per OS where the
+    /// layouts differ. It, not the exit code, says whether the install worked.
+    pub done: FilePath,
 }
 
 /// One answer to a first-run question, as a file under the config root.
@@ -1461,7 +1462,7 @@ pub struct Roots {
     /// A Flatpak's config root, under `~/.var/app/<id>`.
     pub flatpak: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    /// A copy on `PATH` or at a known install path.
+    /// A copy on `PATH` or at a known install path, on Linux.
     pub native: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// A copy with its portable marker: `<app>` is its folder.
@@ -1469,6 +1470,20 @@ pub struct Roots {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// Any copy on Windows, unless it is portable.
     pub windows: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Any copy on macOS, unless it is portable: under `~/Library` as a rule.
+    pub macos: Option<String>,
+}
+
+impl Roots {
+    /// The root of a copy on `os` that is neither a Flatpak nor portable.
+    pub fn installed(&self, os: Os) -> Option<&str> {
+        match os {
+            Os::Windows => self.windows.as_deref(),
+            Os::Macos => self.macos.as_deref(),
+            Os::Linux => self.native.as_deref(),
+        }
+    }
 }
 
 /// The argv template after the exe. Each argument is a literal or exactly one placeholder:

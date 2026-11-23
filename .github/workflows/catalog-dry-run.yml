@@ -28,6 +28,8 @@ jobs:
         run: ./target/debug/hermir --os windows catalog resolve --all
       - name: resolve every Linux channel
         run: ./target/debug/hermir --os linux catalog resolve --all
+      - name: resolve every macOS channel
+        run: ./target/debug/hermir --os macos catalog resolve --all
       # A red scheduled run nobody looks at helps nobody: it opens an issue, or adds to the open
       # one, with the run that failed.
       - name: report a scheduled failure

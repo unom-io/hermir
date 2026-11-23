@@ -25,6 +25,19 @@
       "portable": {
         "dir": "user"
       }
+    },
+    "macos": {
+      "github": "azahar-emu/azahar",
+      "asset": {
+        "all": [
+          "macos-universal",
+          ".zip"
+        ],
+        "none": [
+          "libretro"
+        ]
+      },
+      "exe": "Azahar.app/Contents/MacOS/azahar"
     }
   },
   "detect": {
@@ -39,13 +52,20 @@
         "%LOCALAPPDATA%\\Azahar\\azahar.exe"
       ],
       "portable_marker": "user"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/Azahar.app/Contents/MacOS/azahar",
+        "~/Applications/Azahar.app/Contents/MacOS/azahar"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/org.azahar_emu.Azahar/config/azahar-emu",
     "native": "~/.config/azahar-emu",
     "portable": "<app>/user",
-    "windows": "%APPDATA%\\Azahar"
+    "windows": "%APPDATA%\\Azahar",
+    "macos": "~/Library/Application Support/Azahar"
   },
   "launch": {
     "args": [
@@ -56,7 +76,11 @@
   "config": {
     "files": {
       "main": {
-        "path": "qt-config.ini",
+        "path": {
+          "linux": "qt-config.ini",
+          "windows": "qt-config.ini",
+          "macos": "config/qt-config.ini"
+        },
         "format": "qt"
       }
     },

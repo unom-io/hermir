@@ -256,9 +256,10 @@ impl Catalog {
                 .flat_map(|f| {
                     f.dir
                         .iter()
-                        .chain(f.install.iter().map(|i| &i.done))
                         .chain(f.unpack.iter().map(|u| &u.into))
                         .chain(f.keys.iter().map(|k| &k.ini))
+                        .map(String::as_str)
+                        .chain(f.install.iter().flat_map(|i| i.done.all()))
                 })
                 .chain(
                     [Os::Linux, Os::Windows, Os::Macos]
@@ -270,7 +271,8 @@ impl Catalog {
                             FirstRun::Dir { dir } => vec![dir],
                             // What is copied comes from beside the exe, so it stays in there too.
                             FirstRun::Copy { copy, to } => vec![copy, to],
-                        }),
+                        })
+                        .map(String::as_str),
                 );
             for rel in written {
                 if rel.is_empty() || !is_safe_relative(Path::new(rel)) {

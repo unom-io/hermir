@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use hermir::{
-    Aspect, Exe, Hermir, Install, KnobValue, LaunchRequest, LaunchSpec, Options, Os, Patch,
-    RealEnv, Result, StepOutcome, Support, Video,
+    Aspect, Entry, Exe, Hermir, Install, Knob, KnobValue, LaunchRequest, LaunchSpec, Options, Os,
+    Patch, RealEnv, Result, StepOutcome, Support, Video,
 };
 use serde::Serialize;
 
@@ -129,7 +129,7 @@ pub fn check(h: &Hermir, emulator: &str, seconds: u64, keep: bool) -> Result<Out
     push("start on the patched settings", ok, note);
 
     let read = e.get(&copy)?;
-    let wrong = read_back(&applied.knobs, &read);
+    let wrong = read_back(e.entry(), &applied.knobs, &read);
     push(
         "read back",
         wrong.is_empty(),
@@ -193,12 +193,21 @@ fn spec_again(e: &hermir::EmulatorHandle<'_>, copy: &Install) -> Result<LaunchSp
 }
 
 /// Every knob `apply` wrote, as `get` reads it back.
-fn read_back(applied: &[hermir::KnobChange], read: &[KnobValue]) -> Vec<String> {
+fn read_back(entry: &Entry, applied: &[hermir::KnobChange], read: &[KnobValue]) -> Vec<String> {
     let want = |knob: &str| match knob {
         "video.fullscreen" | "video.vsync" => Some("true"),
         "video.scale" => Some("3"),
         "video.aspect" => Some("16:9"),
         _ => None,
+    };
+    // A table that spells two values alike (Cemu's `auto` and `16:9` are both `0`) reads the
+    // written one back as the first of them.
+    let alike = |knob: &str, a: &str, b: Option<&str>| {
+        let table = entry.config.as_ref().and_then(|c| match c.knobs.get(knob) {
+            Some(Knob::Bound(binding)) => binding.values.as_ref(),
+            _ => None,
+        });
+        table.is_some_and(|t| b.is_some_and(|b| t.get(a).is_some() && t.get(a) == t.get(b)))
     };
     applied
         .iter()
@@ -206,8 +215,8 @@ fn read_back(applied: &[hermir::KnobChange], read: &[KnobValue]) -> Vec<String> 
         .filter_map(|k| {
             let w = want(&k.knob)?;
             let got = read.iter().find(|r| r.knob == k.knob)?;
-            (got.value.as_deref() != Some(w))
-                .then(|| format!("{} reads {:?}, {w} was written", k.knob, got.value))
+            let same = got.value.as_deref() == Some(w) || alike(&k.knob, w, got.value.as_deref());
+            (!same).then(|| format!("{} reads {:?}, {w} was written", k.knob, got.value))
         })
         .collect()
 }
@@ -225,6 +234,9 @@ fn run_for(spec: &LaunchSpec, vars: &[(&str, PathBuf)], os: Os, seconds: u64) ->
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
+    if let Some(cwd) = &spec.cwd {
+        cmd.current_dir(cwd);
+    }
     if os == Os::Linux {
         let installation = std::env::var_os("FLATPAK_USER_DIR")
             .map(PathBuf::from)
@@ -261,4 +273,33 @@ fn run_for(spec: &LaunchSpec, vars: &[(&str, PathBuf)], os: Os, seconds: u64) ->
     let _ = child.kill();
     let _ = child.wait();
     (true, format!("still running after {seconds}s"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_value_its_table_spells_like_the_written_one_reads_back_fine() {
+        let c = hermir::Catalog::embedded().unwrap();
+        let applied = [hermir::KnobChange {
+            knob: "video.aspect".into(),
+            support: Support::Applied,
+            note: None,
+            file: Some("settings.xml".into()),
+        }];
+        let read = |value: &str| {
+            [KnobValue {
+                knob: "video.aspect".into(),
+                value: Some(value.into()),
+                literal: None,
+                file: None,
+                note: None,
+            }]
+        };
+        // Cemu writes `auto` and `16:9` both as 0.
+        let cemu = c.get("cemu").unwrap();
+        assert!(read_back(cemu, &applied, &read("auto")).is_empty());
+        assert_eq!(read_back(cemu, &applied, &read("stretch")).len(), 1);
+    }
 }

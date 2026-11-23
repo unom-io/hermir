@@ -279,14 +279,20 @@ fn beyond(players: &[Player], ports: u8, name: &str) -> Option<String> {
     })
 }
 
-/// The caveat for emulators that key a pad by SDL's GUID, which on Windows depends on the
-/// driver the pad comes through (XInput, HIDAPI, DirectInput), not on its USB identity alone:
-/// on Windows, for a seated pad whose GUID was not read from SDL.
+/// The caveat for emulators that key a pad by SDL's GUID, which outside Linux depends on the
+/// driver the pad comes through (XInput, DirectInput, GameController, HIDAPI), not on its USB
+/// identity alone: for a seated pad whose GUID was not read from SDL.
 fn guid_note(os: Os, s: &Seating) -> Option<String> {
-    (os == Os::Windows && s.seats.iter().any(|p| p.pad.guid.is_none())).then(|| {
-        "on Windows SDL derives a pad's GUID from the driver it comes through; the USB-derived \
-         GUID is a best effort"
-            .into()
+    (os != Os::Linux && s.seats.iter().any(|p| p.pad.guid.is_none())).then(|| {
+        format!(
+            "on {} SDL derives a pad's GUID from the driver it comes through; the USB-derived \
+             GUID is a best effort",
+            if os == Os::Windows {
+                "Windows"
+            } else {
+                "macOS"
+            }
+        )
     })
 }
 

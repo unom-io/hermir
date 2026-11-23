@@ -14,6 +14,12 @@
       "version": "2026.3.0",
       "sha256": "ba0af3fd6cf0d281c623d48b23c77a4b4775860d496195155e6ceb281e0fff95",
       "exe": "scummvm.exe"
+    },
+    "macos": {
+      "url": "https://downloads.scummvm.org/frs/scummvm/2026.4.0/scummvm-2026.4.0-macosx.dmg",
+      "version": "2026.4.0",
+      "sha256": "5614527fa57ffce14773c69923b96eeb7b1b135bcd96bfe74640ca341cad4598",
+      "exe": "ScummVM.app/Contents/MacOS/scummvm"
     }
   },
   "detect": {
@@ -27,13 +33,21 @@
       "paths": [
         "%ProgramFiles%\\ScummVM\\scummvm.exe"
       ]
+    },
+    "macos": {
+      "paths": [
+        "/Applications/ScummVM.app/Contents/MacOS/scummvm",
+        "~/Applications/ScummVM.app/Contents/MacOS/scummvm",
+        "/opt/homebrew/bin/scummvm"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/org.scummvm.ScummVM/config/scummvm",
     "native": "~/.config/scummvm",
     "portable": "<app>",
-    "windows": "%APPDATA%\\ScummVM"
+    "windows": "%APPDATA%\\ScummVM",
+    "macos": "~/Library"
   },
   "launch": {
     "args": [
@@ -46,7 +60,11 @@
   "config": {
     "files": {
       "main": {
-        "path": "scummvm.ini",
+        "path": {
+          "linux": "scummvm.ini",
+          "windows": "scummvm.ini",
+          "macos": "Preferences/ScummVM Preferences"
+        },
         "format": "ini"
       }
     },
@@ -96,7 +114,8 @@
         "kind": "save",
         "path": {
           "linux": "{data}/saves",
-          "windows": "Saved games"
+          "windows": "Saved games",
+          "macos": "Application Support/ScummVM/Savegames"
         },
         "per_game": true,
         "setting": {

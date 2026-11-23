@@ -1,7 +1,8 @@
-//! Archive extraction into a fresh directory. Zip, 7z and tar.gz in-process; an AppImage
-//! unpacks itself, also when it is the only thing an archive held. When an archive wraps
-//! everything in one top-level directory, that directory is stripped, so `exe` in the
-//! catalog is always relative to the emulator's own root.
+//! Archive extraction into a fresh directory. Zip, 7z, tar.gz and tar.xz in-process; an
+//! AppImage unpacks itself, also when it is the only thing an archive held; a disk image is
+//! attached and copied out (macOS). When an archive wraps everything in one top-level
+//! directory, that directory is stripped, so `exe` in the catalog is always relative to the
+//! emulator's own root; a lone `X.app` stays, being the app.
 //!
 //! Nothing lands outside `dest`: an entry that names a path outside it, a link whose target
 //! leaves it, an entry written through a link, and a device or pipe all refuse the archive.
@@ -20,20 +21,22 @@ pub fn extract(archive: &Path, dest: &Path) -> Result<()> {
     if name.ends_with(".zip") {
         unzip(archive, dest)?;
     } else if name.ends_with(".7z") {
-        sevenz_rust2::decompress_file(archive, dest).map_err(|e| Error::Place {
-            what: archive.display().to_string(),
-            why: format!("7z: {e}"),
-        })?;
+        un7z(archive, dest)?;
     } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
-        untar(archive, dest)?;
+        untar(archive, dest, flate2::read::GzDecoder::new)?;
+    } else if name.ends_with(".tar.xz") || name.ends_with(".txz") {
+        untar(archive, dest, |f| lzma_rust2::XzReader::new(f, true))?;
+    } else if name.ends_with(".dmg") {
+        dmg(archive, dest)?;
     } else if name.ends_with(".appimage") {
         appimage(archive, dest)?;
     } else {
         return Err(Error::Place {
             what: archive.display().to_string(),
-            why: "not a .zip, .7z, .tar.gz or .AppImage".into(),
+            why: "not a .zip, .7z, .tar.gz, .tar.xz, .dmg or .AppImage".into(),
         });
     }
+    drop_apple_doubles(dest)?;
     strip_single_top_dir(dest)?;
     if let Some(inner) = lone_appimage(dest) {
         appimage(&inner, dest)?;
@@ -41,6 +44,179 @@ pub fn extract(archive: &Path, dest: &Path) -> Result<()> {
         strip_single_top_dir(dest)?;
     }
     Ok(())
+}
+
+/// A 7z, with the Unix mode an entry's attributes carry when bit 15 is set (high 16 bits, as
+/// p7zip writes it): a link is recreated when it stays inside, a file keeps whether it runs. A
+/// Mac app's frameworks are links, and its exe must run.
+fn un7z(archive: &Path, dest: &Path) -> Result<()> {
+    let stop = |why: String| sevenz_rust2::Error::Other(why.into());
+    sevenz_rust2::decompress_file_with_extract_fn(archive, dest, |entry, reader, out| {
+        let rel = out.strip_prefix(dest).unwrap_or(out);
+        if through_link(dest, rel) {
+            return Err(stop(format!("entry {} lies through a link", rel.display())));
+        }
+        let unix = entry.has_windows_attributes && entry.windows_attributes & 0x8000 != 0;
+        let mode = if unix {
+            entry.windows_attributes >> 16
+        } else {
+            0
+        };
+        if mode & 0o170000 == 0o120000 {
+            let mut target = String::new();
+            reader.read_to_string(&mut target)?;
+            let base = rel.parent().unwrap_or(Path::new(""));
+            if target.is_empty() || !link_stays_inside(base, Path::new(&target)) {
+                let why = format!("link {} -> {target} leaves the archive", rel.display());
+                return Err(stop(why));
+            }
+            if let Some(parent) = out.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            #[cfg(unix)]
+            std::os::unix::fs::symlink(&target, out)?;
+            #[cfg(not(unix))]
+            fs::write(out, &target)?;
+            return Ok(true);
+        }
+        let done = sevenz_rust2::default_entry_extract_fn(entry, reader, out)?;
+        #[cfg(unix)]
+        if mode & 0o111 != 0 && !entry.is_directory() {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(out, fs::Permissions::from_mode(0o755))?;
+        }
+        Ok(done)
+    })
+    .map_err(|e| refuse(archive, format!("7z: {e}")))
+}
+
+/// What macOS archivers add beside the real files: a zip's `__MACOSX/` of resource forks and
+/// a tar's `._name` AppleDouble files. Neither is part of the release, and a stray file inside
+/// an app breaks its signature.
+fn drop_apple_doubles(dir: &Path) -> Result<()> {
+    for e in fs::read_dir(dir).map_err(|e| Error::io("read", dir, e))? {
+        let e = e.map_err(|e| Error::io("read", dir, e))?;
+        let (path, name) = (e.path(), e.file_name());
+        let is_dir = e
+            .file_type()
+            .map_err(|e| Error::io("stat", &path, e))?
+            .is_dir();
+        if is_dir && name == "__MACOSX" {
+            fs::remove_dir_all(&path).map_err(|e| Error::io("remove", &path, e))?;
+        } else if is_dir {
+            drop_apple_doubles(&path)?;
+        } else if name.to_string_lossy().starts_with("._") {
+            fs::remove_file(&path).map_err(|e| Error::io("remove", &path, e))?;
+        }
+    }
+    Ok(())
+}
+
+/// A disk image is attached read-only and out of sight, and what it shows is copied out: its
+/// hidden files and the `Applications` link of a drag-to-install image stay behind. An image
+/// that asks for a licence agreement first is refused, as stdin is closed. The mount point is
+/// in the temp dir: `hdiutil` refuses one on an external volume.
+#[cfg(target_os = "macos")]
+fn dmg(archive: &Path, dest: &Path) -> Result<()> {
+    use std::process::{Command, Stdio};
+    let name = dest.file_name().unwrap_or_default().to_string_lossy();
+    let mount = std::env::temp_dir().join(format!("hermir-{}-{name}.mount", std::process::id()));
+    fs::create_dir_all(&mount).map_err(|e| Error::io("create", &mount, e))?;
+    let out = Command::new("hdiutil")
+        .args([
+            "attach",
+            "-nobrowse",
+            "-readonly",
+            "-noautoopen",
+            "-noverify",
+        ])
+        .arg("-mountpoint")
+        .arg(&mount)
+        .arg(archive)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| refuse(archive, format!("run hdiutil: {e}")))?;
+    if !out.status.success() {
+        let _ = fs::remove_dir(&mount);
+        let err = String::from_utf8_lossy(&out.stderr);
+        return Err(refuse(
+            archive,
+            format!("hdiutil attach: {}", err.lines().last().unwrap_or("failed")),
+        ));
+    }
+    let copied = copy_volume(archive, &mount, dest);
+    let _ = Command::new("hdiutil")
+        .args(["detach", "-force"])
+        .arg(&mount)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    let _ = fs::remove_dir(&mount);
+    copied
+}
+
+#[cfg(not(target_os = "macos"))]
+fn dmg(archive: &Path, _dest: &Path) -> Result<()> {
+    Err(refuse(archive, "a disk image opens on macOS only".into()))
+}
+
+/// The visible top level of a mounted image into `dest`.
+#[cfg(target_os = "macos")]
+fn copy_volume(archive: &Path, volume: &Path, dest: &Path) -> Result<()> {
+    for e in fs::read_dir(volume).map_err(|e| Error::io("read", volume, e))? {
+        let e = e.map_err(|e| Error::io("read", volume, e))?;
+        let name = e.file_name();
+        let link = e.file_type().is_ok_and(|t| t.is_symlink());
+        if link || name.to_string_lossy().starts_with('.') {
+            continue;
+        }
+        copy_tree(archive, &e.path(), &dest.join(&name), Path::new(&name))?;
+    }
+    Ok(())
+}
+
+/// `src` to `out`, links recreated as they are when they stay under the root (`rel` is `src`
+/// relative to it), files copied with their mode.
+#[cfg(target_os = "macos")]
+fn copy_tree(archive: &Path, src: &Path, out: &Path, rel: &Path) -> Result<()> {
+    let kind = fs::symlink_metadata(src)
+        .map_err(|e| Error::io("stat", src, e))?
+        .file_type();
+    if kind.is_symlink() {
+        let target = fs::read_link(src).map_err(|e| Error::io("readlink", src, e))?;
+        let base = rel.parent().unwrap_or(Path::new(""));
+        if target.as_os_str().is_empty() || !link_stays_inside(base, &target) {
+            return Err(refuse(
+                archive,
+                format!(
+                    "link {} -> {} leaves the image",
+                    rel.display(),
+                    target.display()
+                ),
+            ));
+        }
+        std::os::unix::fs::symlink(&target, out).map_err(|e| Error::io("link", out, e))
+    } else if kind.is_dir() {
+        fs::create_dir_all(out).map_err(|e| Error::io("create", out, e))?;
+        for e in fs::read_dir(src).map_err(|e| Error::io("read", src, e))? {
+            let name = e.map_err(|e| Error::io("read", src, e))?.file_name();
+            copy_tree(
+                archive,
+                &src.join(&name),
+                &out.join(&name),
+                &rel.join(&name),
+            )?;
+        }
+        Ok(())
+    } else if kind.is_file() {
+        fs::copy(src, out).map_err(|e| Error::io("copy", src, e))?;
+        Ok(())
+    } else {
+        Err(refuse(
+            archive,
+            format!("entry {} is a device or a pipe", rel.display()),
+        ))
+    }
 }
 
 /// The AppImage that is all an archive held (shadPS4 zips one). A link is not one.
@@ -97,9 +273,9 @@ fn through_link(dest: &Path, rel: &Path) -> bool {
     false
 }
 
-fn untar(archive: &Path, dest: &Path) -> Result<()> {
+fn untar<R: Read>(archive: &Path, dest: &Path, decode: impl FnOnce(fs::File) -> R) -> Result<()> {
     let file = fs::File::open(archive).map_err(|e| Error::io("open", archive, e))?;
-    let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(file));
+    let mut tar = tar::Archive::new(decode(file));
     let entries = tar
         .entries()
         .map_err(|e| refuse(archive, format!("tar: {e}")))?;
@@ -263,7 +439,8 @@ fn unzip(archive: &Path, dest: &Path) -> Result<()> {
     Ok(())
 }
 
-/// `dest/Only-Dir/…` becomes `dest/…`. A link is never stripped, whatever it points at.
+/// `dest/Only-Dir/…` becomes `dest/…`. A link is never stripped, whatever it points at, and
+/// neither is an app: `X.app/Contents/…` without its folder is no app.
 fn strip_single_top_dir(dest: &Path) -> Result<()> {
     let entries: Vec<PathBuf> = fs::read_dir(dest)
         .map_err(|e| Error::io("read", dest, e))?
@@ -273,7 +450,10 @@ fn strip_single_top_dir(dest: &Path) -> Result<()> {
     let [only] = entries.as_slice() else {
         return Ok(());
     };
-    if !fs::symlink_metadata(only).is_ok_and(|m| m.is_dir()) {
+    let app = only
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("app"));
+    if app || !fs::symlink_metadata(only).is_ok_and(|m| m.is_dir()) {
         return Ok(());
     }
     let staging = dest.with_file_name(format!(
@@ -380,8 +560,19 @@ mod tests {
     }
 
     fn tar_gz(entries: &[T]) -> Vec<u8> {
-        let gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
-        let mut b = tar::Builder::new(gz);
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        gz.write_all(&tar_of(entries)).unwrap();
+        gz.finish().unwrap()
+    }
+
+    fn tar_xz(entries: &[T]) -> Vec<u8> {
+        let mut xz = lzma_rust2::XzWriter::new(Vec::new(), Default::default()).unwrap();
+        xz.write_all(&tar_of(entries)).unwrap();
+        xz.finish().unwrap()
+    }
+
+    fn tar_of(entries: &[T]) -> Vec<u8> {
+        let mut b = tar::Builder::new(Vec::new());
         for e in entries {
             let (name, kind, data, link): (&str, tar::EntryType, &[u8], Option<&str>) = match *e {
                 T::File(n, d) => (n, tar::EntryType::Regular, d, None),
@@ -401,7 +592,7 @@ mod tests {
             h.set_cksum();
             b.append(&h, data).unwrap();
         }
-        b.into_inner().unwrap().finish().unwrap()
+        b.into_inner().unwrap()
     }
 
     /// A zip of files and links, named as given.
@@ -427,6 +618,48 @@ mod tests {
         w.push_archive_entry(sevenz_rust2::ArchiveEntry::new_file(name), Some(bytes))
             .unwrap();
         w.finish().unwrap().into_inner()
+    }
+
+    /// A 7z of entries with a Unix mode each, as p7zip writes them on a Mac.
+    fn sevenz_unix(entries: &[(&str, u32, &[u8])]) -> Vec<u8> {
+        let mut w = sevenz_rust2::ArchiveWriter::new(io::Cursor::new(Vec::new())).unwrap();
+        for (name, mode, bytes) in entries {
+            let mut e = sevenz_rust2::ArchiveEntry::new_file(name);
+            e.has_windows_attributes = true;
+            e.windows_attributes = 0x8000 | (mode << 16);
+            w.push_archive_entry(e, Some(*bytes)).unwrap();
+        }
+        w.finish().unwrap().into_inner()
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_7z_keeps_links_and_whether_a_file_runs() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_dir, out, r) = try_extract(
+            "rpcs3_macos.7z",
+            &sevenz_unix(&[
+                ("RPCS3.app/Contents/MacOS/rpcs3", 0o100755, b"run"),
+                ("RPCS3.app/Contents/Info.plist", 0o100644, b"plist"),
+                (
+                    "RPCS3.app/Contents/Frameworks/Qt.framework/Versions/A/Qt",
+                    0o100755,
+                    b"lib",
+                ),
+                (
+                    "RPCS3.app/Contents/Frameworks/Qt.framework/Versions/Current",
+                    0o120755,
+                    b"A",
+                ),
+            ]),
+        );
+        r.unwrap();
+        let mode = |p: &str| fs::metadata(out.join(p)).unwrap().permissions().mode() & 0o111;
+        assert_eq!(mode("RPCS3.app/Contents/MacOS/rpcs3"), 0o111);
+        assert_eq!(mode("RPCS3.app/Contents/Info.plist"), 0);
+        let current = out.join("RPCS3.app/Contents/Frameworks/Qt.framework/Versions/Current");
+        assert_eq!(fs::read_link(current).unwrap(), Path::new("A"));
+        refused("a.7z", &sevenz_unix(&[("Top", 0o120755, b"..")]));
     }
 
     /// Extracts `bytes` as `<name>` into `<tmp>/in/out`; `<tmp>` itself is "outside".
@@ -573,5 +806,106 @@ mod tests {
         let mode = |n: &str| fs::metadata(out.join(n)).unwrap().permissions().mode() & 0o7777;
         assert_eq!(mode("run"), 0o755);
         assert_eq!(mode("data"), 0o644);
+    }
+
+    #[test]
+    fn a_lone_app_stays_an_app_and_apple_doubles_go() {
+        let (_dir, out, r) = try_extract(
+            "emu-macos.zip",
+            &zip_with(&[
+                ("Emu.app/Contents/MacOS/Emu", b"run"),
+                ("Emu.app/Contents/Info.plist", b"plist"),
+                ("__MACOSX/Emu.app/Contents/._Info.plist", b"fork"),
+            ]),
+        );
+        r.unwrap();
+        assert!(out.join("Emu.app/Contents/MacOS/Emu").is_file());
+        assert!(!out.join("__MACOSX").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_tar_xz_unpacks_as_a_tar_gz_does() {
+        let (_dir, out, r) = try_extract(
+            "pcsx2-v2-macos-Qt.tar.xz",
+            &tar_xz(&[
+                T::File("PCSX2-v2/PCSX2.app/Contents/MacOS/PCSX2", b"run"),
+                T::File("PCSX2-v2/PCSX2.app/Contents/MacOS/._PCSX2", b"xattrs"),
+                T::Link("PCSX2-v2/PCSX2.app/Contents/Current", "MacOS"),
+            ]),
+        );
+        r.unwrap();
+        let app = out.join("PCSX2.app/Contents");
+        assert!(app.join("MacOS/PCSX2").is_file());
+        assert!(!app.join("MacOS/._PCSX2").exists());
+        assert!(
+            fs::symlink_metadata(app.join("Current"))
+                .unwrap()
+                .is_symlink()
+        );
+        refused("a.tar.xz", &tar_xz(&[T::File("../evil", b"x")]));
+    }
+
+    /// A drag-to-install image, built by `hdiutil` as release managers do.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_disk_image_gives_its_app_without_the_applications_link() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+        let dir = tempfile::tempdir().unwrap();
+        let src = dir.path().join("src");
+        let macos = src.join("Emu.app/Contents/MacOS");
+        fs::create_dir_all(&macos).unwrap();
+        fs::write(macos.join("Emu"), b"run").unwrap();
+        fs::set_permissions(macos.join("Emu"), fs::Permissions::from_mode(0o755)).unwrap();
+        symlink("MacOS", src.join("Emu.app/Contents/Current")).unwrap();
+        symlink("/Applications", src.join("Applications")).unwrap();
+        fs::write(src.join(".VolumeIcon.icns"), b"icon").unwrap();
+        let dmg = dir.path().join("Emu-macos.dmg");
+        let made = std::process::Command::new("hdiutil")
+            .args([
+                "create",
+                "-quiet",
+                "-fs",
+                "HFS+",
+                "-format",
+                "UDZO",
+                "-srcfolder",
+            ])
+            .arg(&src)
+            .arg(&dmg)
+            .status()
+            .unwrap();
+        assert!(made.success());
+        let out = dir.path().join("out");
+        extract(&dmg, &out).unwrap();
+        let exe = out.join("Emu.app/Contents/MacOS/Emu");
+        assert_eq!(
+            fs::metadata(&exe).unwrap().permissions().mode() & 0o111,
+            0o111
+        );
+        assert!(
+            fs::symlink_metadata(out.join("Emu.app/Contents/Current"))
+                .unwrap()
+                .is_symlink()
+        );
+        assert!(!out.join("Applications").exists() && !out.join(".VolumeIcon.icns").exists());
+        let mounts = fs::read_dir(std::env::temp_dir()).unwrap().flatten();
+        assert!(
+            !mounts
+                .into_iter()
+                .any(|e| e.file_name().to_string_lossy().ends_with("out.mount"))
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn a_link_out_of_an_image_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let vol = dir.path().join("vol");
+        fs::create_dir_all(vol.join("Emu.app")).unwrap();
+        std::os::unix::fs::symlink("../../..", vol.join("Emu.app/up")).unwrap();
+        let out = dir.path().join("out");
+        let r = copy_volume(Path::new("x.dmg"), &vol, &out);
+        assert!(matches!(r, Err(Error::Place { .. })), "{r:?}");
     }
 }

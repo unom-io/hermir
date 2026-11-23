@@ -45,6 +45,23 @@
       "portable": {
         "file": "settings.bml"
       }
+    },
+    "macos": {
+      "github": "ares-emulator/ares",
+      "asset": {
+        "all": [
+          "macos",
+          "universal",
+          ".zip"
+        ],
+        "none": [
+          "dsyms"
+        ]
+      },
+      "exe": "ares.app/Contents/MacOS/ares",
+      "portable": {
+        "file": "settings.bml"
+      }
     }
   },
   "detect": {
@@ -60,13 +77,21 @@
         "%LOCALAPPDATA%\\Programs\\ares\\ares.exe"
       ],
       "portable_marker": "settings.bml"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/ares.app/Contents/MacOS/ares",
+        "~/Applications/ares.app/Contents/MacOS/ares"
+      ],
+      "portable_marker": "settings.bml"
     }
   },
   "roots": {
     "flatpak": "~/.var/app/dev.ares.ares/data/ares",
     "native": "~/.local/share/ares",
     "portable": "<app>",
-    "windows": "%LOCALAPPDATA%\\ares"
+    "windows": "%LOCALAPPDATA%\\ares",
+    "macos": "~/Library/Application Support/ares"
   },
   "launch": {
     "args": [

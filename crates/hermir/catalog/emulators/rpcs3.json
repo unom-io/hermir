@@ -25,6 +25,16 @@
         ]
       },
       "exe": "rpcs3.exe"
+    },
+    "macos": {
+      "github": "RPCS3/rpcs3-binaries-mac-arm64",
+      "asset": {
+        "all": [
+          "macos",
+          ".7z"
+        ]
+      },
+      "exe": "RPCS3.app/Contents/MacOS/rpcs3"
     }
   },
   "detect": {
@@ -39,13 +49,20 @@
         "%LOCALAPPDATA%\\RPCS3\\rpcs3.exe",
         "C:\\RPCS3\\rpcs3.exe"
       ]
+    },
+    "macos": {
+      "paths": [
+        "/Applications/RPCS3.app/Contents/MacOS/rpcs3",
+        "~/Applications/RPCS3.app/Contents/MacOS/rpcs3"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/net.rpcs3.RPCS3/config/rpcs3",
     "native": "~/.config/rpcs3",
     "portable": "<app>",
-    "windows": "<app>"
+    "windows": "<app>",
+    "macos": "~/Library/Application Support/rpcs3"
   },
   "launch": {
     "args": [
@@ -58,14 +75,16 @@
       "main": {
         "path": {
           "linux": "config.yml",
-          "windows": "config/config.yml"
+          "windows": "config/config.yml",
+          "macos": "config.yml"
         },
         "format": "yaml"
       },
       "input": {
         "path": {
           "linux": "input_configs/global/Default.yml",
-          "windows": "config/input_configs/global/Default.yml"
+          "windows": "config/input_configs/global/Default.yml",
+          "macos": "input_configs/global/Default.yml"
         },
         "format": "yaml"
       }
@@ -218,6 +237,14 @@
     "windows": [
       {
         "ini": "config/GuiConfigs/CurrentSettings.ini",
+        "section": "main_window",
+        "key": "infoBoxEnabledWelcome",
+        "value": "false"
+      }
+    ],
+    "macos": [
+      {
+        "ini": "GuiConfigs/CurrentSettings.ini",
         "section": "main_window",
         "key": "infoBoxEnabledWelcome",
         "value": "false"

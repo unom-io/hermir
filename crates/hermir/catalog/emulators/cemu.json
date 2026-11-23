@@ -21,6 +21,16 @@
       "portable": {
         "dir": "portable"
       }
+    },
+    "macos": {
+      "github": "cemu-project/Cemu",
+      "asset": {
+        "all": [
+          "macos",
+          ".dmg"
+        ]
+      },
+      "exe": "Cemu.app/Contents/MacOS/Cemu"
     }
   },
   "detect": {
@@ -37,13 +47,20 @@
         "%LOCALAPPDATA%\\Cemu\\Cemu.exe"
       ],
       "portable_marker": "portable"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/Cemu.app/Contents/MacOS/Cemu",
+        "~/Applications/Cemu.app/Contents/MacOS/Cemu"
+      ]
     }
   },
   "roots": {
     "flatpak": "~/.var/app/info.cemu.Cemu/config/Cemu",
     "native": "~/.config/Cemu",
     "portable": "<app>/portable",
-    "windows": "%APPDATA%\\Cemu"
+    "windows": "%APPDATA%\\Cemu",
+    "macos": "~/Library/Application Support/Cemu"
   },
   "launch": {
     "args": [
@@ -60,6 +77,12 @@
       }
     ],
     "windows": [
+      {
+        "seed": "settings.xml",
+        "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<content/>\n"
+      }
+    ],
+    "macos": [
       {
         "seed": "settings.xml",
         "content": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<content/>\n"

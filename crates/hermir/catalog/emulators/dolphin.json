@@ -18,6 +18,15 @@
       "portable": {
         "file": "portable.txt"
       }
+    },
+    "macos": {
+      "url": "https://dl.dolphin-emu.org/releases/2609b/dolphin-2609b-universal.dmg",
+      "version": "2609b",
+      "sha256": "d7a3464ae2b71106e9bce9f53dfdbf5a6a3df2637ee8f3f78234f77653eb0a64",
+      "exe": "Dolphin.app/Contents/MacOS/Dolphin",
+      "portable": {
+        "file": "portable.txt"
+      }
     }
   },
   "detect": {
@@ -32,13 +41,21 @@
         "%ProgramFiles%\\Dolphin-x64\\Dolphin.exe"
       ],
       "portable_marker": "portable.txt"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/Dolphin.app/Contents/MacOS/Dolphin",
+        "~/Applications/Dolphin.app/Contents/MacOS/Dolphin"
+      ],
+      "portable_marker": "portable.txt"
     }
   },
   "roots": {
     "flatpak": "~/.var/app/org.DolphinEmu.dolphin-emu/config/dolphin-emu",
     "native": "~/.config/dolphin-emu",
     "portable": "<app>/User",
-    "windows": "%USERPROFILE%\\Documents\\Dolphin Emulator"
+    "windows": "%USERPROFILE%\\Documents\\Dolphin Emulator",
+    "macos": "~/Library/Application Support/Dolphin"
   },
   "launch": {
     "args": [
@@ -52,7 +69,8 @@
       "main": {
         "path": {
           "linux": "Dolphin.ini",
-          "windows": "Config/Dolphin.ini"
+          "windows": "Config/Dolphin.ini",
+          "macos": "Config/Dolphin.ini"
         },
         "format": "ini",
         "case_insensitive": true
@@ -60,7 +78,8 @@
       "gfx": {
         "path": {
           "linux": "GFX.ini",
-          "windows": "Config/GFX.ini"
+          "windows": "Config/GFX.ini",
+          "macos": "Config/GFX.ini"
         },
         "format": "ini",
         "case_insensitive": true
@@ -68,7 +87,8 @@
       "gcpad": {
         "path": {
           "linux": "GCPadNew.ini",
-          "windows": "Config/GCPadNew.ini"
+          "windows": "Config/GCPadNew.ini",
+          "macos": "Config/GCPadNew.ini"
         },
         "format": "ini",
         "case_insensitive": true
@@ -76,7 +96,8 @@
       "wiimote": {
         "path": {
           "linux": "WiimoteNew.ini",
-          "windows": "Config/WiimoteNew.ini"
+          "windows": "Config/WiimoteNew.ini",
+          "macos": "Config/WiimoteNew.ini"
         },
         "format": "ini",
         "case_insensitive": true
@@ -230,6 +251,14 @@
       }
     ],
     "windows": [
+      {
+        "ini": "Config/Dolphin.ini",
+        "section": "Analytics",
+        "key": "PermissionAsked",
+        "value": "True"
+      }
+    ],
+    "macos": [
       {
         "ini": "Config/Dolphin.ini",
         "section": "Analytics",

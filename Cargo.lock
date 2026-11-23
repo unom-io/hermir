@@ -447,6 +447,7 @@ name = "hermir"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "lzma-rust2 0.22.0",
  "md-5",
  "proptest",
  "schemars",

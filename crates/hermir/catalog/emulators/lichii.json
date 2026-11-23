@@ -28,12 +28,19 @@
         "%USERPROFILE%\\Downloads\\lichii-windows-x86_64-pgo\\lichii.exe"
       ],
       "portable_marker": "user"
+    },
+    "macos": {
+      "paths": [
+        "/Applications/lichii.app/Contents/MacOS/lichii",
+        "~/Applications/lichii.app/Contents/MacOS/lichii"
+      ]
     }
   },
   "roots": {
     "native": "~/.local/share/lichii",
     "portable": "<app>/user",
-    "windows": "%APPDATA%\\lichii"
+    "windows": "%APPDATA%\\lichii",
+    "macos": "~/.local/share/lichii"
   },
   "launch": {
     "args": [
@@ -47,7 +54,8 @@
       "main": {
         "path": {
           "linux": "{config}/qt-config.ini",
-          "windows": "config/qt-config.ini"
+          "windows": "config/qt-config.ini",
+          "macos": "{config}/qt-config.ini"
         },
         "format": "qt"
       }

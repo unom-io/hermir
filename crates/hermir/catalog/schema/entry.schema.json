@@ -448,7 +448,7 @@
           "type": "string"
         },
         {
-          "$ref": "#/$defs/PerOs4",
+          "$ref": "#/$defs/PerOs3",
           "description": "A path per OS."
         }
       ],
@@ -517,8 +517,8 @@
           "type": "array"
         },
         "done": {
-          "description": "A file under the config root that exists once firmware is installed. It, not the exit\ncode, says whether the install worked.",
-          "type": "string"
+          "$ref": "#/$defs/FilePath",
+          "description": "A file under the config root that exists once firmware is installed, per OS where the\nlayouts differ. It, not the exit code, says whether the install worked."
         }
       },
       "required": [
@@ -917,31 +917,22 @@
       "properties": {
         "linux": {
           "description": "The Linux value.",
-          "items": {
-            "$ref": "#/$defs/FirstRun"
-          },
           "type": [
-            "array",
+            "string",
             "null"
           ]
         },
         "macos": {
           "description": "The macOS value.",
-          "items": {
-            "$ref": "#/$defs/FirstRun"
-          },
           "type": [
-            "array",
+            "string",
             "null"
           ]
         },
         "windows": {
           "description": "The Windows value.",
-          "items": {
-            "$ref": "#/$defs/FirstRun"
-          },
           "type": [
-            "array",
+            "string",
             "null"
           ]
         }
@@ -954,22 +945,31 @@
       "properties": {
         "linux": {
           "description": "The Linux value.",
+          "items": {
+            "$ref": "#/$defs/FirstRun"
+          },
           "type": [
-            "string",
+            "array",
             "null"
           ]
         },
         "macos": {
           "description": "The macOS value.",
+          "items": {
+            "$ref": "#/$defs/FirstRun"
+          },
           "type": [
-            "string",
+            "array",
             "null"
           ]
         },
         "windows": {
           "description": "The Windows value.",
+          "items": {
+            "$ref": "#/$defs/FirstRun"
+          },
           "type": [
-            "string",
+            "array",
             "null"
           ]
         }
@@ -1144,8 +1144,15 @@
             "null"
           ]
         },
+        "macos": {
+          "description": "Any copy on macOS, unless it is portable: under `~/Library` as a rule.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "native": {
-          "description": "A copy on `PATH` or at a known install path.",
+          "description": "A copy on `PATH` or at a known install path, on Linux.",
           "type": [
             "string",
             "null"
@@ -1536,7 +1543,7 @@
       "description": "Where the emulator reads firmware, and what each platform needs there. The folder is\ncreated at install, so a consumer can be granted exactly that one."
     },
     "first_run": {
-      "$ref": "#/$defs/PerOs3",
+      "$ref": "#/$defs/PerOs4",
       "default": {},
       "description": "The answers to what a fresh copy asks before it plays anything (a setup wizard, a\nwelcome box), per OS. `prepare` writes them; each one is what clicking through writes."
     },
@@ -1591,7 +1598,7 @@
     "roots": {
       "$ref": "#/$defs/Roots",
       "default": {},
-      "description": "Where the emulator keeps its config and data, per install kind. `<app>` is the exe's\ndirectory, `~` the home, `%VAR%` and `$VAR` environment variables."
+      "description": "Where the emulator keeps its config and data, per install kind. `<app>` is the exe's\ndirectory (on macOS the folder holding `X.app`), `~` the home, `%VAR%` and `$VAR`\nenvironment variables."
     },
     "saves": {
       "additionalProperties": {
