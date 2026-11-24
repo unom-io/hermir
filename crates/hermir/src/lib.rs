@@ -230,12 +230,13 @@ impl Hermir {
             let Some(entry) = self.catalog.get(&a.emulator) else {
                 continue;
             };
+            let exe = detect::program_of(entry, &a.exe, env);
             let known = found.iter().any(|i| {
                 i.emulator == a.emulator
-                    && matches!(&i.exe, Exe::Path(p) if env.canonical(p) == env.canonical(&a.exe))
+                    && matches!(&i.exe, Exe::Path(p) if env.canonical(p) == env.canonical(&exe))
             });
-            if !known && env.exists(&a.exe) {
-                found.push(detect::adopted(entry, a.exe, env));
+            if !known && env.exists(&exe) {
+                found.push(detect::adopted(entry, exe, env));
             }
         }
         found
@@ -616,22 +617,28 @@ impl EmulatorHandle<'_> {
 
     /// Points hermir at a copy no rule finds (a portable build unpacked anywhere), so it is
     /// detected like any other from now on; `keep: false` forgets it again. The program must be
-    /// an absolute path to a file that is there.
+    /// an absolute path to a file that is there; a macOS `X.app` folder stands for the program
+    /// inside it.
     pub fn adopt(&self, exe: &Path, keep: bool) -> Result<Option<Install>> {
         let env = self.h.env.as_ref();
-        if keep && (!exe.is_absolute() || !env.exists(exe)) {
+        let exe = detect::program_of(self.entry, exe, env);
+        if keep && (!exe.is_absolute() || !env.exists(&exe)) {
             return Err(Error::Invalid(format!(
                 "{} is not a program on this machine",
                 exe.display()
             )));
         }
         let _lock = self.h.store.lock()?;
-        let row = Adopted {
+        let row = |exe: &Path| Adopted {
             emulator: self.entry.id.clone(),
             exe: exe.to_path_buf(),
         };
-        self.h.store.set_adopted(row, keep)?;
-        Ok(keep.then(|| detect::adopted(self.entry, exe.to_path_buf(), env)))
+        // A row kept as the program's `.app` folder is the same copy.
+        if let Some(app) = detect::bundle_of(&exe) {
+            self.h.store.set_adopted(row(app), false)?;
+        }
+        self.h.store.set_adopted(row(&exe), keep)?;
+        Ok(keep.then(|| detect::adopted(self.entry, exe, env)))
     }
 
     /// The libretro cores a RetroArch copy has, by the name a launch asks for (`snes9x`).
@@ -1518,6 +1525,37 @@ mod tests {
         assert_eq!(copy.exe, Exe::Path(exe.clone()));
         assert_eq!(e.copies().unwrap().len(), 1);
         assert!(e.adopt(Path::new("relative/eden"), true).is_err());
+        e.adopt(&exe, false).unwrap();
+        assert!(e.copies().unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_adopted_mac_app_folder_runs_the_program_inside_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let app = Path::new("/Users/u/Downloads/lichii 2.app");
+        let exe = app.join("Contents/MacOS/lichii");
+        let env =
+            crate::detect::fake::FakeEnv::new(Os::Macos, "/Users/u").file(exe.to_str().unwrap());
+        let prefix = tmp.path().join("prefix");
+        let h = Hermir::open(Options {
+            prefix: Some(prefix.clone()),
+            os: Some(Os::Macos),
+            http: Box::new(FakeHttp::default()),
+            runner: Box::new(FakeRunner::default()),
+            env: Some(Box::new(env)),
+            ..Options::default()
+        })
+        .unwrap();
+        let e = h.emulator("lichii").unwrap();
+        let copy = e.adopt(app, true).unwrap().unwrap();
+        assert_eq!(copy.exe, Exe::Path(exe.clone()));
+        // A row an older hermir kept as the folder reads as its program, and goes with it.
+        e.adopt(&exe, false).unwrap();
+        let old = r#"[{"emulator":"lichii","exe":"/Users/u/Downloads/lichii 2.app"}]"#;
+        std::fs::write(prefix.join("adopted.json"), old).unwrap();
+        let copies = e.copies().unwrap();
+        assert_eq!(copies.len(), 1);
+        assert_eq!(copies[0].exe, Exe::Path(exe.clone()));
         e.adopt(&exe, false).unwrap();
         assert!(e.copies().unwrap().is_empty());
     }

@@ -275,15 +275,45 @@ pub(crate) fn dir_of(os: Os, exe: &Path) -> Option<PathBuf> {
         return Some(PathBuf::from(&s[..cut]));
     }
     let dir = exe.parent()?;
-    let bundle = dir
-        .ends_with("Contents/MacOS")
+    Some(
+        bundle_of(exe)
+            .and_then(Path::parent)
+            .unwrap_or(dir)
+            .to_path_buf(),
+    )
+}
+
+fn is_app(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("app"))
+}
+
+/// The `X.app` folder whose `Contents/MacOS` holds `exe`.
+pub(crate) fn bundle_of(exe: &Path) -> Option<&Path> {
+    let dir = exe.parent()?;
+    dir.ends_with("Contents/MacOS")
         .then(|| dir.parent()?.parent())
         .flatten()
-        .filter(|app| {
-            app.extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("app"))
-        });
-    Some(bundle.and_then(Path::parent).unwrap_or(dir).to_path_buf())
+        .filter(|app| is_app(app))
+}
+
+/// The program a macOS `X.app` folder runs: the file a catalog rule names inside such a folder,
+/// else `Contents/MacOS/X`. Any other path is a program already.
+pub(crate) fn program_of(entry: &Entry, exe: &Path, env: &dyn Env) -> PathBuf {
+    if env.os() != Os::Macos || !is_app(exe) {
+        return exe.to_path_buf();
+    }
+    let ruled = entry
+        .detect
+        .get(Os::Macos)
+        .into_iter()
+        .flat_map(|r| &r.paths);
+    let inside = ruled.filter_map(|p| Some(exe.join(&p[p.find(".app/")? + ".app/".len()..])));
+    let named = exe.file_stem().map(|s| exe.join("Contents/MacOS").join(s));
+    inside
+        .chain(named)
+        .find(|p| env.exists(p))
+        .unwrap_or_else(|| exe.to_path_buf())
 }
 
 fn join_for(os: Os, dir: &Path, name: &str) -> PathBuf {
