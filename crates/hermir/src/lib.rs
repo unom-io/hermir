@@ -1529,6 +1529,8 @@ mod tests {
         assert!(e.copies().unwrap().is_empty());
     }
 
+    /// Mac paths: Windows reads `/Users/…` as relative, so `adopt` refuses it there.
+    #[cfg(unix)]
     #[test]
     fn an_adopted_mac_app_folder_runs_the_program_inside_it() {
         let tmp = tempfile::tempdir().unwrap();
