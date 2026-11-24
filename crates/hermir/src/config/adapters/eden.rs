@@ -2,9 +2,12 @@
 //! each control `engine:sdl,guid:<guid>,port:<n>,…` with SDL 3's raw joystick numbers, n
 //! counting pads of the same GUID from 0. Eden zeroes the name CRC in the GUID. A player is
 //! plugged in by its `connected` flag, not by a pad, so every seat without one is unplugged.
+//! Eden turns SDL's HIDAPI Xbox driver off, so on macOS an Xbox pad reaches it through the
+//! GameController framework, with that route's GUID and numbers.
 use super::{Bindings, Cx, Plan, Seating, beyond, guid_note, join, set};
 use crate::config::ini::qt_value;
-use crate::players::{Ctl, Dir, RawControl};
+use crate::model::{Os, PadRef};
+use crate::players::{Ctl, Dir, Raw, RawControl};
 
 pub(super) fn players(cx: &Cx, s: &Seating) -> Plan {
     bind(cx, s, "Eden")
@@ -22,14 +25,31 @@ fn bind(cx: &Cx, s: &Seating, emulator: &str) -> Plan {
         edits.extend(set(cx, "main", "Controls", &format!("player_{n}_{k}"), v)?);
         Ok(())
     };
+    let game_controller = |q: &PadRef| {
+        (cx.os == Os::Macos)
+            .then(|| q.game_controller_guid())
+            .flatten()
+    };
+    let guid = |q: &PadRef| match game_controller(q) {
+        Some(g) => PadRef {
+            guid: Some(g.into()),
+            ..q.clone()
+        }
+        .sdl_guid(false),
+        None => q.sdl_guid(false),
+    };
     for n in 0..8u8 {
         let Some(p) = players.iter().find(|p| p.seat == n + 1) else {
             key(n, "connected", "false")?;
             continue;
         };
-        let g = p.pad.sdl_guid(false);
-        let i = s.ordinal(&p.pad, |q| q.sdl_guid(false));
-        let raw = p.pad.raw(true);
+        let g = guid(&p.pad);
+        let i = s.ordinal(&p.pad, guid);
+        let raw = match game_controller(&p.pad) {
+            Some(_) => Raw::GameController,
+            None => p.pad.raw(true),
+        };
+        let invert_y = if raw.y_up() { "-" } else { "+" };
         let pad = format!("engine:sdl,guid:{g},port:{i}");
         let ctl = |c: Ctl| {
             qt_value(&match raw.of(c) {
@@ -53,7 +73,7 @@ fn bind(cx: &Cx, s: &Seating, emulator: &str) -> Plan {
         let stick = |x: Ctl, y: Ctl| {
             qt_value(&format!(
                 "{pad},axis_x:{},axis_y:{},offset_x:-0.000000,offset_y:-0.000000,invert_x:+,\
-                 invert_y:+,deadzone:0.150000,range:0.950000,threshold:0.500000",
+                 invert_y:{invert_y},deadzone:0.150000,range:0.950000,threshold:0.500000",
                 axis(x),
                 axis(y)
             ))
