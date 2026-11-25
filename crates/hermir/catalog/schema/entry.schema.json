@@ -710,14 +710,14 @@
         },
         {
           "additionalProperties": false,
-          "description": "A file the emulator ships beside its exe, copied under the config root once (data an\nemulator refuses to start without). Only a copy hermir placed has an exe to copy from.\n`copy` (beside the exe) copied to `to` (under the config root) unless it exists.",
+          "description": "A file the emulator ships beside its exe, copied once (data an emulator refuses to start\nwithout but never puts where it reads it). A Flatpak's exe folder is its `/app/bin`.\n`copy` (beside the exe) copied to `to` unless it exists.",
           "properties": {
             "copy": {
               "description": "The file, relative to the exe's folder.",
               "type": "string"
             },
             "to": {
-              "description": "Where it goes, under the config root.",
+              "description": "Where it goes: under the config root, or `{data}/…` under the data directory beside it.",
               "type": "string"
             }
           },

@@ -8,14 +8,7 @@
   "archives": true,
   "channels": {
     "linux": {
-      "github": "trzy/Supermodel",
-      "asset": {
-        "all": [
-          "supermodel-",
-          "-linux.tar.gz"
-        ]
-      },
-      "exe": "supermodel"
+      "flatpak": "com.supermodel3.Supermodel"
     },
     "windows": {
       "github": "trzy/Supermodel",
@@ -137,7 +130,7 @@
       }
     ]
   },
-  "notes": "SDL2 + OpenGL through GLX: it needs X11 or XWayland, not a Wayland socket. With `~/.supermodel` present it keeps Config, NVRAM, Saves and Assets in there; without Games.xml and the crosshair bitmaps it exits. A ROM set is a MAME-style zip, its parent set beside it.",
+  "notes": "SDL2 + OpenGL through GLX: it needs X11 or XWayland, not a Wayland socket. It reads Games.xml from Config/ and the crosshair bitmaps from its data folder, and exits without them; the Flatpak ships both in /app/bin but never copies them there. A ROM set is a MAME-style zip; a clone that holds only its own files opens its parent's zip, named for the parent's short name, from the same folder.",
   "first_run": {
     "linux": [
       {
@@ -150,17 +143,11 @@
       },
       {
         "copy": "Assets/p1crosshair.bmp",
-        "to": "Assets/p1crosshair.bmp"
+        "to": "{data}/Assets/p1crosshair.bmp"
       },
       {
         "copy": "Assets/p2crosshair.bmp",
-        "to": "Assets/p2crosshair.bmp"
-      },
-      {
-        "dir": "NVRAM"
-      },
-      {
-        "dir": "Saves"
+        "to": "{data}/Assets/p2crosshair.bmp"
       }
     ]
   }
