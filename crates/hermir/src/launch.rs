@@ -102,6 +102,10 @@ pub(crate) fn launch(
         for dir in crate::content::scanned_dirs(entry, os, install) {
             sandbox.push(format!("--filesystem={dir}:ro"));
         }
+        // X11 stays withheld while the app may use Wayland, whatever its fallback-x11 says.
+        if entry.launch.x11 {
+            sandbox.extend(["--socket=x11".to_string(), "--nosocket=wayland".to_string()]);
+        }
     }
     // The sound to a device on Linux whatever the emulator's settings say: Pulse, and
     // PipeWire's Pulse server, play a client's streams to PULSE_SINK. A Flatpak gets it inside.
@@ -403,6 +407,53 @@ mod tests {
         assert!(
             spec.sandbox
                 .contains(&"--filesystem=/games, all/Zelda/update:ro".to_string()),
+            "{:?}",
+            spec.sandbox
+        );
+    }
+
+    #[test]
+    fn a_glx_flatpak_runs_on_x11_and_never_on_wayland() {
+        let c = Catalog::embedded().unwrap();
+        let e = c.get("supermodel").unwrap();
+        let copy = flatpak("supermodel", "com.supermodel3.Supermodel", Path::new("/r"));
+        let spec = launch(
+            e,
+            Os::Linux,
+            &copy,
+            &game("/roms/model3/scud.zip", None),
+            None,
+        )
+        .unwrap();
+        let x11 = ["--socket=x11", "--nosocket=wayland"].map(String::from);
+        assert!(
+            x11.iter().all(|a| spec.sandbox.contains(a)),
+            "{:?}",
+            spec.sandbox
+        );
+        // Opened without a game too.
+        let spec = launch(e, Os::Linux, &copy, &LaunchRequest::default(), None).unwrap();
+        assert!(
+            x11.iter().all(|a| spec.sandbox.contains(a)),
+            "{:?}",
+            spec.sandbox
+        );
+        // A copy outside a sandbox already reaches X11.
+        let native = Install {
+            exe: Exe::Path("/usr/bin/supermodel".into()),
+            kind: InstallKind::Native,
+            ..copy
+        };
+        let spec = launch(
+            e,
+            Os::Linux,
+            &native,
+            &game("/roms/model3/scud.zip", None),
+            None,
+        )
+        .unwrap();
+        assert!(
+            !spec.sandbox.iter().any(|a| a.contains("x11")),
             "{:?}",
             spec.sandbox
         );

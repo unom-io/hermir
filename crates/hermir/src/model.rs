@@ -1501,6 +1501,10 @@ pub struct Launch {
     /// request names another.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub cores: BTreeMap<String, String>,
+    /// Draws through GLX, which finds no display on a Wayland socket: a Flatpak runs with X11
+    /// and without Wayland.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub x11: bool,
 }
 
 /// What a profile is for one emulator: the launch arguments that point it at the profile's

@@ -827,6 +827,10 @@
           },
           "description": "RetroArch: platform id → the libretro core (`snes9x`) `{core}` loads for it, unless the\nrequest names another.",
           "type": "object"
+        },
+        "x11": {
+          "description": "Draws through GLX, which finds no display on a Wayland socket: a Flatpak runs with X11\nand without Wayland.",
+          "type": "boolean"
         }
       },
       "type": "object"
