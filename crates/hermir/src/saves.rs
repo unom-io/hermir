@@ -100,7 +100,7 @@ pub(crate) fn locate(
 }
 
 /// `rel` under the config root; `{data}/…` under the data directory beside it.
-fn resolve(root: &Path, rel: &str) -> PathBuf {
+pub(crate) fn resolve(root: &Path, rel: &str) -> PathBuf {
     match rel
         .strip_prefix("{data}/")
         .or_else(|| rel.strip_prefix("{data}\\"))

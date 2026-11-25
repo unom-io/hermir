@@ -1,5 +1,6 @@
 //! Flatpak is the Linux channel: `flatpak` does the fetching, hermir asks it. Behind a
 //! `Runner`, so the argv is tested and the CLI runs the real thing.
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::error::{Error, Result};
@@ -136,16 +137,26 @@ pub fn version(runner: &dyn Runner, id: &str, at: FlatpakInstallation) -> Option
         .filter(|v| !v.is_empty())
 }
 
+/// The host folder that is `/app` inside `id`'s sandbox, in whichever installation has it.
+pub fn files(runner: &dyn Runner, id: &str) -> Option<PathBuf> {
+    let out = runner
+        .run("flatpak", &["info", "--show-location", id])
+        .ok()?;
+    let at = out.stdout.trim();
+    (out.ok && !at.is_empty()).then(|| Path::new(at).join("files"))
+}
+
 #[cfg(test)]
 pub(crate) mod fake {
     use super::*;
     use std::sync::Mutex;
 
-    /// Records every argv; answers ok, with canned stdout for `info`.
+    /// Records every argv; answers ok, with canned stdout for `info` and `info --show-location`.
     #[derive(Default)]
     pub struct FakeRunner {
         pub calls: Mutex<Vec<Vec<String>>>,
         pub info_version: Option<String>,
+        pub location: Option<String>,
         pub fail_install: bool,
     }
 
@@ -161,7 +172,9 @@ pub(crate) mod fake {
                     stderr: "error: No remote refs found".into(),
                 });
             }
-            let stdout = if args.first() == Some(&"info") {
+            let stdout = if args.get(1) == Some(&"--show-location") {
+                self.location.clone().unwrap_or_default()
+            } else if args.first() == Some(&"info") {
                 self.info_version
                     .as_ref()
                     .map(|v| format!("Name: X\nVersion: {v}\n"))

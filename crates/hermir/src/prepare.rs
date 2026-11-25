@@ -38,7 +38,7 @@ pub fn prepare(
         };
     };
     for answer in entry.first_run.get(os).into_iter().flatten() {
-        steps.push(first_run(root, install, answer));
+        steps.push(first_run(root, install, answer, runner));
     }
     if let (Some(fw), Some(platform)) = (&entry.firmware, platform)
         && let Some(need) = fw.platforms.get(platform)
@@ -106,14 +106,26 @@ fn step(kind: &str, target: &Path, outcome: StepOutcome, note: Option<String>) -
     }
 }
 
-fn first_run(root: &Path, install: &Install, answer: &FirstRun) -> PrepareStep {
+fn first_run(
+    root: &Path,
+    install: &Install,
+    answer: &FirstRun,
+    runner: &dyn Runner,
+) -> PrepareStep {
     match answer {
         FirstRun::Copy { copy, to } => {
-            let dest = root.join(to);
+            let dest = crate::saves::resolve(root, to);
             if dest.is_file() {
                 return step("first_run", &dest, StepOutcome::Present, None);
             }
-            let Exe::Path(exe) = &install.exe else {
+            let program = match &install.exe {
+                Exe::Path(exe) => Some(exe.parent().unwrap_or(Path::new(".")).to_path_buf()),
+                // A Flatpak's command is in /app/bin, which the host sees under its files.
+                Exe::FlatpakRun(id) => {
+                    crate::channel::flatpak::files(runner, id).map(|f| f.join("bin"))
+                }
+            };
+            let Some(program) = program else {
                 return step(
                     "first_run",
                     &dest,
@@ -121,7 +133,7 @@ fn first_run(root: &Path, install: &Install, answer: &FirstRun) -> PrepareStep {
                     Some("no program folder to copy from".into()),
                 );
             };
-            let src = exe.parent().unwrap_or(Path::new(".")).join(copy);
+            let src = program.join(copy);
             let copied = dest
                 .parent()
                 .map_or(Ok(()), std::fs::create_dir_all)
@@ -538,6 +550,46 @@ mod tests {
             version: None,
             config_root: Some(root.to_path_buf()),
         }
+    }
+
+    #[test]
+    fn a_flatpak_copies_what_it_ships_into_its_config_and_data() {
+        let c = Catalog::embedded().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let app = tempfile::tempdir().unwrap();
+        for f in [
+            "Config/Games.xml",
+            "Config/Music.xml",
+            "Assets/p1crosshair.bmp",
+            "Assets/p2crosshair.bmp",
+        ] {
+            let p = app.path().join("files/bin").join(f);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(&p, f).unwrap();
+        }
+        let root = home.path().join("config/supermodel");
+        let flatpak = Exe::FlatpakRun("com.supermodel3.Supermodel".into());
+        let copy = install_at("supermodel", &root, flatpak);
+        let runner = FakeRunner {
+            location: Some(format!("{}\n", app.path().display())),
+            ..Default::default()
+        };
+        let entry = c.get("supermodel").unwrap();
+        let run = || prepare(entry, Os::Linux, &copy, Some("model3"), &[], &runner);
+        let p = run();
+        assert!(
+            p.steps.iter().all(|s| s.outcome == StepOutcome::Applied),
+            "{p:?}"
+        );
+        let read = |p: PathBuf| std::fs::read_to_string(p).unwrap();
+        assert_eq!(read(root.join("Config/Games.xml")), "Config/Games.xml");
+        let data = home.path().join("data/supermodel/Assets/p2crosshair.bmp");
+        assert_eq!(read(data), "Assets/p2crosshair.bmp");
+        let p = run();
+        assert!(
+            p.steps.iter().all(|s| s.outcome == StepOutcome::Present),
+            "{p:?}"
+        );
     }
 
     #[test]

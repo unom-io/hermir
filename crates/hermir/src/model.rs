@@ -1259,13 +1259,13 @@ pub enum FirstRun {
         /// The folder, under the config root.
         dir: String,
     },
-    /// A file the emulator ships beside its exe, copied under the config root once (data an
-    /// emulator refuses to start without). Only a copy hermir placed has an exe to copy from.
-    /// `copy` (beside the exe) copied to `to` (under the config root) unless it exists.
+    /// A file the emulator ships beside its exe, copied once (data an emulator refuses to start
+    /// without but never puts where it reads it). A Flatpak's exe folder is its `/app/bin`.
+    /// `copy` (beside the exe) copied to `to` unless it exists.
     Copy {
         /// The file, relative to the exe's folder.
         copy: String,
-        /// Where it goes, under the config root.
+        /// Where it goes: under the config root, or `{data}/…` under the data directory beside it.
         to: String,
     },
 }
