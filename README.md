@@ -99,7 +99,7 @@ The library is `cargo add hermir`.
 | [ScummVM](https://www.scummvm.org) | ScummVM games | Flatpak | release build | release build |
 | [shadPS4](https://github.com/shadps4-emu/shadPS4) | PlayStation 4 | release build | release build | release build ‡ |
 | [Snes9x](https://github.com/snes9xgit/snes9x) † | Super Nintendo | Flatpak | release build | — |
-| [Supermodel](https://github.com/trzy/Supermodel) | Sega Model 3 | release build | release build | release build |
+| [Supermodel](https://github.com/trzy/Supermodel) | Sega Model 3 | Flatpak | release build | release build |
 | [Vita3K](https://github.com/Vita3K/Vita3K) | PlayStation Vita | release build | release build | release build |
 | [xemu](https://github.com/xemu-project/xemu) | Xbox | Flatpak | release build | release build |
 | [Xenia Canary](https://github.com/xenia-canary/xenia-canary) | Xbox 360 | release build | release build | — |

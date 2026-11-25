@@ -8,14 +8,7 @@
   "archives": true,
   "channels": {
     "linux": {
-      "github": "trzy/Supermodel",
-      "asset": {
-        "all": [
-          "supermodel-",
-          "-linux.tar.gz"
-        ]
-      },
-      "exe": "supermodel"
+      "flatpak": "com.supermodel3.Supermodel"
     },
     "windows": {
       "github": "trzy/Supermodel",
@@ -137,31 +130,5 @@
       }
     ]
   },
-  "notes": "SDL2 + OpenGL through GLX: it needs X11 or XWayland, not a Wayland socket. With `~/.supermodel` present it keeps Config, NVRAM, Saves and Assets in there; without Games.xml and the crosshair bitmaps it exits. A ROM set is a MAME-style zip, its parent set beside it.",
-  "first_run": {
-    "linux": [
-      {
-        "copy": "Config/Games.xml",
-        "to": "Config/Games.xml"
-      },
-      {
-        "copy": "Config/Music.xml",
-        "to": "Config/Music.xml"
-      },
-      {
-        "copy": "Assets/p1crosshair.bmp",
-        "to": "Assets/p1crosshair.bmp"
-      },
-      {
-        "copy": "Assets/p2crosshair.bmp",
-        "to": "Assets/p2crosshair.bmp"
-      },
-      {
-        "dir": "NVRAM"
-      },
-      {
-        "dir": "Saves"
-      }
-    ]
-  }
+  "notes": "SDL2 + OpenGL through GLX: it needs X11 or XWayland, not a Wayland socket. A ROM set is a MAME-style zip; a clone that holds only its own files opens its parent's zip, named for the parent's short name, from the same folder."
 }

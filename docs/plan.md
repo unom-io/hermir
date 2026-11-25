@@ -433,7 +433,7 @@ dbus-run-session -- xvfb-run -a -s "-screen 0 1280x720x24" \
 - whether it writes settings only on a clean quit, and how to quit it (`xdotool key ctrl+q`);
 - the checklists T3 shows a person.
 
-**Release builds** (RPCS3, Xenia Canary, shadPS4, Supermodel on Linux) are captured by installing them
+**Release builds** (RPCS3, Xenia Canary, shadPS4 on Linux) are captured by installing them
 *with hermir* into a temp prefix and running from `app/`. That exercises the install path at the same time.
 The config format is the same as the Flatpak's, so one capture per version is enough.
 

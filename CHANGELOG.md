@@ -40,8 +40,7 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   RPCS3, RetroArch, Supermodel and xemu; the SDL-native ones (PPSSPP, Flycast, Xenia, shadPS4,
   Vita3K, mGBA) say they map pads themselves. Every file is snapshotted first;
   `revert_players` puts the player's own settings back byte for byte.
-- shadPS4 (the SDL core, from its zipped AppImage) and Supermodel (its Linux tarball, with
-  `Games.xml` and the crosshairs copied into `~/.supermodel` on first run).
+- shadPS4 (the SDL core, from its zipped AppImage).
 - `apply`: a session's settings into an emulator's own files, knob by knob — `video.fullscreen`,
   `video.scale` (a multiple of the console's resolution), `video.vsync`, `video.aspect`,
   `region`, players, and `native` keys for anything the model lacks. Each knob comes back
