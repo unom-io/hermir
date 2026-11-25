@@ -392,8 +392,9 @@ placeholder: `{file}`, `{fullscreen:<arg>}`, `{platform}`, `{core}` (RetroArch's
 the platform, by `launch.cores`) — puts the profile's flag first, and returns the `LaunchSpec`.
 Without a game only the `{fullscreen:…}` arguments stay, so the emulator opens on its own. For a
 Flatpak, `exe` is `FlatpakRun("net.pcsx2.PCSX2")` and `sandbox` carries the `flatpak run`
-arguments the run needs (`--filesystem=<the game's folder>`, `--env=PULSE_SINK=…`); the consumer
-decides whether that becomes `flatpak run …` or a portal call. Files are single arguments;
+arguments the run needs (`--filesystem=<the game's folder>`, `--env=PULSE_SINK=…`, and
+`--socket=x11 --nosocket=wayland` for an emulator whose `launch.x11` says it draws through GLX);
+the consumer decides whether that becomes `flatpak run …` or a portal call. Files are single arguments;
 nothing is ever shell-joined. With `Options::home` set, `env` carries that home's per-user
 variables. `hermir run` spawns the spec and forwards the exit code.
 

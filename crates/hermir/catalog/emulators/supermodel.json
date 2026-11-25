@@ -58,7 +58,8 @@
     "args": [
       "{file}",
       "{fullscreen:-fullscreen}"
-    ]
+    ],
+    "x11": true
   },
   "config": {
     "files": {
