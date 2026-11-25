@@ -934,6 +934,45 @@ mod tests {
         assert!(bad.validate().unwrap_err().contains("32 hex digits"));
     }
 
+    /// Lichii on macOS reads the host's Xbox Wireless pad through GameController, as its log
+    /// showed: that GUID with the CRC zeroed, A on button 1, the d-pad on buttons, Y up.
+    #[test]
+    fn lichii_on_macos_binds_an_xbox_pad_as_game_controller_numbers_it() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let xbox = PadRef {
+            name: "Xbox Wireless Controller".into(),
+            bus: 5,
+            product: 0x0b13,
+            guid: Some("05009d0b5e040000130b000009050000".into()),
+            ..PadRef::xbox360(0)
+        };
+        let seat = vec![Player { seat: 1, pad: xbox }];
+        let root = tmp.path().join("lichii");
+        let p = run(
+            &c,
+            "lichii",
+            Os::Macos,
+            &root,
+            &players(seat),
+            &tmp.path().join("s"),
+        );
+        assert!(
+            p.steps.iter().all(|s| s.outcome != StepOutcome::Failed),
+            "{p:?}"
+        );
+        let ini = read(&root.join("qt-config.ini"));
+        let pad = "engine:sdl,guid:050000005e040000130b00003ba36d04,port:0";
+        assert!(
+            ini.contains(&format!("player_0_button_a=\"{pad},button:1\"")),
+            "{ini}"
+        );
+        assert!(ini.contains(&format!("player_0_button_y=\"{pad},button:6\"")));
+        assert!(ini.contains(&format!("player_0_button_dup=\"{pad},button:11\"")));
+        assert!(ini.contains(&format!("player_0_lstick=\"{pad},axis_x:0,axis_y:1,")));
+        assert!(ini.contains("invert_y:-"), "{ini}");
+    }
+
     #[test]
     fn a_dualsense_and_an_xbox_pad_seat_three_players_in_every_adapter() {
         let c = Catalog::embedded().unwrap();

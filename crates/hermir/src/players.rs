@@ -117,23 +117,40 @@ pub(crate) enum RawControl {
 /// kernel's order (the Xbox pads `xpad` and the host's uinput make: A B X Y LB RB Back Start
 /// Guide LS RS, LT and RT on axes 2 and 5, the d-pad a hat). One SDL drives through HIDAPI
 /// numbers buttons as SDL's game-controller enum and axes LX LY RX RY LT RT; SDL 2 sends its
-/// d-pad as buttons 11–14, SDL 3 as hat 0.
+/// d-pad as buttons 11–14, SDL 3 as hat 0. SDL 3's 8BitDo driver puts a Pro 2's and Pro 3's
+/// faces east, south, north, west (`east_first`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum Raw {
     Evdev,
-    Hidapi { sdl3: bool },
+    Hidapi {
+        sdl3: bool,
+        east_first: bool,
+    },
+    /// SDL 3 on macOS through the GameController framework: buttons in its element names'
+    /// order, the d-pad on buttons 8–11, each stick's Y up, the triggers half axes.
+    GameController,
 }
 
 impl Raw {
     pub(crate) fn of(self, c: Ctl) -> RawControl {
         use Ctl::*;
         use RawControl::{Axis, Button, Hat};
+        if self == Raw::GameController {
+            return game_controller(c);
+        }
         let hidapi = matches!(self, Raw::Hidapi { .. });
+        let east_first = matches!(
+            self,
+            Raw::Hidapi {
+                east_first: true,
+                ..
+            }
+        );
         match c {
-            South => Button(0),
-            East => Button(1),
-            West => Button(2),
-            North => Button(3),
+            South => Button(u32::from(east_first)),
+            East => Button(u32::from(!east_first)),
+            West => Button(if east_first { 3 } else { 2 }),
+            North => Button(if east_first { 2 } else { 3 }),
             Back => Button(if hidapi { 4 } else { 6 }),
             Guide => Button(if hidapi { 5 } else { 8 }),
             Start => Button(if hidapi { 6 } else { 7 }),
@@ -141,7 +158,7 @@ impl Raw {
             RightStick => Button(if hidapi { 8 } else { 10 }),
             LeftShoulder => Button(if hidapi { 9 } else { 4 }),
             RightShoulder => Button(if hidapi { 10 } else { 5 }),
-            Up | Down | Left | Right if self == (Raw::Hidapi { sdl3: false }) => Button(
+            Up | Down | Left | Right if matches!(self, Raw::Hidapi { sdl3: false, .. }) => Button(
                 11 + [Up, Down, Left, Right]
                     .iter()
                     .position(|d| *d == c)
@@ -159,6 +176,40 @@ impl Raw {
             RightTrigger => Axis(5),
         }
     }
+
+    /// Whether each stick's raw Y axis reads up as positive, against SDL's down.
+    pub(crate) fn y_up(self) -> bool {
+        self == Raw::GameController
+    }
+}
+
+/// [`Raw::GameController`]'s numbers, as SDL 3 mapped the Mac's Xbox Wireless pad.
+fn game_controller(c: Ctl) -> RawControl {
+    use Ctl::*;
+    use RawControl::{Axis, Button};
+    match c {
+        South => Button(0),
+        East => Button(1),
+        Guide => Button(2),
+        Start => Button(3),
+        Back => Button(4),
+        West => Button(6),
+        North => Button(7),
+        Down => Button(8),
+        Left => Button(9),
+        Right => Button(10),
+        Up => Button(11),
+        LeftShoulder => Button(12),
+        LeftStick => Button(13),
+        RightShoulder => Button(15),
+        RightStick => Button(16),
+        LeftX => Axis(0),
+        LeftY => Axis(1),
+        LeftTrigger => Axis(2),
+        RightX => Axis(3),
+        RightY => Axis(4),
+        RightTrigger => Axis(5),
+    }
 }
 
 impl PadRef {
@@ -173,9 +224,21 @@ impl PadRef {
     /// How an emulator built on SDL 3 (`sdl3`) or SDL 2 numbers this pad's raw controls.
     pub(crate) fn raw(&self, sdl3: bool) -> Raw {
         if self.hidapi() {
-            Raw::Hidapi { sdl3 }
+            let east_first =
+                sdl3 && self.vendor == 0x2dc8 && matches!(self.product, 0x6003 | 0x6009);
+            Raw::Hidapi { sdl3, east_first }
         } else {
             Raw::Evdev
+        }
+    }
+
+    /// The GUID SDL 3 reported for this pad through macOS's GameController framework, the
+    /// route an Xbox pad takes when the emulator turns SDL's HIDAPI Xbox driver off. Only the
+    /// Xbox Wireless pad is known.
+    pub(crate) fn game_controller_guid(&self) -> Option<&'static str> {
+        match (self.vendor, self.product) {
+            (0x045e, 0x0b13) => Some("0500509d5e040000130b00003ba36d04"),
+            _ => None,
         }
     }
 }
@@ -242,5 +305,62 @@ mod tests {
         assert_eq!(h3.of(Ctl::Left), Hat(Dir::Left));
         assert_eq!(h2.of(Ctl::Up), Button(11));
         assert_eq!(h2.of(Ctl::Right), Button(14));
+    }
+
+    /// SDL 3 mapped an 8BitDo Pro 2 `a:b1 b:b0 x:b3 y:b2`; its other controls, and SDL 2's
+    /// numbers, are the HIDAPI ones.
+    #[test]
+    fn an_8bitdo_pro_puts_its_faces_east_first_under_sdl3() {
+        use RawControl::Button;
+        let pro2 = PadRef {
+            vendor: 0x2dc8,
+            product: 0x6003,
+            guid: Some("030095acc82d00000360000000006800".into()),
+            ..PadRef::xbox360(0)
+        };
+        let raw = pro2.raw(true);
+        let faces = [Ctl::South, Ctl::East, Ctl::West, Ctl::North].map(|c| raw.of(c));
+        assert_eq!(faces, [Button(1), Button(0), Button(3), Button(2)]);
+        assert_eq!(raw.of(Ctl::Start), Button(6));
+        assert_eq!(pro2.raw(false).of(Ctl::South), Button(0));
+        let u2 = PadRef {
+            product: 0x6012,
+            ..pro2
+        };
+        assert_eq!(
+            u2.raw(true).of(Ctl::South),
+            Button(0),
+            "the Ultimate 2 keeps SDL's order"
+        );
+    }
+
+    /// What SDL 3 mapped for the Mac's Xbox Wireless pad through GameController: `a:b0 b:b1
+    /// x:b6 y:b7 back:b4 guide:b2 start:b3 leftstick:b13 rightstick:b16 leftshoulder:b12
+    /// rightshoulder:b15 dpup:b11 dpdown:b8 dpleft:b9 dpright:b10 lefty:a1~ righttrigger:+a5`.
+    #[test]
+    fn the_game_controller_layout_is_what_sdl_mapped() {
+        use RawControl::{Axis, Button};
+        let raw = Raw::GameController;
+        for (c, want) in [
+            (Ctl::West, Button(6)),
+            (Ctl::North, Button(7)),
+            (Ctl::Guide, Button(2)),
+            (Ctl::Back, Button(4)),
+            (Ctl::RightStick, Button(16)),
+            (Ctl::Up, Button(11)),
+            (Ctl::Down, Button(8)),
+            (Ctl::RightY, Axis(4)),
+            (Ctl::RightTrigger, Axis(5)),
+        ] {
+            assert_eq!(raw.of(c), want, "{c:?}");
+        }
+        assert!(raw.y_up() && !Raw::Evdev.y_up());
+        let mac = PadRef {
+            vendor: 0x045e,
+            product: 0x0b13,
+            ..PadRef::xbox360(0)
+        };
+        assert!(mac.game_controller_guid().is_some());
+        assert_eq!(PadRef::xbox360(0).game_controller_guid(), None);
     }
 }
