@@ -573,6 +573,19 @@ fn validate_config(id: &str, cfg: &Config) -> Result<()> {
             }
             _ => {}
         }
+        if let Some(by) = &b.native_by {
+            if b.native.is_none() {
+                return Err(bad(format!("{knob}: native_by needs a native beside it")));
+            }
+            if by.key.trim().is_empty() || by.values.is_empty() {
+                return Err(bad(format!("{knob}: native_by names no key or no values")));
+            }
+            if let Some((v, [w, h])) = by.values.iter().find(|(_, [w, h])| *w == 0 || *h == 0) {
+                return Err(bad(format!(
+                    "{knob}: native_by {v} is {w}×{h}, which has no area"
+                )));
+            }
+        }
         if let Some(t) = &b.text
             && !t.contains("{value}")
         {

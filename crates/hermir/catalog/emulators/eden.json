@@ -80,7 +80,21 @@
         "native": [
           1920,
           1080
-        ]
+        ],
+        "native_by": {
+          "section": "System",
+          "key": "use_docked_mode",
+          "values": {
+            "0": [
+              1280,
+              720
+            ],
+            "1": [
+              1920,
+              1080
+            ]
+          }
+        }
       },
       "video.vsync": {
         "file": "main",

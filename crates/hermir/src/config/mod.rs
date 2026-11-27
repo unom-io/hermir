@@ -1329,17 +1329,20 @@ mod tests {
         let a = run(&c, "rpcs3", Os::Linux, &rpcs3, &screen(1280, 720), &snaps);
         assert!(a.steps.is_empty(), "{a:?}");
 
-        // Lichii as it ships: 1× marked default, its own update check on. A 4K screen is 2×.
+        // Lichii as it ships: 1× marked default, handheld (720p at 1×), its own update check on.
+        // 5120×1440 is 2×; docked, 1× is 1080p and already fits.
         let root = tmp.path().join("home/.local/share/lichii");
         let qt = tmp.path().join("home/.config/lichii/qt-config.ini");
         std::fs::create_dir_all(qt.parent().unwrap()).unwrap();
-        std::fs::write(
-            &qt,
-            "[Renderer]\nresolution_setup\\default=true\nresolution_setup=3\n\n\
-             [UI]\ncheck_for_updates\\default=true\ncheck_for_updates=true\n",
-        )
-        .unwrap();
-        run(&c, "lichii", Os::Linux, &root, &screen(3840, 2160), &snaps);
+        let shipped = |mode: u8| {
+            format!(
+                "[Renderer]\nresolution_setup\\default=true\nresolution_setup=3\n\n\
+                 [System]\nuse_docked_mode\\default=true\nuse_docked_mode={mode}\n\n\
+                 [UI]\ncheck_for_updates\\default=true\ncheck_for_updates=true\n"
+            )
+        };
+        std::fs::write(&qt, shipped(0)).unwrap();
+        run(&c, "lichii", Os::Linux, &root, &screen(5120, 1440), &snaps);
         let text = read(&qt);
         assert!(
             text.contains("resolution_setup\\default=false\nresolution_setup=6\n"),
@@ -1349,6 +1352,15 @@ mod tests {
             text.contains("check_for_updates\\default=false\ncheck_for_updates=false\n"),
             "{text}"
         );
+        std::fs::write(&qt, shipped(1)).unwrap();
+        let a = run(&c, "lichii", Os::Linux, &root, &screen(5120, 1440), &snaps);
+        let k = knob(&a, "video.scale");
+        assert_eq!(
+            k.note.as_deref(),
+            Some("1× already fits 5120×1440"),
+            "{k:?}"
+        );
+        assert!(read(&qt).contains("resolution_setup=3\n"));
     }
 
     #[test]

@@ -169,9 +169,9 @@ fn render(entry: &Entry, cx: &Cx, knob: &str, b: &Binding, neutral: Neutral) -> 
     Ok((edits, path, b.note.clone()))
 }
 
-/// `video.scale` for a `screen`: the [`multiple`] of the binding's `native` picture, written
-/// only over 1× or an unset key. Any other multiple is the player's and stays; so does a value
-/// that is no multiple (an emulator's "match the window").
+/// `video.scale` for a `screen`: the [`multiple`] of the binding's `native` picture, or of the
+/// one its `native_by` key picks, written only over 1× or an unset key. Any other multiple is the
+/// player's and stays; so does a value that is no multiple (an emulator's "match the window").
 fn fit(entry: &Entry, cx: &Cx, b: &Binding, screen: Size) -> (KnobChange, Vec<Edit>) {
     let knob = "video.scale";
     let change = |support, note: String, file| KnobChange {
@@ -203,6 +203,14 @@ fn fit(entry: &Entry, cx: &Cx, b: &Binding, screen: Size) -> (KnobChange, Vec<Ed
         },
         Ok(None) => {}
     }
+    let native = b
+        .native_by
+        .as_ref()
+        .and_then(|by| {
+            let read = txn::read(&path, file, &by.section, &by.key).ok()??;
+            by.values.get(read.trim()).copied()
+        })
+        .unwrap_or(native);
     let n = multiple(native, screen, scale.range());
     let shown = format!("{}×{}", screen.width, screen.height);
     if n <= 1 {

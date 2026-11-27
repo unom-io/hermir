@@ -145,6 +145,17 @@
             "null"
           ]
         },
+        "native_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NativeBy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "`video.scale`: a key of the same file whose value picks the 1× picture instead of\n`native`. Eden's 1× is 720p handheld and 1080p docked."
+        },
         "note": {
           "description": "A caveat that makes the knob partial: it is written, and this is what to know.",
           "type": [
@@ -847,6 +858,39 @@
           "type": "boolean"
         }
       },
+      "type": "object"
+    },
+    "NativeBy": {
+      "additionalProperties": false,
+      "description": "The setting that decides what an emulator draws at 1×: its literal → width and height. A value\nnot listed, or no value, leaves the binding's `native`.",
+      "properties": {
+        "key": {
+          "description": "The key.",
+          "type": "string"
+        },
+        "section": {
+          "description": "The section, as a binding's; empty for the top level.",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "description": "The key's literal → the 1× picture, width and height.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "key",
+        "values"
+      ],
       "type": "object"
     },
     "PerOs": {

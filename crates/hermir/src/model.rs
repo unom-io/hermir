@@ -602,6 +602,10 @@ pub struct Binding {
     /// `Video::output` fits to a screen. Absent: `output` leaves the scale alone.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native: Option<[u32; 2]>,
+    /// `video.scale`: a key of the same file whose value picks the 1× picture instead of
+    /// `native`. Eden's 1× is 720p handheld and 1080p docked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_by: Option<NativeBy>,
     /// `audio.device` and `audio.latency_ms`: the literal, `{value}` standing for the device's
     /// name or the milliseconds (`"\"{value}\""` where the format quotes). `values` may spell
     /// the device `default` otherwise.
@@ -617,6 +621,20 @@ pub struct Binding {
     /// A caveat that makes the knob partial: it is written, and this is what to know.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+}
+
+/// The setting that decides what an emulator draws at 1×: its literal → width and height. A value
+/// not listed, or no value, leaves the binding's `native`.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct NativeBy {
+    /// The section, as a binding's; empty for the top level.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub section: String,
+    /// The key.
+    pub key: String,
+    /// The key's literal → the 1× picture, width and height.
+    pub values: BTreeMap<String, [u32; 2]>,
 }
 
 /// A key written alongside a knob. `value` is a literal, with `{value}` standing for the

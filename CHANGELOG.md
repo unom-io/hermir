@@ -55,7 +55,8 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   literal no table names comes back as itself, never as a guess.
 - `Video::output`: the screen the picture is shown on. A copy still at 1× renders at the whole
   multiple that comes nearest to filling it, from the `native` size each `video.scale` binding
-  carries (RPCS3 1280×720 on 5120×1440 is 2×); a multiple the player chose stays.
+  carries (RPCS3 1280×720 on 5120×1440 is 2×); a multiple the player chose stays. `native_by`
+  picks that size from a setting: Lichii and Eden draw 720p handheld and 1080p docked at 1×.
 - `update_check`: whether the emulator looks for a new version when it starts, bound for Lichii.
 - Audio: `audio.device` and `audio.latency_ms`, written where the emulator keeps them (PCSX2,
   DuckStation, RPCS3, RetroArch; latency in ares, DOSBox Staging and Snes9x too). On Linux an
