@@ -406,6 +406,25 @@
     ]
   },
   {
+    "id": "ps5",
+    "name": "PlayStation 5",
+    "short_name": "PS5",
+    "aliases": {
+      "romm": "ps5"
+    },
+    "extensions": [
+      ".zar"
+    ],
+    "folder": {
+      "markers": [
+        "eboot.bin"
+      ]
+    },
+    "emulators": [
+      "kytyps5"
+    ]
+  },
+  {
     "id": "psp",
     "name": "PlayStation Portable",
     "short_name": "PSP",

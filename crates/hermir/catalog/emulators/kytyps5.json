@@ -1,0 +1,139 @@
+{
+  "id": "kytyps5",
+  "name": "KytyPS5",
+  "platforms": [
+    "ps5"
+  ],
+  "license": "GPL-2.0-only",
+  "channels": {
+    "linux": {
+      "github": "KytyPS5/KytyPS5",
+      "asset": {
+        "all": [
+          "linux-x86_64",
+          ".tar.gz"
+        ]
+      },
+      "exe": "kyty_emulator"
+    },
+    "windows": {
+      "github": "KytyPS5/KytyPS5",
+      "asset": {
+        "all": [
+          "windows-x64",
+          ".zip"
+        ]
+      },
+      "exe": "kyty_emulator.exe"
+    },
+    "macos": {
+      "github": "KytyPS5/KytyPS5",
+      "asset": {
+        "all": [
+          "macos-x86_64",
+          ".zip"
+        ]
+      },
+      "exe": "kyty_emulator"
+    }
+  },
+  "detect": {
+    "linux": {
+      "path": [
+        "kyty_emulator"
+      ]
+    }
+  },
+  "roots": {
+    "native": "<app>",
+    "windows": "<app>",
+    "macos": "<app>"
+  },
+  "launch": {
+    "args": [
+      "{fullscreen:--fullscreen}",
+      "--screen-width",
+      "3840",
+      "--screen-height",
+      "2160",
+      "--shader-cache",
+      "--keymap",
+      "Pad:Cross=South",
+      "--keymap",
+      "Pad:Circle=East",
+      "--keymap",
+      "Pad:Square=West",
+      "--keymap",
+      "Pad:Triangle=North",
+      "--keymap",
+      "Pad:Options=Start",
+      "--keymap",
+      "Pad:L3=LeftStick",
+      "--keymap",
+      "Pad:R3=RightStick",
+      "--keymap",
+      "Pad:L1=LeftShoulder",
+      "--keymap",
+      "Pad:R1=RightShoulder",
+      "--keymap",
+      "Pad:L2=LeftTrigger",
+      "--keymap",
+      "Pad:R2=RightTrigger",
+      "--keymap",
+      "Pad:Up=DpadUp",
+      "--keymap",
+      "Pad:Down=DpadDown",
+      "--keymap",
+      "Pad:Left=DpadLeft",
+      "--keymap",
+      "Pad:Right=DpadRight",
+      "--keymap",
+      "Pad:TouchPad=Touchpad",
+      "--keymap",
+      "Pad:TouchPadRight=Back",
+      "--game",
+      "{file}"
+    ],
+    "in_own_folder": true
+  },
+  "config": {
+    "knobs": {
+      "video.fullscreen": {
+        "via": "launch"
+      },
+      "video.scale": {
+        "unsupported": "KytyPS5 renders at the game's own resolution"
+      },
+      "video.vsync": {
+        "unsupported": "KytyPS5 takes its present mode on the command line only"
+      },
+      "video.aspect": {
+        "unsupported": "KytyPS5 fits the game's picture to the window"
+      },
+      "region": {
+        "unsupported": "KytyPS5 has no region setting"
+      },
+      "update_check": {
+        "unsupported": "a launched game never checks; only KytyPS5's launcher does"
+      }
+    },
+    "players": {
+      "automatic": "KytyPS5 takes up to four SDL pads, players in the order they connect; Back presses the touchpad"
+    }
+  },
+  "saves": {
+    "ps5": [
+      {
+        "kind": "save",
+        "path": "_SaveData",
+        "per_game": true,
+        "note": "one folder per title id (PPSA…); a guest player's under [users]",
+        "units": {
+          "shape": "folders",
+          "depth": 1
+        }
+      }
+    ]
+  },
+  "notes": "The emulator core (kyty_emulator), not the Qt launcher beside it: everything is a command-line flag and no settings file is read. --game takes a game folder, its eboot.bin, or a .zar. It writes saves, trophies and its shader cache into the folder it starts in, so it starts in its own. The launch turns the shader cache on, as KytyPS5's launcher does, and reports a 4K output, which KytyPS5 tells every game that does not ask. The pad layout is KytyPS5's own with Back on the touchpad's right half, since an Xbox pad has no touchpad button; Back's own job, aiming with the right stick in place of a gyro, is left out. Needs a Vulkan 1.3 driver and no PS5 firmware. Every push to its main branch is a release, and a release may hold one OS's build only. The macOS build is x86-64, run under Rosetta 2."
+}

@@ -30,6 +30,7 @@ const EMULATORS: &[(&str, &str)] = &[
     ),
     ("eden", include_str!("../catalog/emulators/eden.json")),
     ("flycast", include_str!("../catalog/emulators/flycast.json")),
+    ("kytyps5", include_str!("../catalog/emulators/kytyps5.json")),
     ("lichii", include_str!("../catalog/emulators/lichii.json")),
     ("melonds", include_str!("../catalog/emulators/melonds.json")),
     ("mgba", include_str!("../catalog/emulators/mgba.json")),
