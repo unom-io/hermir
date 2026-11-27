@@ -140,9 +140,12 @@ pub(crate) fn launch(
         }
     }
     // A Mac copy starts in its own folder: Supermodel's Mac build reads everything relative to
-    // it, and shadPS4 looks there for its portable folder.
+    // it, and shadPS4 looks there for its portable folder. KytyPS5 writes its saves into
+    // whatever folder it starts in, so it starts in its own on every OS.
     let cwd = match &install.exe {
-        Exe::Path(p) if os == Os::Macos => crate::detect::dir_of(os, p),
+        Exe::Path(p) if os == Os::Macos || entry.launch.in_own_folder => {
+            crate::detect::dir_of(os, p)
+        }
         _ => None,
     };
     Ok(LaunchSpec {
@@ -346,6 +349,55 @@ mod tests {
             spec.unwrap().cwd.as_deref(),
             Some(Path::new("/Applications"))
         );
+    }
+
+    /// KytyPS5 writes its saves and shader cache into the folder it starts in: its own, on Linux
+    /// too. The touchpad is on Back as well as on a real touchpad, and the game hears 4K.
+    #[test]
+    fn a_ps5_game_starts_kytyps5_in_its_own_folder_with_the_touchpad_on_back() {
+        let c = Catalog::embedded().unwrap();
+        let kyty = Install {
+            emulator: "kytyps5".into(),
+            kind: InstallKind::Managed,
+            exe: Exe::Path("/p/kytyps5/app/kyty_emulator".into()),
+            version: None,
+            config_root: Some("/p/kytyps5/app".into()),
+        };
+        let eboot = "/roms/ps5/ASTRO BOT [PPSA01234]/eboot.bin";
+        let req = LaunchRequest {
+            fullscreen: Some(true),
+            ..game(eboot, None)
+        };
+        let spec = launch(c.get("kytyps5").unwrap(), Os::Linux, &kyty, &req, None).unwrap();
+        assert_eq!(spec.cwd.as_deref(), Some(Path::new("/p/kytyps5/app")));
+        assert_eq!(
+            spec.args[..6],
+            [
+                "--fullscreen",
+                "--screen-width",
+                "3840",
+                "--screen-height",
+                "2160",
+                "--shader-cache"
+            ]
+        );
+        assert_eq!(spec.args[spec.args.len() - 2..], ["--game", eboot]);
+        let keymap: Vec<&str> = (spec.args.windows(2))
+            .filter(|w| w[0] == "--keymap")
+            .map(|w| w[1].as_str())
+            .collect();
+        assert!(keymap.contains(&"Pad:TouchPad=Touchpad"), "{keymap:?}");
+        assert!(keymap.contains(&"Pad:TouchPadRight=Back"), "{keymap:?}");
+        // One Pad: entry drops all of KytyPS5's defaults: every button is spelled out.
+        assert_eq!(keymap.len(), 17, "{keymap:?}");
+        let windowed = launch(
+            c.get("kytyps5").unwrap(),
+            Os::Linux,
+            &kyty,
+            &game(eboot, None),
+            None,
+        );
+        assert_eq!(windowed.unwrap().args[0], "--screen-width");
     }
 
     #[test]

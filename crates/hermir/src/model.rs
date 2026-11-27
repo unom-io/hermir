@@ -1613,6 +1613,10 @@ pub struct Launch {
     /// and without Wayland.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub x11: bool,
+    /// Starts in the exe's own folder on every OS, because the emulator writes its saves and
+    /// caches into the working directory (KytyPS5). A Mac copy starts there regardless.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub in_own_folder: bool,
 }
 
 /// What a profile is for one emulator: the launch arguments that point it at the profile's

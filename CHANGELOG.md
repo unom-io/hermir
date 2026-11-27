@@ -10,7 +10,7 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 
 ### Added
 
-- A catalog of 24 emulators, embedded in the library, parsed strictly, with a JSON Schema and
+- A catalog of 25 emulators, embedded in the library, parsed strictly, with a JSON Schema and
   per-OS channels, detection rules, config roots and firmware folders.
 - Install, update and remove from each emulator's own channel — Flatpak on Linux; GitHub
   releases or a pinned official URL on Windows — over https only, with the OS's trust store and
@@ -41,6 +41,11 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   Vita3K, mGBA) say they map pads themselves. Every file is snapshotted first;
   `revert_players` puts the player's own settings back byte for byte.
 - shadPS4 (the SDL core, from its zipped AppImage).
+- PlayStation 5: KytyPS5 (Linux, Windows, macOS) from its GitHub releases, taking a dumped
+  game's `eboot.bin` or a `.zar`. It starts in its own folder (`launch.in_own_folder`), where it
+  writes its saves and shader cache, with the shader cache on, a 4K output and Back on the
+  touchpad for a pad without one. A GitHub channel whose latest release lacks this OS's build
+  (KytyPS5 tags some builds for one OS) takes the newest recent release that has it.
 - `apply`: a session's settings into an emulator's own files, knob by knob — `video.fullscreen`,
   `video.scale` (a multiple of the console's resolution), `video.vsync`, `video.aspect`,
   `region`, players, and `native` keys for anything the model lacks. Each knob comes back
