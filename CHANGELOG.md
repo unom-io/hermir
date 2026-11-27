@@ -53,9 +53,15 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 - ares (most cartridge-era systems), Rosalie's Mupen GUI (Nintendo 64) and Snes9x.
 - `get` and `config get`: every knob read back through its binding, neutral and literal; a
   literal no table names comes back as itself, never as a guess.
-- `Video::output`: the screen the picture is shown on. A copy still at 1× renders at the whole
-  multiple that comes nearest to filling it, from the `native` size each `video.scale` binding
-  carries (RPCS3 1280×720 on 5120×1440 is 2×); a multiple the player chose stays.
+- `Video::output`: the screen the picture is shown on. A copy still at 1× renders at the
+  smallest step that reaches every pixel the picture covers there, from the `native` size each
+  `video.scale` binding carries (RPCS3 1280×720 on 5120×1440 is 200%, on 1080p 150%); a scale
+  the player chose stays. `native_by` picks the size from a setting (Lichii and Eden: 720p
+  handheld, 1080p docked; Azahar and melonDS: the screen layout). `aspects` names the shapes a
+  stretched picture is shown at (PS2, GameCube and Wii, Xbox), `defaults` the emulator's own
+  starting scale (PPSSPP's 2×). Fractional steps: Lichii and Eden 1.25× and 1.5×, RPCS3 every
+  25%, Flycast every 240 lines. Supermodel draws at the screen's own size; ares's Nintendo 64
+  at 1×, 2× or 4×.
 - `update_check`: whether the emulator looks for a new version when it starts, bound for Lichii.
 - Audio: `audio.device` and `audio.latency_ms`, written where the emulator keeps them (PCSX2,
   DuckStation, RPCS3, RetroArch; latency in ares, DOSBox Staging and Snes9x too). On Linux an

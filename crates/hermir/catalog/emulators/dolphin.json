@@ -118,11 +118,23 @@
         "section": "Settings",
         "key": "InternalResolution",
         "scale": {
-          "multiplier": {}
+          "multiplier": {
+            "max": 12
+          }
         },
         "native": [
           640,
           528
+        ],
+        "aspects": [
+          [
+            4,
+            3
+          ],
+          [
+            16,
+            9
+          ]
         ]
       },
       "video.vsync": {

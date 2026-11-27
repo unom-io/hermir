@@ -91,7 +91,7 @@
         ]
       },
       "video.scale": {
-        "unsupported": "a 2D console; the Game Boy draws at one resolution"
+        "unsupported": "a 2D console drawn at its own resolution; the GBA's OpenGL high-resolution scale stays the player's"
       },
       "video.vsync": {
         "file": "main",

@@ -68,7 +68,7 @@
         ]
       },
       "video.scale": {
-        "unsupported": "per video plugin in RMG (GLideN64 or ParaLLEl-RDP); pass it through native"
+        "unsupported": "GLideN64, RMG's default plugin, already draws at the window's size; ParaLLEl-RDP's upscaling stays the player's"
       },
       "video.vsync": {
         "unsupported": "per video plugin in RMG; pass it through native"

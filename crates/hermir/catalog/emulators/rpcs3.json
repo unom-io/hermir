@@ -104,7 +104,9 @@
         "section": "Video",
         "key": "Resolution Scale",
         "scale": {
-          "percent": {}
+          "percent": {
+            "every": 25
+          }
         },
         "native": [
           1280,

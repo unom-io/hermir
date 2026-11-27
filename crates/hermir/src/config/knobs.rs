@@ -1,7 +1,9 @@
 //! The neutral knobs of a patch turned into edits, by the catalog's bindings. No emulator is
 //! named here: a knob is a file, a section, a key and a spelling, and the catalog has them.
 use super::{Cx, Edit, txn};
-use crate::model::{Binding, Entry, KNOBS, Knob, KnobChange, KnobValue, Os, Patch, Size, Support};
+use crate::model::{
+    Binding, ConfigFile, Entry, KNOBS, Knob, KnobChange, KnobValue, Os, Patch, Scale, Size, Support,
+};
 
 /// What a neutral knob is asked to be.
 #[derive(Clone, Copy)]
@@ -10,6 +12,8 @@ enum Neutral<'a> {
     Scale(u8),
     /// `video.scale` from the screen: see [`fit`].
     Fit(Size),
+    /// The literal of the scale step [`fit`] picked.
+    Step(&'a str),
     Choice(&'static str),
     /// A device's name: `default`, or a name written into the binding's `text`.
     Text(&'a str),
@@ -169,9 +173,10 @@ fn render(entry: &Entry, cx: &Cx, knob: &str, b: &Binding, neutral: Neutral) -> 
     Ok((edits, path, b.note.clone()))
 }
 
-/// `video.scale` for a `screen`: the [`multiple`] of the binding's `native` picture, written
-/// only over 1× or an unset key. Any other multiple is the player's and stays; so does a value
-/// that is no multiple (an emulator's "match the window").
+/// `video.scale` for a `screen`: the smallest step at or above the [`cover`] of the binding's
+/// `native` picture (or the one its `native_by` key picks), written only over 1× or an unset key.
+/// Any other multiple is the player's and stays; so does a value that is no multiple (an
+/// emulator's "match the window").
 fn fit(entry: &Entry, cx: &Cx, b: &Binding, screen: Size) -> (KnobChange, Vec<Edit>) {
     let knob = "video.scale";
     let change = |support, note: String, file| KnobChange {
@@ -194,21 +199,41 @@ fn fit(entry: &Entry, cx: &Cx, b: &Binding, screen: Size) -> (KnobChange, Vec<Ed
             Vec::new(),
         )
     };
+    if matches!(scale, Scale::Screen) {
+        return screen_size(entry, cx, b, native, screen, &path, file);
+    }
+    // The multiple the copy is at, when it is the emulator's own and not the player's.
+    let mut at = 1.0;
     match txn::read(&path, file, &b.section, &b.key) {
         Err(why) => return (change(Support::Failed, why, Some(path.clone())), Vec::new()),
-        Ok(Some(literal)) => match neutral(knob, b, &literal) {
-            Some(n) if n == "1" => {}
-            Some(n) => return kept(format!("{n}×, the player's own, stays")),
-            None => return kept(format!("{literal}, the player's own, stays")),
-        },
+        Ok(Some(literal)) => {
+            let own = b.defaults.iter().any(|d| d.trim() == literal.trim());
+            match neutral(knob, b, &literal) {
+                Some(n) if n == "1" || own => at = n.parse().unwrap_or(1.0),
+                Some(n) => return kept(format!("{n}×, the player's own, stays")),
+                None => return kept(format!("{literal}, the player's own, stays")),
+            }
+        }
         Ok(None) => {}
     }
-    let n = multiple(native, screen, scale.range());
+    let native = b
+        .native_by
+        .as_ref()
+        .and_then(|by| {
+            let read = txn::read(&path, file, &by.section, &by.key).ok()??;
+            by.values.get(read.trim()).copied()
+        })
+        .unwrap_or(native);
+    let need = cover(native, &b.aspects, screen);
+    let steps = scale.steps();
     let shown = format!("{}×{}", screen.width, screen.height);
-    if n <= 1 {
-        return kept(format!("1× already fits {shown}"));
+    let Some((n, literal)) = steps.iter().find(|(n, _)| *n >= need).or(steps.last()) else {
+        return kept(format!("no step fits {shown}"));
+    };
+    if *n <= at {
+        return kept(format!("{at}× already fits {shown}"));
     }
-    match render(entry, cx, knob, b, Neutral::Scale(n)) {
+    match render(entry, cx, knob, b, Neutral::Step(literal)) {
         Ok((edits, path, _)) => (
             change(Support::Applied, format!("{n}× for {shown}"), Some(path)),
             edits,
@@ -217,13 +242,67 @@ fn fit(entry: &Entry, cx: &Cx, b: &Binding, screen: Size) -> (KnobChange, Vec<Ed
     }
 }
 
-/// The whole multiple of `native` nearest to filling `screen` without changing its shape, within
-/// `lo..=hi`. The side that runs out first decides: 1280×720 on 5120×1440 is 2, by the height.
-pub(crate) fn multiple([w, h]: [u32; 2], screen: Size, (lo, hi): (u8, u8)) -> u8 {
-    let across = f64::from(screen.width) / f64::from(w);
-    let down = f64::from(screen.height) / f64::from(h);
-    let n = across.min(down).round().clamp(1.0, f64::from(hi));
-    (n as u8).max(lo)
+/// A [`Scale::Screen`] binding: the screen's own size, written only over the `native` width
+/// or an unset key. Any other width is the player's and stays.
+fn screen_size(
+    entry: &Entry,
+    cx: &Cx,
+    b: &Binding,
+    [w, _]: [u32; 2],
+    screen: Size,
+    path: &std::path::Path,
+    file: &ConfigFile,
+) -> (KnobChange, Vec<Edit>) {
+    let shown = format!("{}×{}", screen.width, screen.height);
+    let change = |note: String| KnobChange {
+        knob: "video.scale".into(),
+        support: Support::Applied,
+        note: Some(note),
+        file: Some(path.to_path_buf()),
+    };
+    if let Ok(Some(l)) = txn::read(path, file, &b.section, &b.key)
+        && l.trim().parse::<u32>().ok() != Some(w)
+    {
+        return (
+            change(format!("{l} wide, the player's own, stays")),
+            Vec::new(),
+        );
+    }
+    let mut sized = b.clone();
+    for a in &mut sized.also {
+        a.value = a
+            .value
+            .take()
+            .map(|v| v.replace("{height}", &screen.height.to_string()));
+    }
+    let width = screen.width.to_string();
+    match render(entry, cx, "video.scale", &sized, Neutral::Step(&width)) {
+        Ok((edits, _, _)) => (change(format!("drawn at {shown}")), edits),
+        Err(why) => (change(why), Vec::new()),
+    }
+}
+
+/// The multiple of `native` whose render reaches every pixel the picture covers on `screen`.
+/// The picture keeps its shape and fills the side that runs out first: 1280×720 on 5120×1440
+/// needs 2, by the height. With `aspects`, the widest need of the shapes counts.
+pub(crate) fn cover([w, h]: [u32; 2], aspects: &[[u32; 2]], screen: Size) -> f64 {
+    let (sw, sh) = (f64::from(screen.width), f64::from(screen.height));
+    let own = [[w, h]];
+    let shapes = if aspects.is_empty() {
+        &own[..]
+    } else {
+        aspects
+    };
+    let need = shapes
+        .iter()
+        .map(|&[aw, ah]| {
+            let shape = f64::from(aw) / f64::from(ah);
+            let tall = sh.min(sw / shape);
+            (tall * shape / f64::from(w)).max(tall / f64::from(h))
+        })
+        .fold(0.0, f64::max);
+    // A thousandth off: float noise must not turn an exact 2 into the next step.
+    need - 1e-3
 }
 
 /// A device's name or a number of milliseconds, written into the binding's `text`; a device
@@ -282,6 +361,7 @@ fn spell(
             .ok_or_else(|| format!("{} has no {knob} {c}", entry.id)),
         Neutral::Text(_) | Neutral::Millis(_) => Err(format!("{knob} of {} is text", entry.id)),
         Neutral::Fit(_) => Err(format!("{knob} of {} fits a screen", entry.id)),
+        Neutral::Step(l) => Ok(l.to_string()),
     }
 }
 
@@ -380,9 +460,12 @@ fn neutral(knob: &str, b: &Binding, literal: &str) -> Option<String> {
         return None;
     }
     if let Some(scale) = &b.scale {
+        // `1.000000` is `1`: an emulator writes its float the way its format does.
+        let number = |s: &str| unquote(s).trim().parse::<f64>().ok();
+        let same = |l: &str| is(l) || number(l).is_some_and(|a| number(&read) == Some(a));
         let (min, max) = scale.range();
         return (min..=max)
-            .find(|n| scale.render(*n).is_some_and(|l| is(&l)))
+            .find(|n| scale.render(*n).is_some_and(|l| same(&l)))
             .map(|n| n.to_string());
     }
     None

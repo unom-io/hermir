@@ -98,6 +98,13 @@ pub fn settings_dir(root: &Path) -> PathBuf {
     {
         return home.join(".config").join(name);
     }
+    // An SDL data root, `~/.local/share/<org>/<app>`, keeps its settings in `~/.config/<app>`.
+    if named(up(2), "share")
+        && named(up(3), ".local")
+        && let Some(home) = up(4)
+    {
+        return home.join(".config").join(name);
+    }
     root.to_path_buf()
 }
 
@@ -467,6 +474,10 @@ mod tests {
         assert_eq!(
             settings_dir(Path::new("/home/u/.var/app/dev.eden_emu.eden/data/eden")),
             PathBuf::from("/home/u/.var/app/dev.eden_emu.eden/config/eden")
+        );
+        assert_eq!(
+            settings_dir(Path::new("/home/u/.local/share/Vita3K/Vita3K")),
+            PathBuf::from("/home/u/.config/Vita3K")
         );
         assert_eq!(
             settings_dir(Path::new("/opt/shadps4/user")),
@@ -1329,17 +1340,20 @@ mod tests {
         let a = run(&c, "rpcs3", Os::Linux, &rpcs3, &screen(1280, 720), &snaps);
         assert!(a.steps.is_empty(), "{a:?}");
 
-        // Lichii as it ships: 1× marked default, its own update check on. A 4K screen is 2×.
+        // Lichii as it ships: 1× marked default, handheld (720p at 1×), its own update check on.
+        // 5120×1440 is 2×. Docked, 1× is 1080p: 1.5× is the first step to reach 1440 lines.
         let root = tmp.path().join("home/.local/share/lichii");
         let qt = tmp.path().join("home/.config/lichii/qt-config.ini");
         std::fs::create_dir_all(qt.parent().unwrap()).unwrap();
-        std::fs::write(
-            &qt,
-            "[Renderer]\nresolution_setup\\default=true\nresolution_setup=3\n\n\
-             [UI]\ncheck_for_updates\\default=true\ncheck_for_updates=true\n",
-        )
-        .unwrap();
-        run(&c, "lichii", Os::Linux, &root, &screen(3840, 2160), &snaps);
+        let shipped = |mode: u8| {
+            format!(
+                "[Renderer]\nresolution_setup\\default=true\nresolution_setup=3\n\n\
+                 [System]\nuse_docked_mode\\default=true\nuse_docked_mode={mode}\n\n\
+                 [UI]\ncheck_for_updates\\default=true\ncheck_for_updates=true\n"
+            )
+        };
+        std::fs::write(&qt, shipped(0)).unwrap();
+        run(&c, "lichii", Os::Linux, &root, &screen(5120, 1440), &snaps);
         let text = read(&qt);
         assert!(
             text.contains("resolution_setup\\default=false\nresolution_setup=6\n"),
@@ -1349,35 +1363,136 @@ mod tests {
             text.contains("check_for_updates\\default=false\ncheck_for_updates=false\n"),
             "{text}"
         );
+        std::fs::write(&qt, shipped(1)).unwrap();
+        let a = run(&c, "lichii", Os::Linux, &root, &screen(5120, 1440), &snaps);
+        let k = knob(&a, "video.scale");
+        assert_eq!(k.note.as_deref(), Some("1.5× for 5120×1440"), "{k:?}");
+        assert!(read(&qt).contains("resolution_setup=5\n"));
     }
 
     #[test]
-    fn the_multiple_fills_the_side_that_runs_out_first() {
-        use crate::model::Size;
-        let fit = |native, w, h| {
-            knobs::multiple(
-                native,
-                Size {
-                    width: w,
-                    height: h,
-                },
-                (1, 8),
-            )
+    fn each_scale_shape_reaches_the_screen() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let snaps = tmp.path().join("snaps");
+        let fit = |id: &str, w, h| {
+            let a = run(
+                &c,
+                id,
+                Os::Linux,
+                &tmp.path().join(id),
+                &screen(w, h),
+                &snaps,
+            );
+            let k = knob(&a, "video.scale").clone();
+            let text = k.file.as_deref().map(read).unwrap_or_default();
+            (k.note.unwrap_or_default(), text)
         };
-        assert_eq!(fit([1280, 720], 5120, 1440), 2);
-        assert_eq!(fit([1280, 720], 1920, 1080), 2, "1.5 rounds up");
-        assert_eq!(fit([640, 528], 2560, 1440), 3);
-        assert_eq!(fit([1920, 1080], 2560, 1440), 1);
-        assert_eq!(
-            fit([1280, 720], 2732, 2048),
-            2,
-            "a 4:3 tablet: the width runs out"
+        // RPCS3 snaps to 25%: 1080p is 150%, not 200%.
+        let (note, text) = fit("rpcs3", 1920, 1080);
+        assert_eq!(note, "1.5× for 1920×1080");
+        assert!(text.contains("Resolution Scale: 150"), "{text}");
+        // Dolphin's 640-wide picture shown 16:9 on 1440p needs 2560 across.
+        let (note, text) = fit("dolphin", 2560, 1440);
+        assert_eq!(note, "4× for 2560×1440");
+        assert!(text.contains("InternalResolution = 4"), "{text}");
+        // ares has 1×, 2× and 4×: a screen past 4× gets the top step.
+        let (note, text) = fit("ares", 5120, 1440);
+        assert_eq!(note, "4× for 5120×1440");
+        assert!(text.contains("Quality: UHD"), "{text}");
+        // Supermodel draws at the screen's own size; a size the player set stays.
+        let (note, text) = fit("supermodel", 5120, 1440);
+        assert_eq!(note, "drawn at 5120×1440");
+        assert!(
+            text.contains("XResolution = 5120") && text.contains("YResolution = 1440"),
+            "{text}"
         );
-        assert_eq!(fit([1280, 720], 800, 480), 1, "never below 1×");
+        let a = run(
+            &c,
+            "supermodel",
+            Os::Linux,
+            &tmp.path().join("supermodel"),
+            &screen(1920, 1080),
+            &snaps,
+        );
+        let k = knob(&a, "video.scale");
         assert_eq!(
-            fit([256, 384], 7680, 4320),
-            8,
-            "within the emulator's range"
+            k.note.as_deref(),
+            Some("5120 wide, the player's own, stays"),
+            "{k:?}"
+        );
+        // Flycast counts lines and its menu steps by 240: 1080p is 1200, not 1440.
+        let (note, text) = fit("flycast", 1920, 1080);
+        assert_eq!(note, "2.5× for 1920×1080");
+        assert!(text.contains("rend.Resolution = 1200"), "{text}");
+        let seed = |id: &str, rel: &str, text: &str| {
+            let p = tmp.path().join(id).join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(&p, text).unwrap();
+        };
+        // PPSSPP's own 2× on Linux is raised like 1×: 272 lines reach 1440 at 6×.
+        seed(
+            "ppsspp",
+            "PSP/SYSTEM/ppsspp.ini",
+            "[Graphics]\nInternalResolution = 2\n",
+        );
+        let (note, text) = fit("ppsspp", 2560, 1440);
+        assert_eq!(note, "6× for 2560×1440");
+        assert!(text.contains("InternalResolution = 6"), "{text}");
+        // Ryujinx handheld is 720p at 1×; docked 1080p already fits a 1080p screen.
+        seed(
+            "ryujinx",
+            "Config.json",
+            r#"{"res_scale": 1, "docked_mode": false}"#,
+        );
+        assert_eq!(fit("ryujinx", 1920, 1080).0, "2× for 1920×1080");
+        seed(
+            "ryujinx",
+            "Config.json",
+            r#"{"res_scale": 1, "docked_mode": true}"#,
+        );
+        assert_eq!(fit("ryujinx", 1920, 1080).0, "1× already fits 1920×1080");
+        // Azahar side by side is 720×240 at 1×: 1440 lines need 6×.
+        seed(
+            "azahar",
+            "qt-config.ini",
+            "[Layout]\nlayout_option\\default=false\nlayout_option=3\n",
+        );
+        assert_eq!(fit("azahar", 5120, 1440).0, "6× for 5120×1440");
+    }
+
+    #[test]
+    fn the_scale_reaches_every_pixel_the_picture_covers() {
+        use crate::model::Size;
+        let need = |native, aspects: &[[u32; 2]], width, height| {
+            let n = knobs::cover(native, aspects, Size { width, height });
+            (n * 100.0).round() / 100.0
+        };
+        assert_eq!(
+            need([1280, 720], &[], 5120, 1440),
+            2.0,
+            "the height runs out"
+        );
+        assert_eq!(
+            need([1920, 1080], &[], 2560, 1440),
+            1.33,
+            "1080p short of 1440p"
+        );
+        assert_eq!(
+            need([1280, 720], &[], 2732, 2048),
+            2.13,
+            "a 4:3 tablet: the width"
+        );
+        let ps2 = [[4, 3], [16, 9]];
+        assert_eq!(
+            need([640, 448], &ps2, 2560, 1440),
+            4.0,
+            "16:9 shown 2560 wide"
+        );
+        assert_eq!(
+            need([640, 448], &ps2, 1600, 1200),
+            2.68,
+            "4:3 shown 1200 tall"
         );
     }
 
@@ -1479,7 +1594,7 @@ mod tests {
         let root = tmp.path().join("pcsx2");
         let patch = Patch {
             video: Some(Video {
-                scale: Some(9),
+                scale: Some(13),
                 ..Default::default()
             }),
             ..Default::default()
@@ -1487,7 +1602,7 @@ mod tests {
         let a = run(&c, "pcsx2", Os::Linux, &root, &patch, &snaps);
         let k = knob(&a, "video.scale");
         assert_eq!(k.support, Support::Unsupported);
-        assert_eq!(k.note.as_deref(), Some("9× is outside pcsx2's 1×–8×"));
+        assert_eq!(k.note.as_deref(), Some("13× is outside pcsx2's 1×–12×"));
         assert!(a.steps.is_empty() && !root.exists());
 
         let patch = Patch {

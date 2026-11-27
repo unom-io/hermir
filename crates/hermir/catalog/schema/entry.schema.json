@@ -111,6 +111,20 @@
           },
           "type": "array"
         },
+        "aspects": {
+          "description": "`video.scale`: the shapes a game is shown at, width to height, when the `native`\npicture is stretched to them (a PS2's 640×448 shown 4:3 or 16:9). Empty: `native`'s own.",
+          "items": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
         "bool": {
           "description": "`[true, false]` as the emulator spells them (`True`/`False`, `1`/`0`, `yes`/`no`).",
           "items": {
@@ -122,6 +136,13 @@
             "array",
             "null"
           ]
+        },
+        "defaults": {
+          "description": "`video.scale`: literals the emulator writes as its own default besides 1× (PPSSPP picks\n2× on a desktop 1000 pixels wide). A screen's fit raises them as it raises 1×.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         },
         "file": {
           "description": "A name from `files`.",
@@ -144,6 +165,17 @@
             "array",
             "null"
           ]
+        },
+        "native_by": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NativeBy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "`video.scale`: a key of the same file whose value picks the 1× picture instead of\n`native`. Eden's 1× is 720p handheld and 1080p docked."
         },
         "note": {
           "description": "A caveat that makes the knob partial: it is written, and this is what to know.",
@@ -849,6 +881,39 @@
       },
       "type": "object"
     },
+    "NativeBy": {
+      "additionalProperties": false,
+      "description": "The setting that decides what an emulator draws at 1×: its literal → width and height. A value\nnot listed, or no value, leaves the binding's `native`.",
+      "properties": {
+        "key": {
+          "description": "The key.",
+          "type": "string"
+        },
+        "section": {
+          "description": "The section, as a binding's; empty for the top level.",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "description": "The key's literal → the 1× picture, width and height.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "key",
+        "values"
+      ],
+      "type": "object"
+    },
     "PerOs": {
       "additionalProperties": false,
       "description": "One slot per OS. A missing key is `None`: honest \"not offered here\".",
@@ -1356,6 +1421,16 @@
           "properties": {
             "percent": {
               "properties": {
+                "every": {
+                  "description": "The percentages between whole multiples a screen's fit may pick, one every `every`\n(RPCS3's slider snaps to 25). Absent: whole multiples only.",
+                  "format": "uint16",
+                  "maximum": 65535,
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
                 "max": {
                   "default": 8,
                   "description": "The largest.",
@@ -1393,6 +1468,15 @@
                   "minimum": 0,
                   "type": "integer"
                 },
+                "every": {
+                  "description": "The line counts between whole multiples a screen's fit may pick, one every `every`\nlines (Flycast's menu steps by 240). Absent: whole multiples only.",
+                  "format": "uint32",
+                  "minimum": 0,
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
                 "max": {
                   "default": 8,
                   "description": "The largest multiple.",
@@ -1415,7 +1499,7 @@
         },
         {
           "additionalProperties": false,
-          "description": "`n` (as a decimal string, JSON's key) → the emulator's own value; an `n` missing here\nis unsupported.",
+          "description": "`n` (as a decimal string, JSON's key) → the emulator's own value; an `n` missing here\nis unsupported. A fractional `n` (`\"1.5\"`) is a step only a screen's fit picks.",
           "properties": {
             "map": {
               "additionalProperties": {
@@ -1428,6 +1512,11 @@
             "map"
           ],
           "type": "object"
+        },
+        {
+          "const": "screen",
+          "description": "The screen's own width in pixels, its height in an `also` key's `{height}` (Supermodel's\n`XResolution` and `YResolution`). 1× is the binding's `native`; only a screen's fit\nwrites it.",
+          "type": "string"
         }
       ]
     },

@@ -573,6 +573,27 @@ fn validate_config(id: &str, cfg: &Config) -> Result<()> {
             }
             _ => {}
         }
+        if !b.aspects.is_empty() && (knob != "video.scale" || b.native.is_none()) {
+            return Err(bad(format!(
+                "{knob}: aspects need a video.scale native size"
+            )));
+        }
+        if let Some([w, h]) = b.aspects.iter().find(|[w, h]| *w == 0 || *h == 0) {
+            return Err(bad(format!("{knob}: the aspect {w}:{h} has no shape")));
+        }
+        if let Some(by) = &b.native_by {
+            if b.native.is_none() {
+                return Err(bad(format!("{knob}: native_by needs a native beside it")));
+            }
+            if by.key.trim().is_empty() || by.values.is_empty() {
+                return Err(bad(format!("{knob}: native_by names no key or no values")));
+            }
+            if let Some((v, [w, h])) = by.values.iter().find(|(_, [w, h])| *w == 0 || *h == 0) {
+                return Err(bad(format!(
+                    "{knob}: native_by {v} is {w}×{h}, which has no area"
+                )));
+            }
+        }
         if let Some(t) = &b.text
             && !t.contains("{value}")
         {
@@ -601,8 +622,11 @@ fn validate_config(id: &str, cfg: &Config) -> Result<()> {
             let (min, max) = scale.range();
             let sane = match scale {
                 Scale::Lines { base, .. } => *base > 0 && max >= 1,
+                Scale::Screen => b.native.is_some(),
                 Scale::Map(m) => {
-                    !m.is_empty() && m.keys().all(|k| k.parse::<u8>().is_ok_and(|n| n >= 1))
+                    let step =
+                        |k: &String| k.parse::<f64>().is_ok_and(|n| (1.0..=16.0).contains(&n));
+                    m.contains_key("1") && m.keys().all(step)
                 }
                 _ => min >= 1 && max >= min,
             };
