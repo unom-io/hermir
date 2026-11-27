@@ -28,6 +28,7 @@ fn session() -> Patch {
             scale: Some(3),
             vsync: Some(true),
             aspect: Some(Aspect::SixteenNine),
+            output: None,
         }),
         ..Default::default()
     }

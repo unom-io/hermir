@@ -79,7 +79,11 @@
           "multiplier": {
             "max": 4
           }
-        }
+        },
+        "native": [
+          1920,
+          1080
+        ]
       },
       "video.vsync": {
         "unsupported": "enable_vsync became vsync_mode between versions; pass the one your copy has through native"

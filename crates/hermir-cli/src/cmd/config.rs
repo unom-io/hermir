@@ -20,6 +20,7 @@ pub fn apply(h: &Hermir, a: &ApplyArgs) -> Result<Outcome> {
         scale: a.scale,
         vsync: a.vsync,
         aspect: a.aspect,
+        output: a.output,
     };
     let audio = Audio {
         device: a.audio_device.clone(),
@@ -32,6 +33,7 @@ pub fn apply(h: &Hermir, a: &ApplyArgs) -> Result<Outcome> {
         connected: seats.connected,
         video: (!video.is_empty()).then_some(video),
         region: a.region,
+        update_check: a.update_check,
         native: a
             .set
             .iter()

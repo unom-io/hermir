@@ -80,6 +80,10 @@
             "max": 3
           }
         },
+        "native": [
+          1280,
+          720
+        ],
         "also": [
           {
             "key": "draw_resolution_scale_y",

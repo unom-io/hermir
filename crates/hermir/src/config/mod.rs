@@ -417,8 +417,21 @@ mod tests {
                 scale: Some(2),
                 vsync: Some(true),
                 aspect: Some(Aspect::SixteenNine),
+                output: None,
             }),
             region: Some(Region::Usa),
+            ..Default::default()
+        }
+    }
+
+    /// A stream's screen, and the emulator's own update check off.
+    fn screen(width: u32, height: u32) -> Patch {
+        Patch {
+            video: Some(Video {
+                output: Some(crate::model::Size { width, height }),
+                ..Default::default()
+            }),
+            update_check: Some(false),
             ..Default::default()
         }
     }
@@ -1279,6 +1292,92 @@ mod tests {
         assert_eq!(
             read(&vita.join("config.yml")),
             "boot-apps-full-screen: true\nresolution-multiplier: 2\nv-sync: true\nstretch_the_display_area: false\n"
+        );
+    }
+
+    #[test]
+    fn an_output_lifts_a_scale_at_one_and_keeps_the_players_own() {
+        let c = Catalog::embedded().unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let snaps = tmp.path().join("snaps");
+
+        // Unset is 1×: 1280×720 fills 5120×1440's height at 2×. RPCS3 has no update check.
+        let rpcs3 = tmp.path().join("rpcs3");
+        let a = run(&c, "rpcs3", Os::Linux, &rpcs3, &screen(5120, 1440), &snaps);
+        assert_eq!(knob(&a, "video.scale").support, Support::Applied, "{a:?}");
+        assert_eq!(knob(&a, "update_check").support, Support::Unsupported);
+        assert_eq!(
+            read(&rpcs3.join("config.yml")),
+            "Video:\n  Resolution Scale: 200\n"
+        );
+
+        // A scale the player set stays, and so does one at 1× on a screen 1× already fits.
+        let own = "Video:\n  Resolution Scale: 300\n";
+        std::fs::write(rpcs3.join("config.yml"), own).unwrap();
+        let a = run(&c, "rpcs3", Os::Linux, &rpcs3, &screen(5120, 1440), &snaps);
+        let k = knob(&a, "video.scale");
+        assert!(
+            k.note.as_deref().unwrap().contains("3×, the player's own"),
+            "{k:?}"
+        );
+        assert_eq!(read(&rpcs3.join("config.yml")), own);
+        std::fs::write(
+            rpcs3.join("config.yml"),
+            "Video:\n  Resolution Scale: 100\n",
+        )
+        .unwrap();
+        let a = run(&c, "rpcs3", Os::Linux, &rpcs3, &screen(1280, 720), &snaps);
+        assert!(a.steps.is_empty(), "{a:?}");
+
+        // Lichii as it ships: 1× marked default, its own update check on. A 4K screen is 2×.
+        let root = tmp.path().join("home/.local/share/lichii");
+        let qt = tmp.path().join("home/.config/lichii/qt-config.ini");
+        std::fs::create_dir_all(qt.parent().unwrap()).unwrap();
+        std::fs::write(
+            &qt,
+            "[Renderer]\nresolution_setup\\default=true\nresolution_setup=3\n\n\
+             [UI]\ncheck_for_updates\\default=true\ncheck_for_updates=true\n",
+        )
+        .unwrap();
+        run(&c, "lichii", Os::Linux, &root, &screen(3840, 2160), &snaps);
+        let text = read(&qt);
+        assert!(
+            text.contains("resolution_setup\\default=false\nresolution_setup=6\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("check_for_updates\\default=false\ncheck_for_updates=false\n"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn the_multiple_fills_the_side_that_runs_out_first() {
+        use crate::model::Size;
+        let fit = |native, w, h| {
+            knobs::multiple(
+                native,
+                Size {
+                    width: w,
+                    height: h,
+                },
+                (1, 8),
+            )
+        };
+        assert_eq!(fit([1280, 720], 5120, 1440), 2);
+        assert_eq!(fit([1280, 720], 1920, 1080), 2, "1.5 rounds up");
+        assert_eq!(fit([640, 528], 2560, 1440), 3);
+        assert_eq!(fit([1920, 1080], 2560, 1440), 1);
+        assert_eq!(
+            fit([1280, 720], 2732, 2048),
+            2,
+            "a 4:3 tablet: the width runs out"
+        );
+        assert_eq!(fit([1280, 720], 800, 480), 1, "never below 1×");
+        assert_eq!(
+            fit([256, 384], 7680, 4320),
+            8,
+            "within the emulator's range"
         );
     }
 

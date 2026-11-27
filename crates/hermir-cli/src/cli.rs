@@ -217,6 +217,14 @@ pub struct ApplyArgs {
     /// Internal resolution, as a multiple of the console's: 1 is native, 3 is 3×.
     #[arg(long)]
     pub scale: Option<u8>,
+    /// The screen the picture is shown on, `WIDTHxHEIGHT`: without `--scale`, a copy still at
+    /// 1× renders at the multiple that comes nearest to filling it.
+    #[arg(long, value_name = "WxH", value_parser = crate::parse::size)]
+    pub output: Option<hermir::Size>,
+    /// Look for a new version at start: `--update-check=no` turns the emulator's own check off.
+    #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true",
+          value_parser = clap::builder::BoolishValueParser::new())]
+    pub update_check: Option<bool>,
     /// Wait for the display's refresh: `--vsync` alone means yes, `--vsync=no` says no.
     #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true",
           value_parser = clap::builder::BoolishValueParser::new())]

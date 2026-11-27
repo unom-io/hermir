@@ -119,7 +119,11 @@
         "key": "InternalResolution",
         "scale": {
           "multiplier": {}
-        }
+        },
+        "native": [
+          640,
+          528
+        ]
       },
       "video.vsync": {
         "file": "gfx",

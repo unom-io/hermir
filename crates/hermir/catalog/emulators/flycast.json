@@ -107,7 +107,11 @@
           "lines": {
             "base": 480
           }
-        }
+        },
+        "native": [
+          640,
+          480
+        ]
       },
       "video.vsync": {
         "file": "main",

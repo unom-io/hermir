@@ -150,7 +150,11 @@
         "key": "upscale_multiplier",
         "scale": {
           "multiplier": {}
-        }
+        },
+        "native": [
+          640,
+          448
+        ]
       },
       "video.vsync": {
         "file": "main",

@@ -541,7 +541,7 @@ fn validate_config(id: &str, cfg: &Config) -> Result<()> {
         // `default` in `values` beside it; only latency has a range.
         let audio = knob.starts_with("audio.");
         let (want_bool, want_scale, want_values) = match knob.as_str() {
-            "video.fullscreen" | "video.vsync" => (true, false, false),
+            "video.fullscreen" | "video.vsync" | "update_check" => (true, false, false),
             "video.scale" => (false, true, false),
             _ => (false, false, !audio),
         };
@@ -563,6 +563,15 @@ fn validate_config(id: &str, cfg: &Config) -> Result<()> {
                 "values"
             };
             return Err(bad(format!("{knob} takes `{want}` and nothing else")));
+        }
+        match b.native {
+            Some(_) if knob != "video.scale" => {
+                return Err(bad(format!("{knob}: only video.scale has a native size")));
+            }
+            Some([w, h]) if w == 0 || h == 0 => {
+                return Err(bad(format!("{knob}: the native size {w}×{h} has no area")));
+            }
+            _ => {}
         }
         if let Some(t) = &b.text
             && !t.contains("{value}")

@@ -85,7 +85,11 @@
             "7": "11",
             "8": "12"
           }
-        }
+        },
+        "native": [
+          1920,
+          1080
+        ]
       },
       "video.vsync": {
         "file": "main",
@@ -117,6 +121,15 @@
           "us": "1",
           "eu": "2"
         }
+      },
+      "update_check": {
+        "file": "main",
+        "section": "UI",
+        "key": "check_for_updates",
+        "bool": [
+          "true",
+          "false"
+        ]
       }
     },
     "players": {

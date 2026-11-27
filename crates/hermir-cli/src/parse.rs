@@ -155,9 +155,37 @@ pub fn native(file: &str, spec: &str) -> Result<Native> {
     })
 }
 
+/// `--output 5120x1440` → its size; `×` splits it too.
+pub fn size(spec: &str) -> std::result::Result<hermir::Size, String> {
+    let bad = || format!("{spec}: a size is WIDTHxHEIGHT, both above 0");
+    let (w, h) = spec.split_once(['x', 'X', '×']).ok_or_else(bad)?;
+    let (width, height) = (
+        w.trim().parse().map_err(|_| bad())?,
+        h.trim().parse().map_err(|_| bad())?,
+    );
+    if width == 0 || height == 0 {
+        return Err(bad());
+    }
+    Ok(hermir::Size { width, height })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_size_is_width_by_height() {
+        assert_eq!(
+            size("5120x1440"),
+            Ok(hermir::Size {
+                width: 5120,
+                height: 1440
+            })
+        );
+        assert_eq!(size("1280×720").map(|s| s.height), Ok(720));
+        assert!(size("0x720").is_err());
+        assert!(size("1280").is_err());
+    }
 
     #[test]
     fn pads_take_their_index_from_the_order_or_after_an_at() {
