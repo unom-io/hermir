@@ -606,6 +606,14 @@ pub struct Binding {
     /// `native`. Eden's 1× is 720p handheld and 1080p docked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_by: Option<NativeBy>,
+    /// `video.scale`: literals the emulator writes as its own default besides 1× (PPSSPP picks
+    /// 2× on a desktop 1000 pixels wide). A screen's fit raises them as it raises 1×.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub defaults: Vec<String>,
+    /// `video.scale`: the shapes a game is shown at, width to height, when the `native`
+    /// picture is stretched to them (a PS2's 640×448 shown 4:3 or 16:9). Empty: `native`'s own.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aspects: Vec<[u32; 2]>,
     /// `audio.device` and `audio.latency_ms`: the literal, `{value}` standing for the device's
     /// name or the milliseconds (`"\"{value}\""` where the format quotes). `values` may spell
     /// the device `default` otherwise.
@@ -683,6 +691,10 @@ pub enum Scale {
         #[serde(default = "eight")]
         /// The largest.
         max: u8,
+        /// The percentages between whole multiples a screen's fit may pick, one every `every`
+        /// (RPCS3's slider snaps to 25). Absent: whole multiples only.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        every: Option<u16>,
     },
     /// `n × base`, vertical lines (Flycast's 480).
     Lines {
@@ -691,10 +703,18 @@ pub enum Scale {
         #[serde(default = "eight")]
         /// The largest multiple.
         max: u8,
+        /// The line counts between whole multiples a screen's fit may pick, one every `every`
+        /// lines (Flycast's menu steps by 240). Absent: whole multiples only.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        every: Option<u32>,
     },
     /// `n` (as a decimal string, JSON's key) → the emulator's own value; an `n` missing here
-    /// is unsupported.
+    /// is unsupported. A fractional `n` (`"1.5"`) is a step only a screen's fit picks.
     Map(BTreeMap<String, String>),
+    /// The screen's own width in pixels, its height in an `also` key's `{height}` (Supermodel's
+    /// `XResolution` and `YResolution`). 1× is the binding's `native`; only a screen's fit
+    /// writes it.
+    Screen,
 }
 
 fn one() -> u8 {
@@ -710,21 +730,58 @@ impl Scale {
     pub fn render(&self, n: u8) -> Option<String> {
         match self {
             Scale::Multiplier { min, max } => (*min..=*max).contains(&n).then(|| n.to_string()),
-            Scale::Percent { min, max } => (*min..=*max)
+            Scale::Percent { min, max, .. } => (*min..=*max)
                 .contains(&n)
                 .then(|| (u32::from(n) * 100).to_string()),
-            Scale::Lines { base, max } => (1..=*max)
+            Scale::Lines { base, max, .. } => (1..=*max)
                 .contains(&n)
                 .then(|| (u32::from(n) * base).to_string()),
             Scale::Map(map) => map.get(&n.to_string()).cloned(),
+            Scale::Screen => None,
         }
     }
 
-    /// `(min, max)` of what renders.
+    /// Every multiple the emulator takes with its literal, smallest first: the whole ones
+    /// [`render`](Self::render) takes, and a map's fractional ones.
+    pub fn steps(&self) -> Vec<(f64, String)> {
+        let mut steps: Vec<(f64, String)> = match self {
+            Scale::Map(map) => map
+                .iter()
+                .filter_map(|(k, v)| Some((k.parse::<f64>().ok()?, v.clone())))
+                .collect(),
+            Scale::Percent {
+                min,
+                max,
+                every: Some(every),
+            } if *every > 0 => (u16::from(*min) * 100..=u16::from(*max) * 100)
+                .step_by(usize::from(*every))
+                .map(|p| (f64::from(p) / 100.0, p.to_string()))
+                .collect(),
+            Scale::Lines {
+                base,
+                max,
+                every: Some(every),
+            } if *every > 0 && *base > 0 => (*base..=*base * u32::from(*max))
+                .step_by(*every as usize)
+                .map(|l| (f64::from(l) / f64::from(*base), l.to_string()))
+                .collect(),
+            _ => {
+                let (min, max) = self.range();
+                (min..=max)
+                    .filter_map(|n| Some((f64::from(n), self.render(n)?)))
+                    .collect()
+            }
+        };
+        steps.sort_by(|a, b| a.0.total_cmp(&b.0));
+        steps
+    }
+
+    /// `(min, max)` of the whole multiples that render.
     pub fn range(&self) -> (u8, u8) {
         match self {
-            Scale::Multiplier { min, max } | Scale::Percent { min, max } => (*min, *max),
+            Scale::Multiplier { min, max } | Scale::Percent { min, max, .. } => (*min, *max),
             Scale::Lines { max, .. } => (1, *max),
+            Scale::Screen => (1, 1),
             Scale::Map(map) => {
                 let keys = map.keys().filter_map(|k| k.parse::<u8>().ok());
                 (keys.clone().min().unwrap_or(1), keys.max().unwrap_or(1))

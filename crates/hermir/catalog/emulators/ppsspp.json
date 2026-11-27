@@ -98,6 +98,9 @@
         "native": [
           480,
           272
+        ],
+        "defaults": [
+          "2"
         ]
       },
       "video.vsync": {

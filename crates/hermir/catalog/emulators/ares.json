@@ -111,7 +111,21 @@
         "via": "launch"
       },
       "video.scale": {
-        "unsupported": "per system in ares (Nintendo 64 quality and supersampling); pass them through native"
+        "file": "main",
+        "section": "Video",
+        "key": "Quality",
+        "scale": {
+          "map": {
+            "1": "SD",
+            "2": "HD",
+            "4": "UHD"
+          }
+        },
+        "native": [
+          320,
+          240
+        ],
+        "note": "the Nintendo 64's quality; other systems draw at their own resolution"
       },
       "video.vsync": {
         "file": "main",

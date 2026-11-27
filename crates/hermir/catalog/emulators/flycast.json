@@ -105,7 +105,8 @@
         "key": "rend.Resolution",
         "scale": {
           "lines": {
-            "base": 480
+            "base": 480,
+            "every": 240
           }
         },
         "native": [

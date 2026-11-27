@@ -149,11 +149,23 @@
         "section": "EmuCore/GS",
         "key": "upscale_multiplier",
         "scale": {
-          "multiplier": {}
+          "multiplier": {
+            "max": 12
+          }
         },
         "native": [
           640,
           448
+        ],
+        "aspects": [
+          [
+            4,
+            3
+          ],
+          [
+            16,
+            9
+          ]
         ]
       },
       "video.vsync": {

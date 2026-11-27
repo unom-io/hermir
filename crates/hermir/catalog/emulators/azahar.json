@@ -100,13 +100,39 @@
         "key": "resolution_factor",
         "scale": {
           "multiplier": {
-            "max": 10
+            "max": 16
           }
         },
         "native": [
           400,
           480
-        ]
+        ],
+        "native_by": {
+          "section": "Layout",
+          "key": "layout_option",
+          "values": {
+            "0": [
+              400,
+              480
+            ],
+            "1": [
+              400,
+              240
+            ],
+            "2": [
+              480,
+              240
+            ],
+            "3": [
+              720,
+              240
+            ],
+            "5": [
+              577,
+              240
+            ]
+          }
+        }
       },
       "video.vsync": {
         "file": "main",

@@ -79,7 +79,20 @@
         ]
       },
       "video.scale": {
-        "unsupported": "renders at XResolution × YResolution; set them through native"
+        "file": "main",
+        "section": "Global",
+        "key": "XResolution",
+        "scale": "screen",
+        "native": [
+          496,
+          384
+        ],
+        "also": [
+          {
+            "key": "YResolution",
+            "value": "{height}"
+          }
+        ]
       },
       "video.vsync": {
         "file": "main",

@@ -117,6 +117,16 @@
           256,
           384
         ],
+        "native_by": {
+          "section": "Instance0.Window0",
+          "key": "ScreenLayout",
+          "values": {
+            "2": [
+              512,
+              192
+            ]
+          }
+        },
         "also": [
           {
             "section": "3D",

@@ -83,7 +83,20 @@
         "native": [
           1920,
           1080
-        ]
+        ],
+        "native_by": {
+          "key": "docked_mode",
+          "values": {
+            "true": [
+              1920,
+              1080
+            ],
+            "false": [
+              1280,
+              720
+            ]
+          }
+        }
       },
       "video.vsync": {
         "unsupported": "enable_vsync became vsync_mode between versions; pass the one your copy has through native"

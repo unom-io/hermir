@@ -83,7 +83,11 @@
   "config": {
     "files": {
       "main": {
-        "path": "config.yml",
+        "path": {
+          "linux": "{config}/config.yml",
+          "windows": "config.yml",
+          "macos": "config.yml"
+        },
         "format": "yaml"
       }
     },
