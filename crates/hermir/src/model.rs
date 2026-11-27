@@ -465,6 +465,7 @@ pub const KNOBS: &[&str] = &[
     "region",
     "audio.device",
     "audio.latency_ms",
+    "update_check",
 ];
 
 /// One settings file of an emulator.
@@ -573,9 +574,9 @@ pub enum Via {
 }
 
 /// One knob bound to one key, with the spelling the emulator expects, by the knob's type:
-/// `bool` for `video.fullscreen` and `video.vsync`, `values` for `video.aspect` and `region`,
-/// `scale` for `video.scale`, `text` for `audio.device` (with `values` for `default`) and
-/// `audio.latency_ms` (with a `range`).
+/// `bool` for `video.fullscreen`, `video.vsync` and `update_check`, `values` for `video.aspect`
+/// and `region`, `scale` for `video.scale`, `text` for `audio.device` (with `values` for
+/// `default`) and `audio.latency_ms` (with a `range`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct Binding {
@@ -597,6 +598,10 @@ pub struct Binding {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// How `video.scale`'s multiple is spelled.
     pub scale: Option<Scale>,
+    /// `video.scale`: the picture this emulator draws at 1×, width and height, which
+    /// `Video::output` fits to a screen. Absent: `output` leaves the scale alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native: Option<[u32; 2]>,
     /// `audio.device` and `audio.latency_ms`: the literal, `{value}` standing for the device's
     /// name or the milliseconds (`"\"{value}\""` where the format quotes). `values` may spell
     /// the device `default` otherwise.
@@ -794,6 +799,10 @@ pub struct Patch {
     /// Where the sound goes, and how much of it is buffered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub audio: Option<Audio>,
+    /// Whether the emulator looks for a new version of itself when it starts. Its dialog waits
+    /// for a mouse, in front of the game a consumer launched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub update_check: Option<bool>,
     /// Keys the model does not cover, written as given.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub native: Vec<Native>,
@@ -868,6 +877,11 @@ impl Patch {
                 ));
             }
         }
+        if let Some(o) = self.video.and_then(|v| v.output)
+            && (o.width == 0 || o.height == 0)
+        {
+            return Err(format!("the output {}×{} has no area", o.width, o.height));
+        }
         for n in &self.native {
             if n.key.trim().is_empty() {
                 return Err(format!("a native key of {} has no name", n.file));
@@ -886,6 +900,7 @@ impl Patch {
             && self.video.as_ref().is_none_or(Video::is_empty)
             && self.region.is_none()
             && self.audio.as_ref().is_none_or(Audio::is_empty)
+            && self.update_check.is_none()
             && self.native.is_empty()
     }
 
@@ -917,6 +932,9 @@ impl Patch {
             if let Some(ms) = a.latency_ms {
                 out.push(("audio.latency_ms", ms.to_string()));
             }
+        }
+        if let Some(c) = self.update_check {
+            out.push(("update_check", c.to_string()));
         }
         out
     }
@@ -958,6 +976,11 @@ pub struct Video {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     /// The shape of the picture.
     pub aspect: Option<Aspect>,
+    /// The screen the picture is shown on, when `scale` is not given. An emulator still at 1×
+    /// renders at the whole multiple that brings the console's picture nearest to filling it;
+    /// a multiple the player chose stays.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output: Option<Size>,
 }
 
 impl Video {
@@ -967,7 +990,17 @@ impl Video {
             && self.scale.is_none()
             && self.vsync.is_none()
             && self.aspect.is_none()
+            && self.output.is_none()
     }
+}
+
+/// A picture's size in pixels.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct Size {
+    /// Pixels across.
+    pub width: u32,
+    /// Pixels down.
+    pub height: u32,
 }
 
 /// How the picture fills the window.

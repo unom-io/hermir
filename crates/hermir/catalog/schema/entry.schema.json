@@ -102,7 +102,7 @@
     },
     "Binding": {
       "additionalProperties": false,
-      "description": "One knob bound to one key, with the spelling the emulator expects, by the knob's type:\n`bool` for `video.fullscreen` and `video.vsync`, `values` for `video.aspect` and `region`,\n`scale` for `video.scale`, `text` for `audio.device` (with `values` for `default`) and\n`audio.latency_ms` (with a `range`).",
+      "description": "One knob bound to one key, with the spelling the emulator expects, by the knob's type:\n`bool` for `video.fullscreen`, `video.vsync` and `update_check`, `values` for `video.aspect`\nand `region`, `scale` for `video.scale`, `text` for `audio.device` (with `values` for\n`default`) and `audio.latency_ms` (with a `range`).",
       "properties": {
         "also": {
           "description": "Keys written alongside every write of this knob (the renderer a scale needs, a second\naxis, a mode string beside a flag).",
@@ -130,6 +130,20 @@
         "key": {
           "description": "The key itself.",
           "type": "string"
+        },
+        "native": {
+          "description": "`video.scale`: the picture this emulator draws at 1×, width and height, which\n`Video::output` fits to a screen. Absent: `output` leaves the scale alone.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": [
+            "array",
+            "null"
+          ]
         },
         "note": {
           "description": "A caveat that makes the knob partial: it is written, and this is what to know.",

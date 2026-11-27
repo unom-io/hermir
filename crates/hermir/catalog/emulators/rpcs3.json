@@ -105,7 +105,11 @@
         "key": "Resolution Scale",
         "scale": {
           "percent": {}
-        }
+        },
+        "native": [
+          1280,
+          720
+        ]
       },
       "video.vsync": {
         "file": "main",

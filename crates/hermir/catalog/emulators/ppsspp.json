@@ -94,7 +94,11 @@
           "multiplier": {
             "max": 10
           }
-        }
+        },
+        "native": [
+          480,
+          272
+        ]
       },
       "video.vsync": {
         "file": "main",

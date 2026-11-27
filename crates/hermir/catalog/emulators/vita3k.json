@@ -101,7 +101,11 @@
         "key": "resolution-multiplier",
         "scale": {
           "multiplier": {}
-        }
+        },
+        "native": [
+          960,
+          544
+        ]
       },
       "video.vsync": {
         "file": "main",

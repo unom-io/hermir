@@ -98,8 +98,10 @@ pub struct PadRef { name /* the kernel's */, bus, vendor, product, version, inde
                     gamepad_name: Option<String> /* SDL's */ }
 
 pub struct Patch { players: Option<Vec<Player>>, connected: Option<Vec<PadRef>>,
-                   video: Option<Video>, region: Option<Region>, audio: Option<Audio>, native: Vec<Native> }
-pub struct Video { fullscreen: Option<bool>, scale: Option<u8> /* 1× = native */, vsync: Option<bool>, aspect: Option<Aspect> }
+                   video: Option<Video>, region: Option<Region>, audio: Option<Audio>,
+                   update_check: Option<bool>, native: Vec<Native> }
+pub struct Video { fullscreen: Option<bool>, scale: Option<u8> /* 1× = native */, vsync: Option<bool>, aspect: Option<Aspect>,
+                   output: Option<Size> /* the screen: lifts a copy at 1× to the multiple that fills it */ }
 pub struct Audio { device: Option<String> /* a sink's name, or "default" */, latency_ms: Option<u32> }
 
 /// What `apply` did, knob by knob. A consumer shows this; it never guesses.
@@ -286,10 +288,11 @@ hermir owns (Cemu's controller profiles, RPCS3's input config) are written as su
 ### 4.2 Knobs (data)
 
 A knob is a neutral name (`video.fullscreen`, `video.scale`, `video.vsync`, `video.aspect`,
-`region`, `audio.device`, `audio.latency_ms`) bound in the catalog entry's `config` block to a
-file, a section, a key and a spelling: `bool: [true, false]` as the emulator writes them, a
-`values` table from the neutral value to the emulator's literal, a `scale` (`multiplier`,
-`percent`, `lines` with a base, a `map` from `n`), or a `text` template (`"\"{value}\""` where the
+`region`, `audio.device`, `audio.latency_ms`, `update_check`) bound in the catalog entry's
+`config` block to a file, a section, a key and a spelling: `bool: [true, false]` as the emulator
+writes them, a `values` table from the neutral value to the emulator's literal, a `scale`
+(`multiplier`, `percent`, `lines` with a base, a `map` from `n`) with the `native` picture 1×
+draws, which `Video::output` fits to a screen, or a `text` template (`"\"{value}\""` where the
 format quotes) for a device's name or milliseconds, with a `range` where the emulator has one. `also` carries companion keys (melonDS's
 renderer with its scale, Xenia's second axis, shadPS4's mode string), `note` makes a knob
 partial. `apply` walks the patch, renders each knob, patches the file through the transaction
