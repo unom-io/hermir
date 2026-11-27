@@ -874,8 +874,8 @@
           "description": "RetroArch: platform id → the libretro core (`snes9x`) `{core}` loads for it, unless the\nrequest names another.",
           "type": "object"
         },
-        "in_own_folder": {
-          "description": "Starts in the exe's own folder on every OS, because the emulator writes its saves and\ncaches into the working directory (KytyPS5). A Mac copy starts there regardless.",
+        "in_data_folder": {
+          "description": "Starts in the copy's data folder, its config root, which `prepare` makes: the emulator\nwrites its saves and caches into the folder it starts in (KytyPS5).",
           "type": "boolean"
         },
         "x11": {

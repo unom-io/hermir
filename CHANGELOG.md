@@ -24,6 +24,9 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
 - Archives are refused when an entry or a link would land outside the copy's folder.
 - Detection of copies the user installed: `PATH`, Flatpak (user and system), known install
   paths, portable markers.
+- `Options::machine_prefix`: a prefix another account installs into for every account on the
+  machine, read only. Its copies are detected as this account's own, with this account's data
+  in the OS layout.
 - libretro cores from the buildbot into RetroArch's cores directory.
 - `prepare`: answers a copy's first-run questions (the PCSX2 and DuckStation setup wizards,
   DuckStation's update check, Dolphin's statistics question, Cemu's getting-started dialog,
@@ -42,9 +45,9 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   `revert_players` puts the player's own settings back byte for byte.
 - shadPS4 (the SDL core, from its zipped AppImage).
 - PlayStation 5: KytyPS5 (Linux, Windows, macOS) from its GitHub releases, taking a dumped
-  game's `eboot.bin` or a `.zar`. It starts in its own folder (`launch.in_own_folder`), where it
-  writes its saves and shader cache, with the shader cache on, a 4K output and Back on the
-  touchpad for a pad without one. A GitHub channel whose latest release lacks this OS's build
+  game's `eboot.bin` or a `.zar`. It starts in the account's own data folder
+  (`launch.in_data_folder`, made by `prepare`), where it writes its saves and shader cache, with
+  the shader cache on, a 4K output and Back on the touchpad for a pad without one. A GitHub channel whose latest release lacks this OS's build
   (KytyPS5 tags some builds for one OS) takes the newest recent release that has it.
 - `apply`: a session's settings into an emulator's own files, knob by knob — `video.fullscreen`,
   `video.scale` (a multiple of the console's resolution), `video.vsync`, `video.aspect`,

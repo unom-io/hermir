@@ -97,6 +97,10 @@ pub struct Options {
     /// `.save-backups` lives here too, since a replaced save belongs to the account it came from.
     /// Installs and their lock stay in the prefix. The prefix, and its lock, when unset.
     pub state_dir: Option<PathBuf>,
+    /// A prefix that another account installs into for every account on the machine, read
+    /// only here. Each copy in it is detected as one of this account's own, keeping this
+    /// account's data in the OS layout under [`Self::home`]. None when unset.
+    pub machine_prefix: Option<PathBuf>,
 }
 
 impl Default for Options {
@@ -112,6 +116,7 @@ impl Default for Options {
             flatpak_installation: FlatpakInstallation::User,
             shared_install: false,
             state_dir: None,
+            machine_prefix: None,
         }
     }
 }
@@ -130,6 +135,8 @@ pub struct Hermir {
     require_verified: bool,
     flatpak_installation: FlatpakInstallation,
     shared_install: bool,
+    /// `Options::machine_prefix`, read only.
+    machine: Option<Store>,
     /// `Options::state_dir`, or the prefix.
     state: PathBuf,
 }
@@ -156,6 +163,7 @@ impl Hermir {
             require_verified: opts.require_verified,
             flatpak_installation: opts.flatpak_installation,
             shared_install: opts.shared_install,
+            machine: opts.machine_prefix.map(Store::open).transpose()?,
         })
     }
 
@@ -222,17 +230,19 @@ impl Hermir {
         Ok(EmulatorHandle { h: self, entry })
     }
 
-    /// Copies the user installed, fresh from the machine, and the ones the operator adopted.
+    /// Copies the user installed, fresh from the machine, the ones the operator adopted, and
+    /// the ones in [`Options::machine_prefix`].
     pub fn detect(&self) -> Vec<Install> {
         let env = self.env.as_ref();
         let mut found = detect::detect(&self.catalog, env);
-        for a in self.store.adopted().unwrap_or_default() {
-            let Some(entry) = self.catalog.get(&a.emulator) else {
-                continue;
-            };
-            let exe = detect::program_of(entry, &a.exe, env);
+        let adopted = self.store.adopted().unwrap_or_default().into_iter();
+        let adopted = adopted.filter_map(|a| {
+            let entry = self.catalog.get(&a.emulator)?;
+            Some((entry, detect::program_of(entry, &a.exe, env)))
+        });
+        for (entry, exe) in adopted.chain(self.machine_copies()) {
             let known = found.iter().any(|i| {
-                i.emulator == a.emulator
+                i.emulator == entry.id
                     && matches!(&i.exe, Exe::Path(p) if env.canonical(p) == env.canonical(&exe))
             });
             if !known && env.exists(&exe) {
@@ -240,6 +250,21 @@ impl Hermir {
             }
         }
         found
+    }
+
+    /// Where each archive copy in the machine prefix would run from, present or not.
+    fn machine_copies(&self) -> Vec<(&Entry, PathBuf)> {
+        let Some(machine) = &self.machine else {
+            return Vec::new();
+        };
+        let exe_of = |entry: &Entry| match entry.channels.get(self.os)? {
+            Channel::Github { exe, .. } | Channel::Url { exe, .. } => Some(exe.clone()),
+            _ => None,
+        };
+        let entries = self.catalog.entries().iter();
+        entries
+            .filter_map(|e| Some((e, machine.app_dir(&e.id).join(exe_of(e)?))))
+            .collect()
     }
 
     /// Managed rows as `Install`s plus detected copies, managed first, one row per exe.
@@ -1527,6 +1552,49 @@ mod tests {
         assert!(e.adopt(Path::new("relative/eden"), true).is_err());
         e.adopt(&exe, false).unwrap();
         assert!(e.copies().unwrap().is_empty());
+    }
+
+    /// Root installs RPCS3 for every account; this account runs it with its own config, and
+    /// KytyPS5 starts in its own data folder, which `prepare` makes.
+    #[cfg(unix)]
+    #[test]
+    fn a_copy_in_the_machine_prefix_keeps_this_accounts_data() {
+        let tmp = tempfile::tempdir().unwrap();
+        let home = tmp.path().join("home/u");
+        let machine = Path::new("/var/lib/box/emulators");
+        let env = crate::detect::fake::FakeEnv::new(Os::Linux, home.to_str().unwrap())
+            .file("/var/lib/box/emulators/rpcs3/app/AppRun")
+            .file("/var/lib/box/emulators/kytyps5/app/kyty_emulator");
+        let h = Hermir::open(Options {
+            prefix: Some(tmp.path().join("prefix")),
+            os: Some(Os::Linux),
+            http: Box::new(FakeHttp::default()),
+            runner: Box::new(FakeRunner::default()),
+            env: Some(Box::new(env)),
+            machine_prefix: Some(machine.into()),
+            ..Options::default()
+        })
+        .unwrap();
+        let rpcs3 = h.emulator("rpcs3").unwrap().best().unwrap().unwrap();
+        assert_eq!(rpcs3.exe, Exe::Path(machine.join("rpcs3/app/AppRun")));
+        assert_eq!(rpcs3.config_root, Some(home.join(".config/rpcs3")));
+        assert!(h.emulator("vita3k").unwrap().best().unwrap().is_none());
+
+        let kyty = h.emulator("kytyps5").unwrap();
+        let copy = kyty.best().unwrap().unwrap();
+        let data = home.join(".local/share/KytyPS5");
+        assert_eq!(copy.config_root.as_deref(), Some(data.as_path()));
+        let req = LaunchRequest {
+            file: Some("/roms/ps5/game/eboot.bin".into()),
+            ..Default::default()
+        };
+        assert_eq!(kyty.launch(&copy, &req).unwrap().cwd, Some(data.clone()));
+        let steps = kyty.prepare(&copy, None, &[]).unwrap().steps;
+        assert_eq!(steps[0].kind, "data_folder");
+        assert_eq!(steps[0].outcome, StepOutcome::Applied);
+        assert!(data.is_dir());
+        let again = kyty.prepare(&copy, None, &[]).unwrap().steps;
+        assert_eq!(again[0].outcome, StepOutcome::Present);
     }
 
     /// Mac paths: Windows reads `/Users/…` as relative, so `adopt` refuses it there.

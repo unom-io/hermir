@@ -140,12 +140,10 @@ pub(crate) fn launch(
         }
     }
     // A Mac copy starts in its own folder: Supermodel's Mac build reads everything relative to
-    // it, and shadPS4 looks there for its portable folder. KytyPS5 writes its saves into
-    // whatever folder it starts in, so it starts in its own on every OS.
+    // it, and shadPS4 looks there for its portable folder.
     let cwd = match &install.exe {
-        Exe::Path(p) if os == Os::Macos || entry.launch.in_own_folder => {
-            crate::detect::dir_of(os, p)
-        }
+        _ if entry.launch.in_data_folder => install.config_root.clone(),
+        Exe::Path(p) if os == Os::Macos => crate::detect::dir_of(os, p),
         _ => None,
     };
     Ok(LaunchSpec {
@@ -351,17 +349,17 @@ mod tests {
         );
     }
 
-    /// KytyPS5 writes its saves and shader cache into the folder it starts in: its own, on Linux
-    /// too. The touchpad is on Back as well as on a real touchpad, and the game hears 4K.
+    /// KytyPS5 writes its saves and shader cache into the folder it starts in: its data folder,
+    /// not the copy's. The touchpad is on Back as well as on a real touchpad, and the game hears 4K.
     #[test]
-    fn a_ps5_game_starts_kytyps5_in_its_own_folder_with_the_touchpad_on_back() {
+    fn a_ps5_game_starts_kytyps5_in_its_data_folder_with_the_touchpad_on_back() {
         let c = Catalog::embedded().unwrap();
         let kyty = Install {
             emulator: "kytyps5".into(),
             kind: InstallKind::Managed,
             exe: Exe::Path("/p/kytyps5/app/kyty_emulator".into()),
             version: None,
-            config_root: Some("/p/kytyps5/app".into()),
+            config_root: Some("/home/u/.local/share/KytyPS5".into()),
         };
         let eboot = "/roms/ps5/ASTRO BOT [PPSA01234]/eboot.bin";
         let req = LaunchRequest {
@@ -369,7 +367,8 @@ mod tests {
             ..game(eboot, None)
         };
         let spec = launch(c.get("kytyps5").unwrap(), Os::Linux, &kyty, &req, None).unwrap();
-        assert_eq!(spec.cwd.as_deref(), Some(Path::new("/p/kytyps5/app")));
+        let data = Path::new("/home/u/.local/share/KytyPS5");
+        assert_eq!(spec.cwd.as_deref(), Some(data));
         assert_eq!(
             spec.args[..6],
             [
