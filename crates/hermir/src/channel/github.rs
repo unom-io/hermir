@@ -1,4 +1,5 @@
-//! The latest GitHub release of a repository, one asset of it. Digests come from the API
+//! The latest GitHub release of a repository that has a build for this OS, one asset of it
+//! (KytyPS5's newest tag may hold only a macOS build). Digests come from the API
 //! (`sha256:<hex>` on assets uploaded since 2025-06); rolling tags (`latest`, `continuous`,
 //! `build-<sha>`) carry no version, so the release id is the asset's: its upload time, id and
 //! digest.
@@ -13,16 +14,47 @@ pub fn resolve(
     filter: &AssetFilter,
 ) -> Result<Resolved> {
     let url = format!("https://api.github.com/repos/{repo}/releases/latest");
-    let rel = http.get_json(&url)?;
+    let latest = http.get_json(&url)?;
+    if let Some(found) = pick(emulator, repo, filter, &latest)? {
+        return Ok(found);
+    }
+    // A project that publishes one OS's build under its own tag (KytyPS5) leaves the latest
+    // release without this OS's asset: the newest recent release that has it stands in.
+    let url = format!("https://api.github.com/repos/{repo}/releases?per_page=20");
+    let recent = http.get_json(&url).unwrap_or(serde_json::Value::Null);
+    for rel in recent.as_array().into_iter().flatten() {
+        let skip =
+            rel["draft"].as_bool() == Some(true) || rel["prerelease"].as_bool() == Some(true);
+        if !skip && let Some(found) = pick(emulator, repo, filter, rel)? {
+            return Ok(found);
+        }
+    }
+    let tag = latest["tag_name"].as_str().unwrap_or("");
+    let names: Vec<&str> = (latest["assets"].as_array().into_iter().flatten())
+        .filter_map(|a| a["name"].as_str())
+        .collect();
+    Err(Error::Catalog {
+        entry: emulator.into(),
+        why: format!(
+            "no asset of {repo} {tag} matches; assets: {}",
+            names.join(", ")
+        ),
+    })
+}
+
+/// `rel`'s one asset `filter` matches, none when no asset does; two matches are an error.
+fn pick(
+    emulator: &str,
+    repo: &str,
+    filter: &AssetFilter,
+    rel: &serde_json::Value,
+) -> Result<Option<Resolved>> {
     let tag = rel["tag_name"].as_str().unwrap_or("").to_string();
     let date = rel["published_at"]
         .as_str()
         .map(|s| s.chars().take(10).collect::<String>())
         .unwrap_or_default();
-    let assets = rel["assets"].as_array().cloned().unwrap_or_default();
-    let names: Vec<&str> = assets.iter().filter_map(|a| a["name"].as_str()).collect();
-    let hits: Vec<&serde_json::Value> = assets
-        .iter()
+    let hits: Vec<&serde_json::Value> = (rel["assets"].as_array().into_iter().flatten())
         .filter(|a| {
             a["name"]
                 .as_str()
@@ -31,15 +63,7 @@ pub fn resolve(
         .collect();
     let asset = match hits.as_slice() {
         [one] => *one,
-        [] => {
-            return Err(Error::Catalog {
-                entry: emulator.into(),
-                why: format!(
-                    "no asset of {repo} {tag} matches; assets: {}",
-                    names.join(", ")
-                ),
-            });
-        }
+        [] => return Ok(None),
         many => {
             let m: Vec<&str> = many.iter().filter_map(|a| a["name"].as_str()).collect();
             return Err(Error::Catalog {
@@ -52,7 +76,7 @@ pub fn resolve(
         .as_str()
         .and_then(|d| d.strip_prefix("sha256:"))
         .map(str::to_string);
-    Ok(Resolved {
+    Ok(Some(Resolved {
         emulator: emulator.into(),
         channel: "github".into(),
         url: asset["browser_download_url"].as_str().map(str::to_string),
@@ -61,7 +85,7 @@ pub fn resolve(
         version: version_from_tag(&tag),
         release: release_id(&tag, &date, asset, digest.as_deref()),
         digest,
-    })
+    }))
 }
 
 /// `<tag>@<asset updated_at>#<asset id>:<digest prefix>`. The tag and its publish date are
@@ -169,6 +193,34 @@ mod tests {
             resolve(&http, "pcsx2", "PCSX2/pcsx2", &f),
             Err(Error::Catalog { .. })
         ));
+    }
+
+    /// KytyPS5 tags some builds for macOS alone: Linux takes the newest release that has its own.
+    #[test]
+    fn a_latest_release_without_this_os_falls_back_to_one_with_it() {
+        let mac = release(
+            "Kyty-2026-11-25-b",
+            &[("Kyty-b-macOS-x86_64.zip", Some("bb"))],
+        );
+        let full = release(
+            "Kyty-2026-11-25-a",
+            &[
+                ("Kyty-a-Linux-x86_64.tar.gz", Some("aa")),
+                ("Kyty-a-macOS-x86_64.zip", Some("ac")),
+            ],
+        );
+        let mut http = FakeHttp::default();
+        let api = "https://api.github.com/repos/K/Kyty/releases";
+        http.json.insert(format!("{api}/latest"), mac.clone());
+        http.json
+            .insert(format!("{api}?per_page=20"), json!([mac, full]));
+        let f = AssetFilter::Filter {
+            all: vec!["linux-x86_64".into(), ".tar.gz".into()],
+            none: vec![],
+        };
+        let r = resolve(&http, "kyty", "K/Kyty", &f).unwrap();
+        assert_eq!(r.file_name.as_deref(), Some("Kyty-a-Linux-x86_64.tar.gz"));
+        assert!(r.release.starts_with("Kyty-2026-11-25-a@"), "{}", r.release);
     }
 
     /// Vita3K's `windows-latest.zip`: the same tag, published the same day, rebuilt in place.
