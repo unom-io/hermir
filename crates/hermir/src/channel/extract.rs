@@ -6,6 +6,7 @@
 //!
 //! Nothing lands outside `dest`: an entry that names a path outside it, a link whose target
 //! leaves it, an entry written through a link, and a device or pipe all refuse the archive.
+//! Nothing arrives setuid, setgid, or writable by another account ([`close_modes`]).
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
@@ -43,6 +44,36 @@ pub fn extract(archive: &Path, dest: &Path) -> Result<()> {
         fs::remove_file(&inner).map_err(|e| Error::io("remove", &inner, e))?;
         strip_single_top_dir(dest)?;
     }
+    close_modes(dest)
+}
+
+/// Takes setuid, setgid, sticky, group-write and other-write off everything under `dir`. An
+/// AppImage unpacks itself with the modes its maker stored (shadPS4 and Xenia Canary ship files
+/// that any account may write), and a release is the installing account's alone to change. A
+/// link keeps its own mode and is never followed.
+#[cfg(unix)]
+fn close_modes(dir: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    for entry in fs::read_dir(dir).map_err(|e| Error::io("read", dir, e))? {
+        let path = entry.map_err(|e| Error::io("read", dir, e))?.path();
+        let meta = fs::symlink_metadata(&path).map_err(|e| Error::io("stat", &path, e))?;
+        if meta.file_type().is_symlink() {
+            continue;
+        }
+        let mode = meta.permissions().mode() & 0o7777;
+        if mode & 0o7022 != 0 {
+            fs::set_permissions(&path, fs::Permissions::from_mode(mode & !0o7022))
+                .map_err(|e| Error::io("chmod", &path, e))?;
+        }
+        if meta.is_dir() {
+            close_modes(&path)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn close_modes(_dir: &Path) -> Result<()> {
     Ok(())
 }
 
@@ -534,6 +565,29 @@ mod tests {
         let out2 = dir.path().join("out2");
         extract(&b, &out2).unwrap();
         assert!(out2.join("AppRun").is_file());
+    }
+
+    /// An AppImage restores its maker's modes. What it unpacks is closed to other accounts and
+    /// never setuid; whether a file runs stays, and a link is left alone.
+    #[cfg(unix)]
+    #[test]
+    fn an_unpacked_release_is_closed_to_other_accounts() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let a = dir.path().join("loose_linux64.AppImage");
+        let script = "#!/bin/sh\nmkdir -p squashfs-root/usr/share/doc\ncd squashfs-root\n\
+            echo run > AppRun; chmod 4777 AppRun\n\
+            echo text > usr/share/doc/copyright; chmod 666 usr/share/doc/copyright\n\
+            chmod 2777 usr/share usr/share/doc\nln -s usr/share/doc/copyright note\n";
+        fs::write(&a, script).unwrap();
+        let out = dir.path().join("out");
+        extract(&a, &out).unwrap();
+        let mode = |rel: &str| fs::metadata(out.join(rel)).unwrap().permissions().mode() & 0o7777;
+        assert_eq!(mode("AppRun"), 0o755);
+        assert_eq!(mode("usr/share/doc/copyright"), 0o644);
+        assert_eq!(mode("usr/share"), 0o755);
+        assert_eq!(mode("usr/share/doc"), 0o755);
+        assert!(out.join("note").is_symlink());
     }
 
     #[test]

@@ -83,6 +83,20 @@ impl Store {
         self.root.join(".tmp")
     }
 
+    /// [`Self::tmp_dir`], made and closed to other accounts: a download is not verified yet, and
+    /// a release is unpacked there with the modes its maker stored.
+    pub(crate) fn private_tmp(&self) -> Result<PathBuf> {
+        let tmp = self.tmp_dir();
+        fs::create_dir_all(&tmp).map_err(|e| Error::io("create", &tmp, e))?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&tmp, fs::Permissions::from_mode(0o700))
+                .map_err(|e| Error::io("chmod", &tmp, e))?;
+        }
+        Ok(tmp)
+    }
+
     /// Fails at once when another process holds the prefix; nothing here waits.
     pub fn lock(&self) -> Result<Lock> {
         lock_dir(&self.root)
@@ -604,6 +618,24 @@ mod tests {
 
     fn read(p: impl AsRef<Path>) -> String {
         fs::read_to_string(p).unwrap()
+    }
+
+    /// A download is unpacked where no other account can reach it, also in a prefix whose
+    /// staging folder an earlier version left open.
+    #[cfg(unix)]
+    #[test]
+    fn the_staging_folder_is_the_installing_accounts_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open(dir.path().join("prefix")).unwrap();
+        let mode = |p: &Path| fs::metadata(p).unwrap().permissions().mode() & 0o777;
+        let tmp = store.private_tmp().unwrap();
+        assert_eq!(
+            (tmp.as_path(), mode(&tmp)),
+            (store.tmp_dir().as_path(), 0o700)
+        );
+        fs::set_permissions(&tmp, fs::Permissions::from_mode(0o755)).unwrap();
+        assert_eq!(mode(&store.private_tmp().unwrap()), 0o700);
     }
 
     #[test]

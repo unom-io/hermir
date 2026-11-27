@@ -22,6 +22,9 @@ The first release: P0–P3 of the [design](docs/design.md) — get, set, players
   ones beside them as `.new`), never touches config, saves or firmware, never follows a link the
   user put in the copy's folder, and finishes a place that stopped halfway.
 - Archives are refused when an entry or a link would land outside the copy's folder.
+- A release is unpacked in a folder only the installing account can open, and nothing in it
+  arrives setuid, setgid or writable by another account: an AppImage restores the modes its
+  maker stored, and shadPS4 and Xenia Canary ship files any account may write.
 - Detection of copies the user installed: `PATH`, Flatpak (user and system), known install
   paths, portable markers.
 - `Options::machine_prefix`: a prefix another account installs into for every account on the

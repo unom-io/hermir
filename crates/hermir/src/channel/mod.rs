@@ -171,8 +171,7 @@ fn install_archive(
         .file_name
         .clone()
         .unwrap_or_else(|| format!("{}.archive", entry.id));
-    let tmp = store.tmp_dir();
-    std::fs::create_dir_all(&tmp).map_err(|e| Error::io("create", &tmp, e))?;
+    let tmp = store.private_tmp()?;
     let part = tmp.join(part_name(&file_name, resolved));
     http.download(url, &part, resolved.size, progress)?;
 

@@ -393,7 +393,7 @@ impl Hermir {
             self.os,
             core,
             &cores,
-            &self.store.tmp_dir(),
+            &self.store.private_tmp()?,
             progress,
         )
     }
