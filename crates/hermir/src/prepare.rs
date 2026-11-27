@@ -37,6 +37,21 @@ pub fn prepare(
             steps,
         };
     };
+    if entry.launch.in_data_folder {
+        let made = match root.is_dir() {
+            true => Ok(StepOutcome::Present),
+            false => std::fs::create_dir_all(root).map(|()| StepOutcome::Applied),
+        };
+        steps.push(match made {
+            Ok(outcome) => step("data_folder", root, outcome, None),
+            Err(e) => step(
+                "data_folder",
+                root,
+                StepOutcome::Failed,
+                Some(e.to_string()),
+            ),
+        });
+    }
     for answer in entry.first_run.get(os).into_iter().flatten() {
         steps.push(first_run(root, install, answer, runner));
     }

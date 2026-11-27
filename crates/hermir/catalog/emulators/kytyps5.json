@@ -45,9 +45,9 @@
     }
   },
   "roots": {
-    "native": "<app>",
-    "windows": "<app>",
-    "macos": "<app>"
+    "native": "~/.local/share/KytyPS5",
+    "windows": "%APPDATA%\\KytyPS5",
+    "macos": "~/Library/Application Support/KytyPS5"
   },
   "launch": {
     "args": [
@@ -94,7 +94,7 @@
       "--game",
       "{file}"
     ],
-    "in_own_folder": true
+    "in_data_folder": true
   },
   "config": {
     "knobs": {
@@ -135,5 +135,5 @@
       }
     ]
   },
-  "notes": "The emulator core (kyty_emulator), not the Qt launcher beside it: everything is a command-line flag and no settings file is read. --game takes a game folder, its eboot.bin, or a .zar. It writes saves, trophies and its shader cache into the folder it starts in, so it starts in its own. The launch turns the shader cache on, as KytyPS5's launcher does, and reports a 4K output, which KytyPS5 tells every game that does not ask. The pad layout is KytyPS5's own with Back on the touchpad's right half, since an Xbox pad has no touchpad button; Back's own job, aiming with the right stick in place of a gyro, is left out. Needs a Vulkan 1.3 driver and no PS5 firmware. Every push to its main branch is a release, and a release may hold one OS's build only. The macOS build is x86-64, run under Rosetta 2."
+  "notes": "The emulator core (kyty_emulator), not the Qt launcher beside it: everything is a command-line flag and no settings file is read. --game takes a game folder, its eboot.bin, or a .zar. It writes saves, trophies and its shader cache into the folder it starts in, so it starts in a data folder of the account's own, and one copy serves every account. The launch turns the shader cache on, as KytyPS5's launcher does, and reports a 4K output, which KytyPS5 tells every game that does not ask. The pad layout is KytyPS5's own with Back on the touchpad's right half, since an Xbox pad has no touchpad button; Back's own job, aiming with the right stick in place of a gyro, is left out. Needs a Vulkan 1.3 driver and no PS5 firmware. Every push to its main branch is a release, and a release may hold one OS's build only. The macOS build is x86-64, run under Rosetta 2."
 }
